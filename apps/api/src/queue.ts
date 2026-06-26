@@ -1,6 +1,7 @@
 import { Queue } from "bullmq";
 import IORedis from "ioredis";
-import { agentQueueName, createBullMqConnectionOptions, type AgentJobPayload } from "@project-template/shared";
+import { agentQueueName, type AgentJobPayload } from "@project-template/shared";
+import { createBullMqConnectionOptions } from "@project-template/shared/node";
 
 export function createRedisPingConnection(redisUrl: string) {
   return new IORedis(redisUrl, {

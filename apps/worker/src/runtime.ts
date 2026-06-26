@@ -1,6 +1,7 @@
 import { Worker } from "bullmq";
 import { createLogger } from "@project-template/logger";
-import { agentQueueName, createBullMqConnectionOptions, type AgentJobPayload } from "@project-template/shared";
+import { agentQueueName, type AgentJobPayload } from "@project-template/shared";
+import { createBullMqConnectionOptions } from "@project-template/shared/node";
 import { handleAgentJob, type AgentJobResult } from "./job-handler.js";
 import type { WorkerEnv } from "./env.js";
 

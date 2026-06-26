@@ -13,4 +13,3 @@ export {
   type AgentJobName,
   type AgentJobPayload
 } from "./agent-job";
-export { createBullMqConnectionOptions, type BullMqConnectionOptions } from "./queue";
