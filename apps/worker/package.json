@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/worker.ts",
+    "dev": "tsx --env-file=../../.env watch src/worker.ts",
     "build": "tsup src/worker.ts --format esm",
     "lint": "eslint src",
     "typecheck": "tsc -p tsconfig.json --noEmit",
