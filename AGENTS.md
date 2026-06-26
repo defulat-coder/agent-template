@@ -72,9 +72,15 @@ test -f .codex/skills/<skill-name>/SKILL.md
 
 当前已安装技能：
 
+- `.agents/skills/agents-md`
+- `.agents/skills/chinese-commit-conventions`
 - `.agents/skills/shadcn`
 - `.agents/skills/impeccable`
 - `.agents/skills/react-best-practices`
+- `.agents/skills/next-cache-components-adoption`
+- `.agents/skills/next-cache-components-optimizer`
+- `.agents/skills/next-dev-loop`
+- `.agents/skills/supabase-postgres-best-practices`
 
 ## 模块地图
 
@@ -89,6 +95,7 @@ test -f .codex/skills/<skill-name>/SKILL.md
 
 ## 提交规则
 
+- 任何涉及 Git 提交、提交信息、changelog 或提交规范的工作，都必须使用 `.codex/skills/chinese-commit-conventions`。
 - 按功能点提交，不把无关改动混进同一个提交。
 - 提交前检查 `git status --short --branch`。
 - 不提交 `.env`、构建产物、缓存目录、`node_modules`。
