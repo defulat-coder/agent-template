@@ -1,8 +1,10 @@
 import { z } from "zod";
 
+export const defaultClaudeAgentModel = "claude-sonnet-4-5";
+
 export const AgentConfigSchema = z.object({
   apiKey: z.string().min(1).optional(),
-  model: z.string().min(1).default("claude-sonnet-4-5")
+  model: z.string().min(1).default(defaultClaudeAgentModel)
 });
 
 export type AgentConfig = z.infer<typeof AgentConfigSchema>;
@@ -24,6 +26,10 @@ export function getAgentConfigState(config: AgentConfig): AgentConfigState {
     configured: Boolean(config.apiKey),
     model: config.model
   };
+}
+
+export function getAgentConfigStateFromEnv(input: Record<string, unknown>): AgentConfigState {
+  return getAgentConfigState(parseAgentConfig(input));
 }
 
 export async function loadClaudeAgentSdk() {

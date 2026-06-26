@@ -1,4 +1,4 @@
-import { getAgentConfigState, parseAgentConfig } from "@project-template/agent";
+import { getAgentConfigStateFromEnv } from "@project-template/agent";
 import { AgentJobPayloadSchema, type AgentJobPayload } from "@project-template/shared";
 
 export type AgentJobResult = {
@@ -13,7 +13,7 @@ export async function handleAgentJob(
   env: Record<string, unknown>
 ): Promise<AgentJobResult> {
   const parsed = AgentJobPayloadSchema.parse(payload);
-  const agentState = getAgentConfigState(parseAgentConfig(env));
+  const agentState = getAgentConfigStateFromEnv(env);
 
   return {
     accepted: true,

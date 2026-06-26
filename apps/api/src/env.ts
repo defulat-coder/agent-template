@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { defaultClaudeAgentModel } from "@project-template/agent";
 
 export const EnvSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -7,7 +8,7 @@ export const EnvSchema = z.object({
   API_HOST: z.string().default("0.0.0.0"),
   API_PORT: z.coerce.number().int().positive().default(4000),
   ANTHROPIC_API_KEY: z.string().optional(),
-  CLAUDE_AGENT_MODEL: z.string().default("claude-sonnet-4-5")
+  CLAUDE_AGENT_MODEL: z.string().default(defaultClaudeAgentModel)
 });
 
 export type Env = z.infer<typeof EnvSchema>;

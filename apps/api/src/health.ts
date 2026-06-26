@@ -1,4 +1,4 @@
-import { getAgentConfigState, parseAgentConfig } from "@project-template/agent";
+import { getAgentConfigStateFromEnv } from "@project-template/agent";
 import { createHealthStatus, agentQueueName, type DependencyState, type HealthStatus } from "@project-template/shared";
 import { createRedisPingConnection } from "./queue.js";
 import type { Env } from "./env.js";
@@ -86,7 +86,6 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: s
 export async function getHealth(env: Env, options: HealthOptions): Promise<HealthStatus> {
   const adapters = options.adapters ?? (options.checkExternal ? createDefaultAdapters(env) : createSkippedAdapters());
   const [database, redis] = await Promise.all([adapters.database(), adapters.redis()]);
-  const agentConfig = parseAgentConfig(env);
   const status = database.status === "error" || redis.status === "error" ? "degraded" : "ok";
 
   return createHealthStatus({
@@ -99,6 +98,6 @@ export async function getHealth(env: Env, options: HealthOptions): Promise<Healt
       name: agentQueueName,
       status: redis.status === "error" ? "unavailable" : "ready"
     },
-    claude: getAgentConfigState(agentConfig)
+    claude: getAgentConfigStateFromEnv(env)
   });
 }
