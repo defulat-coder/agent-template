@@ -17,8 +17,6 @@ type AgentJob = {
 };
 
 type AgentWorker = {
-  on(event: "completed", handler: (job: AgentJob) => void): void;
-  on(event: "failed", handler: (job: AgentJob | undefined, error: Error) => void): void;
   close(): Promise<void>;
 };
 
@@ -26,6 +24,8 @@ type CreateWorkerOptions = {
   env: WorkerEnv;
   logger: RuntimeLogger;
   processJob(job: AgentJob): Promise<AgentJobResult>;
+  onCompleted(job: AgentJob): void;
+  onFailed(job: AgentJob | undefined, error: Error): void;
 };
 
 export type AgentWorkerRuntime = {
@@ -40,9 +40,14 @@ export type CreateAgentWorkerRuntimeOptions = {
 };
 
 function createBullMqWorker(options: CreateWorkerOptions): AgentWorker {
-  return new Worker<AgentJobPayload>(agentQueueName, options.processJob, {
+  const worker = new Worker<AgentJobPayload>(agentQueueName, options.processJob, {
     connection: createBullMqConnectionOptions(options.env.REDIS_URL)
   });
+
+  worker.on("completed", options.onCompleted);
+  worker.on("failed", options.onFailed);
+
+  return worker;
 }
 
 export function createAgentWorkerRuntime(options: CreateAgentWorkerRuntimeOptions): AgentWorkerRuntime {
@@ -58,15 +63,13 @@ export function createAgentWorkerRuntime(options: CreateAgentWorkerRuntimeOption
     async processJob(job) {
       logger.info({ jobId: job.id, jobName: job.name }, "processing agent job");
       return processJob(job.data, options.env);
+    },
+    onCompleted(job) {
+      logger.info({ jobId: job.id }, "agent job completed");
+    },
+    onFailed(job, error) {
+      logger.error({ jobId: job?.id, error }, "agent job failed");
     }
-  });
-
-  worker.on("completed", (job) => {
-    logger.info({ jobId: job.id }, "agent job completed");
-  });
-
-  worker.on("failed", (job, error) => {
-    logger.error({ jobId: job?.id, error }, "agent job failed");
   });
 
   return {

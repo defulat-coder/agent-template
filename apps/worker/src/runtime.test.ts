@@ -12,7 +12,10 @@ describe("createAgentWorkerRuntime", () => {
     let capturedProcessJob:
       | ((job: { id?: string; name: string; data: AgentJobPayload }) => Promise<unknown>)
       | undefined;
-    const handlers: Record<string, (...args: never[]) => void> = {};
+    let capturedOnCompleted: ((job: { id?: string; name: string; data: AgentJobPayload }) => void) | undefined;
+    let capturedOnFailed:
+      | ((job: { id?: string; name: string; data: AgentJobPayload } | undefined, error: Error) => void)
+      | undefined;
     let closed = false;
 
     const runtime = createAgentWorkerRuntime({
@@ -25,13 +28,12 @@ describe("createAgentWorkerRuntime", () => {
           logs.push(["error", data, message]);
         }
       },
-      createWorker({ processJob }) {
+      createWorker({ processJob, onCompleted, onFailed }) {
         capturedProcessJob = processJob;
+        capturedOnCompleted = onCompleted;
+        capturedOnFailed = onFailed;
 
         return {
-          on(event, handler) {
-            handlers[event] = handler as (...args: never[]) => void;
-          },
           async close() {
             closed = true;
           }
@@ -53,8 +55,8 @@ describe("createAgentWorkerRuntime", () => {
       claudeConfigured: false,
       model: "claude-sonnet-4-5"
     });
-    handlers.completed?.({ id: "job-1", name: "agent.run", data: payload } as never);
-    handlers.failed?.(undefined as never, new Error("boom") as never);
+    capturedOnCompleted?.({ id: "job-1", name: "agent.run", data: payload });
+    capturedOnFailed?.(undefined, new Error("boom"));
     await runtime.close();
 
     expect(closed).toBe(true);
