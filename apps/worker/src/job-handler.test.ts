@@ -15,4 +15,8 @@ describe("handleAgentJob", () => {
     expect(result.promptLength).toBe(23);
     expect(result.claudeConfigured).toBe(false);
   });
+
+  it("rejects invalid queued payloads at the Worker seam", async () => {
+    await expect(handleAgentJob({ prompt: "", requestedAt: "not-a-date" }, {})).rejects.toThrow();
+  });
 });

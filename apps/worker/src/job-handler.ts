@@ -1,5 +1,5 @@
 import { getAgentConfigStateFromEnv } from "@agent-template/agent";
-import { AgentJobPayloadSchema, type AgentJobPayload } from "@agent-template/shared";
+import { AgentJobPayloadSchema } from "@agent-template/shared";
 
 export type AgentJobResult = {
   accepted: true;
@@ -9,7 +9,7 @@ export type AgentJobResult = {
 };
 
 export async function handleAgentJob(
-  payload: AgentJobPayload,
+  payload: unknown,
   env: Record<string, unknown>
 ): Promise<AgentJobResult> {
   const parsed = AgentJobPayloadSchema.parse(payload);
