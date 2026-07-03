@@ -17,9 +17,14 @@ export default async function Home() {
                 Next.js、Fastify、BullMQ、Prisma、Redis、Claude Agent runtime 和 Eve Agent runtime 已按 monorepo 结构拆分。
               </p>
             </div>
-            <Button asChild>
-              <a href="http://localhost:4000/health">查看 API Health</a>
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button asChild>
+                <a href="/agent">打开 Agent 控制台</a>
+              </Button>
+              <Button asChild>
+                <a href="http://localhost:4000/health">查看 API Health</a>
+              </Button>
+            </div>
           </div>
         </section>
 

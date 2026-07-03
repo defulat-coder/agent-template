@@ -23,6 +23,7 @@
 - shadcn/ui 相关改动优先参考 `.codex/skills/shadcn`。
 - React/Next.js 性能相关改动优先参考 `.codex/skills/react-best-practices`。
 - 复杂视觉和体验优化优先参考 `.codex/skills/impeccable`。
+- 前端 Agent 体验可参考 `https://github.com/shadcn-labs/agentcn` 的 Agent preview、运行事件和 artifact tabs；不要从这里导入 Eve/Flue recipe 或后端 runtime 逻辑。
 
 ## 验证
 
