@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { normalizeAgentRunEvent, type AgentArtifact, type AgentRunEvent } from "@/lib/agent-run-events";
+import { normalizeAgentRunEvent, type AgentArtifact, type AgentRunEvent } from "@agent-template/shared";
 
 export function AgentRunTimeline({ events }: { events: unknown[] }) {
   const normalizedEvents = useMemo(() => events.map(normalizeAgentRunEvent), [events]);

@@ -8,6 +8,7 @@
 
 - 健康检查响应 schema 放这里。
 - BullMQ job name、queue name、payload schema 放这里。
+- Agent run event protocol、artifact schema 和 event normalizer 放这里。
 - Redis URL 到 BullMQ connection options 的纯解析放这里。
 - 导出的类型应由 schema 推导，避免 schema 和 type 分叉。
 

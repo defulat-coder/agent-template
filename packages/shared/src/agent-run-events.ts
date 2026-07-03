@@ -1,18 +1,24 @@
-export type AgentArtifact = {
-  id: string;
-  label: string;
-  hint: string;
-  content: string;
-};
+import { z } from "zod";
 
-export type AgentRunEvent =
-  | { kind: "tool-call"; tool: string; input: string }
-  | { kind: "tool-result"; tool: string }
-  | { kind: "text"; text: string }
-  | { kind: "done"; result: string }
-  | { kind: "error"; message: string }
-  | { kind: "artifacts"; tabs: AgentArtifact[] }
-  | { kind: "unknown"; text: string };
+export const AgentArtifactSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  hint: z.string(),
+  content: z.string()
+});
+
+export const AgentRunEventSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("tool-call"), tool: z.string(), input: z.string() }),
+  z.object({ kind: z.literal("tool-result"), tool: z.string() }),
+  z.object({ kind: z.literal("text"), text: z.string() }),
+  z.object({ kind: z.literal("done"), result: z.string() }),
+  z.object({ kind: z.literal("error"), message: z.string() }),
+  z.object({ kind: z.literal("artifacts"), tabs: z.array(AgentArtifactSchema) }),
+  z.object({ kind: z.literal("unknown"), text: z.string() })
+]);
+
+export type AgentArtifact = z.infer<typeof AgentArtifactSchema>;
+export type AgentRunEvent = z.infer<typeof AgentRunEventSchema>;
 
 export function normalizeAgentRunEvent(event: unknown): AgentRunEvent {
   if (!isRecord(event) || typeof event.type !== "string") {
@@ -49,13 +55,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isAgentArtifact(value: unknown): value is AgentArtifact {
-  return (
-    isRecord(value) &&
-    typeof value.id === "string" &&
-    typeof value.label === "string" &&
-    typeof value.hint === "string" &&
-    typeof value.content === "string"
-  );
+  return AgentArtifactSchema.safeParse(value).success;
 }
 
 function formatValue(value: unknown, spaces?: number) {
@@ -63,5 +63,5 @@ function formatValue(value: unknown, spaces?: number) {
     return value;
   }
 
-  return JSON.stringify(value, null, spaces);
+  return JSON.stringify(value, null, spaces) ?? String(value);
 }
