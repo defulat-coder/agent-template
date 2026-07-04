@@ -24,3 +24,10 @@
 - 官方文档: `https://mcp-toolbox.dev/`
 - PostgreSQL source: `https://mcp-toolbox.dev/integrations/postgres/source/`
 - Toolsets: `https://mcp-toolbox.dev/documentation/configuration/toolsets/`
+
+## 验证
+
+```bash
+docker compose config
+docker compose up -d postgres toolbox
+```

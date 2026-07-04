@@ -1,6 +1,6 @@
-# Triage Labels
+# issue triage 标签
 
-| Label in mattpocock/skills | Label in our tracker | Meaning |
+| skill 标签 | 本地 issue 标签 | 含义 |
 | --- | --- | --- |
 | `needs-triage` | `needs-triage` | 需要维护者评估 |
 | `needs-info` | `needs-info` | 等待补充信息 |
