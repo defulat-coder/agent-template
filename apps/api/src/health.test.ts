@@ -75,11 +75,30 @@ describe("getHealth", () => {
   });
 
   it("keeps Eve Agent runtime env config available after API env parsing", async () => {
+    const status = await getHealth(
+      loadEnv({
+        NODE_ENV: "test",
+        AGENT_RUNTIME: "eve",
+        EVE_AGENT_HOST: "http://127.0.0.1:3000",
+        EVE_AGENT_MODEL: "eve-custom"
+      }),
+      {
+        checkExternal: false
+      }
+    );
+
+    expect(status.agent.runtime).toBe("eve");
+    expect(status.agent.configured).toBe(true);
+    expect(status.agent.model).toBe("eve-custom");
+  });
+
+  it("reports an unconfigured Eve Agent runtime without an Eve Agent host", async () => {
     const status = await getHealth(loadEnv({ NODE_ENV: "test", AGENT_RUNTIME: "eve", EVE_AGENT_MODEL: "eve-custom" }), {
       checkExternal: false
     });
 
     expect(status.agent.runtime).toBe("eve");
+    expect(status.agent.configured).toBe(false);
     expect(status.agent.model).toBe("eve-custom");
   });
 });

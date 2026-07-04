@@ -1,8 +1,8 @@
 import { Worker } from "bullmq";
+import { runAgentJob, type AgentJobResult } from "@agent-template/agent";
 import { createLogger } from "@agent-template/logger";
 import { agentQueueName, type AgentJobPayload } from "@agent-template/shared";
 import { createBullMqConnectionOptions } from "@agent-template/shared/node";
-import { handleAgentJob, type AgentJobResult } from "./job-handler.js";
 import type { WorkerEnv } from "./env.js";
 
 type RuntimeLogger = {
@@ -55,7 +55,7 @@ export function createAgentWorkerRuntime(options: CreateAgentWorkerRuntimeOption
   const processJob =
     options.processJob ??
     ((payload, env) => {
-      return handleAgentJob(payload, env);
+      return runAgentJob(payload, env);
     });
   const worker = (options.createWorker ?? createBullMqWorker)({
     env: options.env,

@@ -21,7 +21,7 @@ describe("Agent runtime selector", () => {
     const state = getAgentRuntimeStateFromEnv({ AGENT_RUNTIME: "eve" });
 
     expect(state.runtime).toBe("eve");
-    expect(state.configured).toBe(true);
+    expect(state.configured).toBe(false);
   });
 
   it("keeps runtime-specific env config behind the Agent runtime env interface", () => {
@@ -31,8 +31,15 @@ describe("Agent runtime selector", () => {
       EVE_AGENT_MODEL: defaultEveAgentModel
     });
 
-    expect(getAgentRuntimeStateFromEnv({ AGENT_RUNTIME: "eve", EVE_AGENT_MODEL: "eve-custom" })).toMatchObject({
+    expect(
+      getAgentRuntimeStateFromEnv({
+        AGENT_RUNTIME: "eve",
+        EVE_AGENT_HOST: "http://127.0.0.1:3000",
+        EVE_AGENT_MODEL: "eve-custom"
+      })
+    ).toMatchObject({
       runtime: "eve",
+      configured: true,
       model: "eve-custom"
     });
   });
@@ -44,14 +51,26 @@ describe("Agent runtime selector", () => {
           prompt: "Summarize this template",
           requestedAt: "2026-06-26T00:00:00.000Z"
         },
-        { AGENT_RUNTIME: "eve", EVE_AGENT_MODEL: "eve-custom" }
+        { AGENT_RUNTIME: "eve", EVE_AGENT_HOST: "http://127.0.0.1:3000", EVE_AGENT_MODEL: "eve-custom" },
+        {
+          runEve: async () => ({
+            status: "completed",
+            events: [{ type: "message.completed" }],
+            output: "Done",
+            sessionId: "eve-session-1"
+          })
+        }
       )
     ).resolves.toEqual({
       accepted: true,
       promptLength: 23,
       runtime: "eve",
       configured: true,
-      model: "eve-custom"
+      model: "eve-custom",
+      status: "completed",
+      events: [{ type: "message.completed" }],
+      output: "Done",
+      sessionId: "eve-session-1"
     });
   });
 

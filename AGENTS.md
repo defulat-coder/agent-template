@@ -14,6 +14,7 @@
 
 - 用户可见文案默认使用中文，技术名词保留英文，例如 Next.js、Fastify、Prisma、Redis、BullMQ。
 - 依赖版本必须锁住大版本：优先使用 `^x.y.z`；`0.x` 依赖使用 `>=0.y.z <1.0.0`。
+- 例外：`packages/agent-eve` 的官方 `eve` 依赖按用户要求使用 `latest`，不要锁版本或 major range。
 - 共享代码优先放在 `packages/`，应用层只编排具体运行流程。
 - 不要把业务假设写死进模板；模板应保持可复用、低耦合。
 - 修改后按影响范围运行验证，最少运行对应 package 的 `lint`、`typecheck`、`test`。
@@ -74,7 +75,7 @@ docker compose up -d
 
 - `apps/web`: 用户界面和浏览器端体验。
 - `apps/api`: HTTP API、健康检查、Agent job intake 和任务入队。
-- `apps/worker`: BullMQ 后台任务消费、Worker runtime 装配和 payload validation。
+- `apps/worker`: BullMQ 后台任务消费和 Worker runtime 装配。
 - `packages/ui`: 共享 React UI 组件和样式工具。
 - `packages/shared`: 前后端共享 Zod schema、类型和常量。
 - `packages/db`: Prisma schema、Prisma Client 和数据库配置。
@@ -88,6 +89,10 @@ docker compose up -d
 - Agent job intake 的外部 seam 是 `AgentJobIntake.enqueue(input)`；Fastify route 不直接管理 Redis URL 或 BullMQ lifecycle。
 - Worker runtime 的 BullMQ event wiring 留在 Worker adapter implementation 内；测试穿过 `onCompleted` / `onFailed` 回调 interface。
 - Agent runtime 只通过环境变量 `AGENT_RUNTIME=claude|eve` 选择；不要从 job payload 覆盖 runtime。
+- `runAgentJob` 是 Agent job execution seam；它负责 payload validation、runtime dispatch 和 execution result assembly。
+- 未配置的 runtime 返回 `status: "skipped"` 和原因，不伪装成已执行成功。
+- Eve execution adapter 通过 `EVE_AGENT_HOST` 连接官方 Eve HTTP API；`EVE_AGENT_MODEL` 同时驱动 runtime state 和 `agent/agent.ts`。
+- Agent run event producer seam 在 runtime adapter 返回值上：`AgentJobResult.events` 只传递 runtime 已产生的原始事件；不要提前新增 streaming endpoint 或持久化 store。
 - `apps/*` 只依赖 `@agent-template/agent` 的公共 runtime 边界，不直接依赖具体 runtime package。
 - Queue runtime 暂不抽成新 module；只有新增第三个 queue consumer、queue option 规则增长或 adapter 需要替换测试时再打开。
 

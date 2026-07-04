@@ -11,6 +11,10 @@
 | completed | 修正 Worker payload validation seam | Worth exploring | `handleAgentJob` interface 已接收 `unknown`，validation 留在 implementation 内 |
 | completed | 集中 Agent runtime env config seam | Strong | Agent runtime env 由 `packages/agent` 统一维护，API/Worker env module 只组合该 seam |
 | completed | Deepen Agent runtime execution module | Strong | `runAgentJob` 已成为 Worker 调用的 Agent job execution seam |
+| completed | 收拢 Eve Agent runtime model 来源 | Strong | `src/config.ts` 同时驱动 runtime state 和 `agent/agent.ts` |
+| completed | 接入真实 runtime execution adapter | Strong | `runAgentJob` dispatch 到 Claude/Eve runtime package；未配置返回 skipped |
+| completed | 删除 Worker job-handler pass-through | Worth exploring | Worker runtime 直接委派 `runAgentJob` |
+| completed | 建立 Agent run event producer seam | Speculative | runtime adapter 返回原始 events；streaming/store 暂不新增 |
 | completed | Define shared Agent run event protocol | Worth exploring | Agent run event protocol 和 normalizer 已移入 `packages/shared` |
 | completed | Narrow Agent job HTTP contract duplication | Speculative | Agent job accepted metadata schema 已移入 `packages/shared`，Web/API 共用 |
 | deferred | 收拢 Queue runtime knowledge | Worth exploring | 当前只有两个装配点；继续抽象会形成 shallow module |
@@ -54,10 +58,38 @@
 
 ### Deepen Agent runtime execution module
 
-- 日期：2026-07-03
-- locality：Agent job payload validation、runtime dispatch 和 execution result assembly 集中到 `packages/agent` 的 `runAgentJob`。
-- leverage：Worker `handleAgentJob` 只作为 adapter 委派给 Agent job execution seam，后续接入真实 Claude/Eve execution 不需要把逻辑塞回 Worker。
-- 聚焦验证：`vitest` 覆盖 `packages/agent` 和 `apps/worker`；`tsc`、`eslint` 和 `tsup` 覆盖受影响 packages。
+- 日期：2026-07-04
+- locality：Agent job payload validation、runtime dispatch、execution result assembly 和 runtime adapter 调用集中到 `packages/agent` 的 `runAgentJob`。
+- leverage：Worker 只穿过一个 Agent job execution seam；Claude/Eve execution 差异留在各自 runtime package。
+- 聚焦验证：`pnpm --filter @agent-template/agent test`、`pnpm --filter @agent-template/agent typecheck`、`pnpm --filter @agent-template/worker test`、`pnpm --filter @agent-template/worker typecheck`
+
+### 收拢 Eve Agent runtime model 来源
+
+- 日期：2026-07-04
+- locality：`EVE_AGENT_MODEL` 读取集中到 `packages/agent-eve/src/config.ts`，runtime state 和 Eve authored surface 不再分裂。
+- leverage：一个测试面能证明 runtime state 和 loaded `defineAgent` 使用同一 model source。
+- 聚焦验证：`pnpm --filter @agent-template/agent-eve test`、`pnpm --filter @agent-template/agent-eve typecheck`
+
+### 接入真实 runtime execution adapter
+
+- 日期：2026-07-04
+- locality：Claude execution 留在 `packages/agent-claude`，Eve execution 留在 `packages/agent-eve`，`packages/agent` 只做 dispatch。
+- leverage：配置后可穿过 Claude SDK `query` 或官方 Eve `Client`；未配置时返回 `status: "skipped"`，本地模板不要求外部凭据。
+- 聚焦验证：`pnpm --filter @agent-template/agent-claude test`、`pnpm --filter @agent-template/agent-claude typecheck`、`pnpm --filter @agent-template/agent-eve test`、`pnpm --filter @agent-template/agent-eve typecheck`、`pnpm --filter @agent-template/agent test`、`pnpm --filter @agent-template/agent typecheck`
+
+### 删除 Worker job-handler pass-through
+
+- 日期：2026-07-04
+- deletion test：删除 `apps/worker/src/job-handler.ts` 没有把 complexity 推回多个调用方；Worker runtime 直接委派 `runAgentJob` 更深。
+- leverage：Worker 测试保留在 `createAgentWorkerRuntime` interface，不再重复测试 Agent runtime selector。
+- 聚焦验证：`pnpm --filter @agent-template/worker test`、`pnpm --filter @agent-template/worker typecheck`
+
+### 建立 Agent run event producer seam
+
+- 日期：2026-07-04
+- locality：runtime adapter 已经拿到的 Claude SDK messages 和 Eve stream events 通过 `AgentJobResult.events` 返回。
+- leverage：后续需要 UI timeline 时可从 job result/store 接入 shared event normalizer；当前不新增 streaming endpoint 或持久化 store。
+- 聚焦验证：`pnpm --filter @agent-template/agent test`、`pnpm --filter @agent-template/agent-eve test`、对应 typecheck
 
 ### Define shared Agent run event protocol
 

@@ -16,6 +16,10 @@ _Avoid_: Job route, enqueue helper
 A selectable implementation of Agent behavior. The template may include multiple Agent runtimes, but a deployment chooses one through environment configuration.
 _Avoid_: Agent type, Agent mode
 
+**Agent run event**:
+An event emitted while an Agent runtime executes an Agent job.
+_Avoid_: UI timeline item, log line
+
 **Claude Agent runtime**:
 A Claude Agent SDK backed Agent runtime.
 _Avoid_: Cloud runtime, Claude path
