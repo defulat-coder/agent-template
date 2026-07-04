@@ -11,6 +11,7 @@
 - `prisma/seed.ts` 写入确定性的 Agent 平台示例数据。
 - `src/index.ts` 导出可复用 Prisma Client。
 - 默认数据库连接使用 `localhost:15432`，避免和本机默认 PostgreSQL 冲突。
+- Prisma 目录内的 schema、migration、seed 规则见 `prisma/AGENTS.md`。
 
 ## 不应该做
 
@@ -35,3 +36,11 @@ pnpm --filter @agent-template/db build
 docker compose up -d
 pnpm db:migrate
 ```
+
+生产或 CI 只应用已提交 migration：`pnpm --filter @agent-template/db prisma migrate deploy --schema prisma/schema.prisma`。
+
+## 官方参考
+
+- Prisma Migrate 开发/生产工作流: `https://www.prisma.io/docs/orm/prisma-migrate/workflows/development-and-production`
+- 部署数据库变更: `https://www.prisma.io/docs/orm/prisma-client/deployment/deploy-database-changes-with-prisma-migrate`
+- Seeding: `https://www.prisma.io/docs/orm/prisma-migrate/workflows/seeding`
