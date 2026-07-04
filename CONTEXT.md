@@ -24,6 +24,10 @@ _Avoid_: Agent work, job result
 An event emitted while an Agent runtime executes an Agent run.
 _Avoid_: UI timeline item, log line
 
+**Template event**:
+A reusable sample event that records Agent platform activity for demos, local verification, and Toolbox inspection.
+_Avoid_: Database row, log line
+
 **Tool provider**:
 An external capability source that exposes tools an Agent run may use.
 _Avoid_: Agent runtime, app service

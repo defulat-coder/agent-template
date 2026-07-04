@@ -15,6 +15,8 @@ cp .env.example .env
 pnpm install
 docker compose up -d
 pnpm db:generate
+pnpm db:migrate
+pnpm db:seed
 pnpm dev
 ```
 
@@ -37,6 +39,7 @@ pnpm typecheck
 pnpm test
 pnpm db:generate
 pnpm db:migrate
+pnpm db:seed
 ```
 
 ## 目录结构
@@ -57,7 +60,7 @@ packages/
   shared/        共享 Zod schema 和 TypeScript 类型
 ```
 
-`apps/toolbox/tools.yaml` 定义生产 Agent 可加载的数据库工具。默认 toolset 是 `agent_template_read_model`，只包含 `TemplateEvent` 的只读查询；prebuilt generic tools 仅用于开发期探索，不作为生产 Agent 默认能力。
+`apps/toolbox/tools.yaml` 定义生产 Agent 可加载的数据库工具。默认 toolset 是 `agent_template_read_model`，只包含 `TemplateEvent` 的只读查询；`pnpm db:seed` 会写入确定性的 Agent run 示例事件。prebuilt generic tools 仅用于开发期探索，不作为生产 Agent 默认能力。
 
 Kimi Code 通过 Anthropic-compatible 协议接入两套 Agent runtime：
 

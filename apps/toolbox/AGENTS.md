@@ -30,4 +30,6 @@
 ```bash
 docker compose config
 docker compose up -d postgres toolbox
+pnpm db:migrate
+pnpm db:seed
 ```

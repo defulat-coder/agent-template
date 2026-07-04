@@ -8,6 +8,7 @@
 
 - `prisma/schema.prisma` 是数据模型来源。
 - `prisma.config.ts` 管理 Prisma 7 datasource 配置。
+- `prisma/seed.ts` 写入确定性的 Agent 平台示例数据。
 - `src/index.ts` 导出可复用 Prisma Client。
 - 默认数据库连接使用 `localhost:15432`，避免和本机默认 PostgreSQL 冲突。
 
@@ -22,6 +23,7 @@
 
 ```bash
 pnpm db:generate
+pnpm db:seed
 pnpm --filter @agent-template/db lint
 pnpm --filter @agent-template/db typecheck
 pnpm --filter @agent-template/db build

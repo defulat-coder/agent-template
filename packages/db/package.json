@@ -10,7 +10,8 @@
     "build": "tsc -p tsconfig.json",
     "db:generate": "prisma generate --schema prisma/schema.prisma",
     "db:migrate": "prisma migrate dev --schema prisma/schema.prisma --name init",
-    "lint": "eslint src",
+    "db:seed": "tsx prisma/seed.ts",
+    "lint": "eslint src prisma.config.ts prisma/seed.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },

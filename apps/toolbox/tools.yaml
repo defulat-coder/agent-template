@@ -13,7 +13,7 @@ type: postgres-sql
 source: agent-template-postgres
 description: |
   List recent template events for read-only Agent inspection.
-  Use this tool only when the user asks about recent template event records.
+  Use this tool only when the user asks about recent Agent platform events.
 statement: |
   SELECT id, type, payload, "createdAt"
   FROM "TemplateEvent"
@@ -44,8 +44,54 @@ parameters:
     type: string
     description: Template event id.
 ---
+kind: tool
+name: list-agent-runs
+type: postgres-sql
+source: agent-template-postgres
+description: |
+  List recent Agent runs from template events.
+  Use this tool when the user asks for Agent run summaries or recent runtime outcomes.
+statement: |
+  SELECT
+    payload->>'runId' AS "runId",
+    MIN("createdAt") AS "firstEventAt",
+    MAX("createdAt") AS "lastEventAt",
+    COUNT(*)::int AS "eventCount",
+    MAX(CASE WHEN type IN ('agent.run.completed', 'agent.run.failed') THEN type END) AS "terminalEvent"
+  FROM "TemplateEvent"
+  WHERE payload->>'runId' IS NOT NULL
+  GROUP BY payload->>'runId'
+  ORDER BY MAX("createdAt") DESC
+  LIMIT $1;
+parameters:
+  - name: limit
+    type: integer
+    description: Maximum number of Agent runs to return.
+    default: 20
+    minValue: 1
+    maxValue: 100
+---
+kind: tool
+name: list-agent-run-timeline
+type: postgres-sql
+source: agent-template-postgres
+description: |
+  List the event timeline for one Agent run.
+  Use this tool only when the user provides a concrete runId.
+statement: |
+  SELECT id, type, payload, "createdAt"
+  FROM "TemplateEvent"
+  WHERE payload->>'runId' = $1
+  ORDER BY "createdAt" ASC;
+parameters:
+  - name: runId
+    type: string
+    description: Agent run id.
+---
 kind: toolset
 name: agent_template_read_model
 tools:
   - list-template-events
   - get-template-event
+  - list-agent-runs
+  - list-agent-run-timeline
