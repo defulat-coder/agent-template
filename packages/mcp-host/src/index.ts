@@ -2,7 +2,12 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { AgentRunsDashboardDataSchema, type AgentRunEvent, type AgentRunsDashboardData } from "@agent-template/shared";
+import {
+  AgentRunsDashboardDataSchema,
+  type AgentJsonRenderUiPatch,
+  type AgentRunEvent,
+  type AgentRunsDashboardData
+} from "@agent-template/shared";
 import { z } from "zod";
 
 export const defaultMcpToolboxServerId = "toolbox";
@@ -154,14 +159,7 @@ export function createMcpHost(config: McpHostConfig, options: McpHostOptions = {
         kind: "tool-result",
         tool
       },
-      {
-        kind: "ui",
-        ui: {
-          component: "agent-runs-dashboard",
-          data,
-          title: "Agent 运行分析"
-        }
-      }
+      ...createJsonRenderReportEvents("agent-runs-report", "Agent 运行分析", data)
     ];
   }
 
@@ -186,6 +184,89 @@ export function createMcpHost(config: McpHostConfig, options: McpHostOptions = {
     callTool,
     createAgentRunsDashboard,
     createAgentRunsDashboardEvents
+  };
+}
+
+function createJsonRenderReportEvents(id: string, title: string, data: AgentRunsDashboardData): AgentRunEvent[] {
+  return createAgentRunsReportPatches(data).map((patch) => ({
+    kind: "ui",
+    ui: {
+      component: "json-render",
+      id,
+      patch,
+      title
+    }
+  }));
+}
+
+function createAgentRunsReportPatches(data: AgentRunsDashboardData): AgentJsonRenderUiPatch["patch"][] {
+  const failureRate = `${Math.round(data.metrics.failureRate * 100)}%`;
+
+  return [
+    { op: "add", path: "/root", value: "report" },
+    { op: "add", path: "/elements", value: {} },
+    {
+      op: "add",
+      path: "/elements/report",
+      value: {
+        children: ["metrics", "runs-table"],
+        props: {
+          description: "来自 MCP Host 调用 Toolbox 后随 Chat SSE 流式返回。",
+          title: "Agent 运行分析"
+        },
+        type: "Report"
+      }
+    },
+    {
+      op: "add",
+      path: "/elements/metrics",
+      value: {
+        children: ["metric-total", "metric-completed", "metric-failed", "metric-failure-rate"],
+        props: {},
+        type: "MetricGrid"
+      }
+    },
+    createMetricPatch("metric-total", "总运行数", String(data.metrics.totalRuns)),
+    createMetricPatch("metric-completed", "完成", String(data.metrics.completedRuns)),
+    createMetricPatch("metric-failed", "失败", String(data.metrics.failedRuns)),
+    createMetricPatch("metric-failure-rate", "失败率", failureRate),
+    {
+      op: "add",
+      path: "/elements/runs-table",
+      value: {
+        children: [],
+        props: {
+          columns: [
+            { key: "runId", label: "Run ID" },
+            { key: "eventCount", label: "事件数" },
+            { key: "terminalEvent", label: "终态" },
+            { key: "firstEventAt", label: "开始" },
+            { key: "lastEventAt", label: "结束" }
+          ],
+          rows: data.runs.map((run) => ({
+            eventCount: run.eventCount,
+            firstEventAt: run.firstEventAt,
+            lastEventAt: run.lastEventAt,
+            runId: run.runId,
+            terminalEvent: run.terminalEvent ?? "运行中"
+          })),
+          title: "最近 Agent runs"
+        },
+        type: "DataTable"
+      }
+    }
+  ];
+}
+
+function createMetricPatch(id: string, label: string, value: string): AgentJsonRenderUiPatch["patch"] {
+  return {
+    op: "add",
+    path: `/elements/${id}`,
+    value: {
+      children: [],
+      props: { label, value },
+      type: "Metric"
+    }
   };
 }
 

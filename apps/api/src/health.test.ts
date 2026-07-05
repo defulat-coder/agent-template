@@ -141,24 +141,9 @@ describe("POST /agent/chat", () => {
           {
             kind: "ui",
             ui: {
-              component: "agent-runs-dashboard",
-              data: {
-                metrics: {
-                  completedRuns: 1,
-                  failedRuns: 0,
-                  failureRate: 0,
-                  totalRuns: 1
-                },
-                runs: [
-                  {
-                    eventCount: 4,
-                    firstEventAt: "2026-07-04T11:30:00.000Z",
-                    lastEventAt: "2026-07-04T11:30:22.000Z",
-                    runId: "run_knowledge_001",
-                    terminalEvent: "agent.run.completed"
-                  }
-                ]
-              },
+              component: "json-render",
+              id: "agent-runs-report",
+              patch: { op: "add", path: "/root", value: "report" },
               title: "Agent 运行分析"
             }
           }
@@ -189,7 +174,8 @@ describe("POST /agent/chat", () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.body).toContain('"kind":"tool-call","tool":"mcp-host/toolbox/list-agent-runs"');
-    expect(response.body).toContain('"kind":"ui","ui":{"component":"agent-runs-dashboard"');
+    expect(response.body).toContain('"kind":"ui","ui":{"component":"json-render"');
+    expect(response.body).toContain('"patch":{"op":"add","path":"/root","value":"report"}');
   });
 });
 

@@ -45,6 +45,17 @@ describe("AgentRunEventSchema", () => {
         }
       })
     ).toMatchObject({ kind: "ui" });
+    expect(
+      AgentRunEventSchema.parse({
+        kind: "ui",
+        ui: {
+          component: "json-render",
+          id: "agent-runs-report",
+          patch: { op: "add", path: "/root", value: "report" },
+          title: "Agent 运行分析"
+        }
+      })
+    ).toMatchObject({ kind: "ui", ui: { component: "json-render" } });
     expect(AgentRunEventSchema.parse({ kind: "done", result: "ok" })).toEqual({ kind: "done", result: "ok" });
   });
 

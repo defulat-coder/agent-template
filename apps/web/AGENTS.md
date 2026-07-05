@@ -24,6 +24,8 @@
 - React/Next.js 性能相关改动优先参考 `.codex/skills/react-best-practices`。
 - 复杂视觉和体验优化优先参考 `.codex/skills/impeccable`。
 - 前端 Agent 体验可参考 `https://github.com/shadcn-labs/agentcn` 的 Agent preview、运行事件和 artifact tabs；不要从这里导入 Eve/Flue recipe 或后端 runtime 逻辑。
+- Structured Agent UI 使用 `@json-render/react` 渲染共享事件里的 `json-render` patch stream；组件目录留在前端，优先复用 `Report`、`MetricGrid`、`Metric`、`DataTable`，不要为每个工具结果硬编码独立报表页面。
+- json-render 参考官方仓库：`https://github.com/vercel-labs/json-render`。
 
 ## 验证
 

@@ -48,6 +48,10 @@ _Avoid_: MCP server, Tool provider
 A protocol client owned by an MCP Host or Agent runtime that maintains one connection to one MCP Server.
 _Avoid_: Web page, Agent runtime
 
+**Structured Agent UI**:
+A structured, streamable UI artifact emitted during an Agent run so tabular or report-like data can be rendered inside Chat while the normal text answer remains available.
+_Avoid_: Dashboard page, hard-coded report
+
 **Claude Agent runtime**:
 A Claude Agent SDK backed Agent runtime.
 _Avoid_: Cloud runtime, Claude path

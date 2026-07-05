@@ -25,11 +25,32 @@ export const AgentRunsDashboardDataSchema = z.object({
   )
 });
 
-export const AgentRunUiSchema = z.object({
+const JsonRenderPatchSchema = z.union([
+  z.object({ op: z.literal("add"), path: z.string(), value: z.unknown() }),
+  z.object({ op: z.literal("replace"), path: z.string(), value: z.unknown() }),
+  z.object({ op: z.literal("remove"), path: z.string() }),
+  z.object({ from: z.string(), op: z.literal("move"), path: z.string() }),
+  z.object({ from: z.string(), op: z.literal("copy"), path: z.string() }),
+  z.object({ op: z.literal("test"), path: z.string(), value: z.unknown() })
+]);
+
+export const AgentRunsDashboardUiSchema = z.object({
   component: z.literal("agent-runs-dashboard"),
   title: z.string(),
   data: AgentRunsDashboardDataSchema
 });
+
+export const AgentJsonRenderUiPatchSchema = z.object({
+  component: z.literal("json-render"),
+  id: z.string(),
+  patch: JsonRenderPatchSchema,
+  title: z.string()
+});
+
+export const AgentRunUiSchema = z.discriminatedUnion("component", [
+  AgentRunsDashboardUiSchema,
+  AgentJsonRenderUiPatchSchema
+]);
 
 export const AgentRunEventSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("tool-call"), tool: z.string(), input: z.string() }),
@@ -44,5 +65,7 @@ export const AgentRunEventSchema = z.discriminatedUnion("kind", [
 
 export type AgentArtifact = z.infer<typeof AgentArtifactSchema>;
 export type AgentRunsDashboardData = z.infer<typeof AgentRunsDashboardDataSchema>;
+export type AgentRunsDashboardUi = z.infer<typeof AgentRunsDashboardUiSchema>;
+export type AgentJsonRenderUiPatch = z.infer<typeof AgentJsonRenderUiPatchSchema>;
 export type AgentRunUi = z.infer<typeof AgentRunUiSchema>;
 export type AgentRunEvent = z.infer<typeof AgentRunEventSchema>;

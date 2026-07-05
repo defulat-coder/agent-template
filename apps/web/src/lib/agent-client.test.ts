@@ -81,6 +81,7 @@ describe("streamAgentChat", () => {
       body: createStream(
         [
           'event: agent-event\ndata: {"kind":"text","text":"Working"}\n\n',
+          'event: agent-event\ndata: {"kind":"ui","ui":{"component":"json-render","id":"agent-runs-report","patch":{"op":"add","path":"/root","value":"report"},"title":"Agent 运行分析"}}\n\n',
           'event: result\ndata: {"promptLength":9,"runtime":"claude","configured":true,"model":"kimi-for-coding","status":"completed","events":[{"kind":"text","text":"Working"},{"kind":"done","result":"Done"}],"output":"Done"}\n\n'
         ].join("")
       ),
@@ -106,7 +107,18 @@ describe("streamAgentChat", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt: "Run agent" })
     });
-    expect(events).toEqual([{ kind: "text", text: "Working" }]);
+    expect(events).toEqual([
+      { kind: "text", text: "Working" },
+      {
+        kind: "ui",
+        ui: {
+          component: "json-render",
+          id: "agent-runs-report",
+          patch: { op: "add", path: "/root", value: "report" },
+          title: "Agent 运行分析"
+        }
+      }
+    ]);
   });
 });
 

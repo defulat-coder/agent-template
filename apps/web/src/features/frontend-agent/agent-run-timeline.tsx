@@ -1,9 +1,18 @@
 "use client";
 
-import { useState } from "react";
-import type { AgentArtifact, AgentRunEvent, AgentRunUi } from "@agent-template/shared";
+import { useMemo, useState } from "react";
+import { applySpecStreamPatch } from "@json-render/core";
+import type { Spec } from "@json-render/react";
+import type { AgentArtifact, AgentJsonRenderUiPatch, AgentRunEvent, AgentRunUi, AgentRunsDashboardUi } from "@agent-template/shared";
+import { JsonRenderReport } from "./json-render-report";
+
+type TimelineRow =
+  | { kind: "event"; event: AgentRunEvent }
+  | { id: string; kind: "json-render"; patches: AgentJsonRenderUiPatch[]; title: string };
 
 export function AgentRunTimeline({ events }: { events: AgentRunEvent[] }) {
+  const rows = collapseJsonRenderEvents(events);
+
   return (
     <section className="rounded-md border border-slate-200 bg-white p-4">
       <div className="flex flex-col gap-1">
@@ -11,10 +20,14 @@ export function AgentRunTimeline({ events }: { events: AgentRunEvent[] }) {
         <p className="text-sm text-slate-500">来自当前 Agent Chat SSE 连接的运行事件。</p>
       </div>
 
-      {events.length ? (
+      {rows.length ? (
         <div className="mt-4 flex flex-col gap-3">
-          {events.map((event, index) => (
-            <AgentRunEventRow event={event} key={`${event.kind}-${index}`} />
+          {rows.map((row, index) => (
+            row.kind === "json-render" ? (
+              <JsonRenderStreamPanel key={`json-render-${row.id}`} patches={row.patches} title={row.title} />
+            ) : (
+              <AgentRunEventRow event={row.event} key={`${row.event.kind}-${index}`} />
+            )
           ))}
         </div>
       ) : (
@@ -119,10 +132,28 @@ function ArtifactTabs({ tabs }: { tabs: AgentArtifact[] }) {
 }
 
 function AgentRunUiPanel({ ui }: { ui: AgentRunUi }) {
-  if (ui.component !== "agent-runs-dashboard") {
-    return <LogRow label="Unsupported UI">{ui.component}</LogRow>;
+  if (ui.component === "json-render") {
+    return <JsonRenderStreamPanel patches={[ui]} title={ui.title} />;
   }
 
+  return <AgentRunsDashboardPanel ui={ui} />;
+}
+
+function JsonRenderStreamPanel({ patches, title }: { patches: AgentJsonRenderUiPatch[]; title: string }) {
+  const spec = useMemo(() => compileJsonRenderSpec(patches), [patches]);
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between gap-3 text-xs text-slate-500">
+        <span>{title}</span>
+        <span>{patches.length} patches</span>
+      </div>
+      <JsonRenderReport spec={spec} />
+    </div>
+  );
+}
+
+function AgentRunsDashboardPanel({ ui }: { ui: AgentRunsDashboardUi }) {
   const [selectedRunId, setSelectedRunId] = useState(ui.data.runs[0]?.runId ?? "");
   const selectedRun = ui.data.runs.find((run) => run.runId === selectedRunId) ?? ui.data.runs[0];
   const maxEvents = Math.max(1, ...ui.data.runs.map((run) => run.eventCount));
@@ -205,4 +236,39 @@ function Detail({ label, value }: { label: string; value: string }) {
       <dd className="mt-0.5 break-words text-slate-950">{value}</dd>
     </div>
   );
+}
+
+function collapseJsonRenderEvents(events: AgentRunEvent[]): TimelineRow[] {
+  const rows: TimelineRow[] = [];
+  const streams = new Map<string, Extract<TimelineRow, { kind: "json-render" }>>();
+
+  for (const event of events) {
+    if (event.kind === "ui" && event.ui.component === "json-render") {
+      const stream = streams.get(event.ui.id);
+
+      if (stream) {
+        stream.patches.push(event.ui);
+      } else {
+        const row = { id: event.ui.id, kind: "json-render" as const, patches: [event.ui], title: event.ui.title };
+        streams.set(event.ui.id, row);
+        rows.push(row);
+      }
+
+      continue;
+    }
+
+    rows.push({ event, kind: "event" });
+  }
+
+  return rows;
+}
+
+function compileJsonRenderSpec(patches: AgentJsonRenderUiPatch[]) {
+  const spec: Record<string, unknown> = { elements: {}, root: "" };
+
+  for (const { patch } of patches) {
+    applySpecStreamPatch(spec, patch);
+  }
+
+  return spec.root ? (spec as unknown as Spec) : null;
 }

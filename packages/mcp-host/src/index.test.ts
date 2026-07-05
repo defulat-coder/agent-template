@@ -208,7 +208,9 @@ describe("MCP Host", () => {
       })
     });
 
-    await expect(host.createAgentRunsDashboardEvents("给我做 Agent 运行统计分析")).resolves.toEqual([
+    const events = await host.createAgentRunsDashboardEvents("给我做 Agent 运行统计分析");
+
+    expect(events.slice(0, 2)).toEqual([
       {
         input: "{\"limit\":20}",
         kind: "tool-call",
@@ -217,32 +219,30 @@ describe("MCP Host", () => {
       {
         kind: "tool-result",
         tool: "mcp-host/toolbox/list-agent-runs"
-      },
-      {
-        kind: "ui",
-        ui: {
-          component: "agent-runs-dashboard",
-          data: {
-            metrics: {
-              completedRuns: 1,
-              failedRuns: 0,
-              failureRate: 0,
-              totalRuns: 1
-            },
-            runs: [
-              {
-                eventCount: 4,
-                firstEventAt: "2026-07-04T11:30:00.000Z",
-                lastEventAt: "2026-07-04T11:30:22.000Z",
-                runId: "run_knowledge_001",
-                terminalEvent: "agent.run.completed"
-              }
-            ]
-          },
-          title: "Agent 运行分析"
-        }
       }
     ]);
+    expect(events.slice(2)).toEqual(
+      expect.arrayContaining([
+        {
+          kind: "ui",
+          ui: {
+            component: "json-render",
+            id: "agent-runs-report",
+            patch: { op: "add", path: "/root", value: "report" },
+            title: "Agent 运行分析"
+          }
+        },
+        {
+          kind: "ui",
+          ui: {
+            component: "json-render",
+            id: "agent-runs-report",
+            patch: expect.objectContaining({ op: "add", path: "/elements/runs-table" }),
+            title: "Agent 运行分析"
+          }
+        }
+      ])
+    );
     await expect(host.createAgentRunsDashboardEvents("hello")).resolves.toEqual([]);
   });
 
