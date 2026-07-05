@@ -1,7 +1,7 @@
 "use client";
 
 import { defineCatalog } from "@json-render/core";
-import { Renderer, defineRegistry, type Spec } from "@json-render/react";
+import { JSONUIProvider, Renderer, defineRegistry, type Spec } from "@json-render/react";
 import { schema } from "@json-render/react/schema";
 import { z } from "zod";
 
@@ -90,7 +90,11 @@ export const { registry: reportRegistry } = defineRegistry(reportCatalog, {
 });
 
 export function JsonRenderReport({ spec }: { spec: Spec | null }) {
-  return <Renderer fallback={UnknownJsonRenderComponent} registry={reportRegistry} spec={spec} />;
+  return (
+    <JSONUIProvider registry={reportRegistry} initialState={spec?.state ?? {}}>
+      <Renderer fallback={UnknownJsonRenderComponent} registry={reportRegistry} spec={spec} />
+    </JSONUIProvider>
+  );
 }
 
 function UnknownJsonRenderComponent() {

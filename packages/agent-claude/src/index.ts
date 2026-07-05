@@ -9,6 +9,7 @@ import type { AgentRunEvent } from "@agent-template/shared";
 export const defaultClaudeAgentModel = "kimi-for-coding";
 export const defaultAnthropicBaseUrl = "https://api.kimi.com/coding/";
 export const defaultClaudeAgentMaxTurns = 100;
+const partialTextEventMinDelta = 200;
 
 export const ClaudeAgentConfigSchema = z.object({
   apiKey: z.string().min(1).optional(),
@@ -115,6 +116,7 @@ export async function runClaudeAgent(
   let result: Extract<SDKMessage, { type: "result" }> | undefined;
   let sessionId: string | undefined;
   let partialText = "";
+  let lastPartialTextEventLength = 0;
 
   for await (const message of sdk.query({
     prompt: input.prompt,
@@ -139,17 +141,28 @@ export async function runClaudeAgent(
 
     if (isClaudePartialTextStart(message)) {
       partialText = "";
+      lastPartialTextEventLength = 0;
     }
 
     const partialTextDelta = readClaudePartialTextDelta(message);
 
     if (partialTextDelta !== undefined) {
       partialText += partialTextDelta;
+      if (shouldEmitPartialTextEvent(partialText, lastPartialTextEventLength)) {
+        progressEvents.push({ kind: "text", text: partialText });
+        lastPartialTextEventLength = partialText.length;
+      }
+    }
+
+    if (message.type === "result" && partialText.length > lastPartialTextEventLength) {
       progressEvents.push({ kind: "text", text: partialText });
+      partialText = "";
+      lastPartialTextEventLength = 0;
     }
 
     if (message.type === "assistant") {
       partialText = "";
+      lastPartialTextEventLength = 0;
     }
 
     for (const event of progressEvents) {
@@ -201,6 +214,10 @@ export async function runClaudeAgent(
     output: result.result,
     ...(sessionId ? { sessionId } : {}),
   };
+}
+
+function shouldEmitPartialTextEvent(text: string, lastEventLength: number) {
+  return lastEventLength === 0 || text.length - lastEventLength >= partialTextEventMinDelta;
 }
 
 function formatClaudeAgentProgressEvent(message: SDKMessage): AgentRunEvent[] {
