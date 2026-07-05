@@ -81,6 +81,8 @@ pnpm db:seed
 ## 提交规则
 
 - 涉及 Git 提交、提交信息、changelog 或提交规范时，必须使用 `.codex/skills/chinese-commit-conventions`。
+- 每个明确任务或需求完成后，默认提交并推送到当前跟踪分支；用户明确说“不要提交”“不要推送”“先别提交”时除外。
+- 只查看、只分析、只给方案或没有文件改动时，不创建空提交。
 - 按功能点提交，不把无关改动混进同一个提交。
 - 提交前检查 `git status --short --branch`。
 - 不提交 `.env`、构建产物、缓存目录、`node_modules`。
