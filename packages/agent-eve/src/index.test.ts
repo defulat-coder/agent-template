@@ -6,7 +6,8 @@ import {
   getEveAgentRuntimeStateFromEnv,
   parseEveAgentConfig,
   readEveAnthropicBaseURL,
-  readEveAgentModel
+  readEveAgentModel,
+  runEveAgent
 } from "./index.js";
 
 describe("Eve Agent runtime", () => {
@@ -18,8 +19,13 @@ describe("Eve Agent runtime", () => {
   });
 
   it("is configured when the Eve Agent host is set", () => {
+    const config = parseEveAgentConfig({
+      EVE_AGENT_HOST: "http://127.0.0.1:13000",
+      EVE_AGENT_SERVICE_TOKEN: "service-token"
+    });
     const state = getEveAgentRuntimeStateFromEnv({ EVE_AGENT_HOST: "http://127.0.0.1:13000" });
 
+    expect(config.serviceToken).toBe("service-token");
     expect(state.configured).toBe(true);
     expect(state.host).toBe("http://127.0.0.1:13000");
   });
@@ -38,6 +44,40 @@ describe("Eve Agent runtime", () => {
     expect(agent.model?.modelId).toBe(defaultEveAgentModel);
   });
 
+  it("defines the Toolbox MCP connection in the Eve authored surface", async () => {
+    const previousToolboxUrl = process.env.TOOLBOX_URL;
+    process.env.TOOLBOX_URL = "http://toolbox:15000";
+
+    try {
+      const connection = (await import("../agent/connections/toolbox")).default as {
+        url: string;
+        tools?: { allow?: string[] };
+      };
+
+      expect(connection.url).toBe("http://toolbox:15000/mcp");
+      expect(connection.tools?.allow).toEqual([
+        "list-template-events",
+        "get-template-event",
+        "list-agent-runs",
+        "list-agent-run-timeline"
+      ]);
+    } finally {
+      process.env.TOOLBOX_URL = previousToolboxUrl;
+    }
+  });
+
+  it("defines the Eve channel route auth in the authored surface", async () => {
+    const channel = (await import("../agent/channels/eve")).default as { routes?: readonly unknown[] };
+
+    expect(Array.isArray(channel.routes)).toBe(true);
+  });
+
+  it("disables Eve provider-managed web search for Kimi compatibility", async () => {
+    const webSearch = (await import("../agent/tools/web_search")).default as { kind?: string };
+
+    expect(webSearch.kind).toBe("eve:disabled-tool");
+  });
+
   it("uses one model source for runtime state and authored surface", () => {
     const env = { ANTHROPIC_MODEL: "kimi-custom" };
 
@@ -54,8 +94,6 @@ describe("Eve Agent runtime", () => {
   });
 
   it("skips execution until an Eve Agent host is configured", async () => {
-    const { runEveAgent } = await import("./index.js");
-
     await expect(runEveAgent({ prompt: "Summarize this template" }, parseEveAgentConfig({}))).resolves.toEqual({
       status: "skipped",
       reason: "EVE_AGENT_HOST is not configured"
@@ -63,44 +101,80 @@ describe("Eve Agent runtime", () => {
   });
 
   it("runs through the Eve client when configured", async () => {
-    const { runEveAgent } = await import("./index.js");
+    const events: unknown[] = [];
 
     await expect(
       runEveAgent({ prompt: "Summarize this template" }, parseEveAgentConfig({ EVE_AGENT_HOST: "http://eve.local" }), {
         createClient: () => ({
           session: () => ({
             send: async () => ({
-              result: async () => ({
-                data: undefined,
-                events: [
-                  {
-                    data: {
-                      finishReason: "stop",
-                      message: "Done",
-                      sequence: 1,
-                      stepIndex: 0,
-                      turnId: "turn-1"
+              sessionId: "eve-session-1",
+              async *[Symbol.asyncIterator]() {
+                yield {
+                  data: {
+                    actions: [
+                      {
+                        callId: "call-1",
+                        input: { limit: 1 },
+                        kind: "tool-call",
+                        toolName: "toolbox__list-agent-runs"
+                      }
+                    ],
+                    sequence: 1,
+                    stepIndex: 0,
+                    turnId: "turn-1"
+                  },
+                  type: "actions.requested"
+                };
+                yield {
+                  data: {
+                    result: {
+                      callId: "call-1",
+                      kind: "tool-result",
+                      output: [{ runId: "run-1" }],
+                      toolName: "toolbox__list-agent-runs"
                     },
-                    type: "message.completed"
-                  }
-                ],
-                inputRequests: [],
-                message: "Done",
-                sessionId: "eve-session-1",
-                status: "completed"
-              })
+                    sequence: 2,
+                    status: "completed",
+                    stepIndex: 0,
+                    turnId: "turn-1"
+                  },
+                  type: "action.result"
+                };
+                yield {
+                  data: {
+                    finishReason: "stop",
+                    message: "Done",
+                    sequence: 1,
+                    stepIndex: 0,
+                    turnId: "turn-1"
+                  },
+                  type: "message.completed"
+                };
+              }
             })
           })
-        })
+        }),
+        onEvent(event) {
+          events.push(event);
+        }
       })
     ).resolves.toEqual({
       status: "completed",
       events: [
+        { kind: "tool-call", tool: "toolbox__list-agent-runs", input: "{\"limit\":1}" },
+        { kind: "tool-result", tool: "toolbox__list-agent-runs" },
         { kind: "text", text: "Done" },
         { kind: "done", result: "Done" }
       ],
       output: "Done",
       sessionId: "eve-session-1"
     });
+    expect(events).toEqual([
+      { kind: "tool-call", tool: "toolbox__list-agent-runs", input: "{\"limit\":1}" },
+      { kind: "tool-result", tool: "toolbox__list-agent-runs" },
+      { kind: "text", text: "Done" },
+      { kind: "done", result: "Done" }
+    ]);
   });
 });

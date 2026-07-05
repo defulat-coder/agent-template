@@ -33,6 +33,7 @@ export const AgentRuntimeEnvSchema = z.object({
   CLAUDE_AGENT_MODEL: z.string().default(defaultClaudeAgentModel),
   EVE_AGENT_HOST: z.string().optional(),
   EVE_AGENT_MODEL: z.string().default(defaultEveAgentModel),
+  EVE_AGENT_SERVICE_TOKEN: z.string().optional(),
   TOOLBOX_URL: z.string().url().optional(),
   TOOLBOX_TOOLSET: z.string().optional(),
 });

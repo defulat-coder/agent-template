@@ -1,4 +1,4 @@
-FROM node:22-alpine
+FROM node:24-alpine
 
 WORKDIR /app
 
@@ -24,4 +24,4 @@ COPY . .
 
 RUN pnpm db:generate && pnpm build
 
-EXPOSE 13000 14000
+EXPOSE 13000 13010 14000

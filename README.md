@@ -5,7 +5,7 @@
 ## 技术栈
 
 - 前端：pnpm + TypeScript + Next.js + React + Tailwind CSS + shadcn/ui + Vitest
-- 后端：TypeScript + Fastify + Prisma + PostgreSQL + Redis + BullMQ + MCP Toolbox + Claude Agent SDK + Zod + Pino + Vitest
+- 后端：TypeScript + Fastify + Prisma + PostgreSQL + Redis + BullMQ + MCP Toolbox + Claude Agent SDK + Eve + Zod + Pino + Vitest
 - 工程化：pnpm Workspace + Turborepo
 
 ## 快速开始
@@ -23,6 +23,7 @@ pnpm dev
 默认服务：
 
 - Web: http://localhost:13000
+- Eve Agent: http://localhost:13010
 - API: http://localhost:14000
 - Health: http://localhost:14000/health
 - PostgreSQL: localhost:15432
@@ -70,7 +71,8 @@ ANTHROPIC_BASE_URL=https://api.kimi.com/coding/
 ANTHROPIC_MODEL=kimi-for-coding
 CLAUDE_AGENT_MODEL=kimi-for-coding
 EVE_AGENT_MODEL=kimi-for-coding
+EVE_AGENT_HOST=http://localhost:13010
 CLAUDE_CODE_AUTO_COMPACT_WINDOW=262144
 ```
 
-未配置 API Key 时，API 仍可启动，`/health` 会显示当前 runtime 配置状态。
+`AGENT_RUNTIME=claude|eve` 只通过环境变量选择。未配置 API Key 时，API 仍可启动，`/health` 会显示当前 runtime 配置状态。

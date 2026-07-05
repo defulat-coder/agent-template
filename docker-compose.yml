@@ -2,6 +2,7 @@ name: agent-template
 
 x-runtime-environment: &runtime-environment
   NODE_ENV: production
+  AGENT_RUNTIME: ${AGENT_RUNTIME:-claude}
   DATABASE_URL: postgresql://project_template:project_template@postgres:5432/project_template?schema=public
   REDIS_URL: redis://redis:6379
   TOOLBOX_URL: http://toolbox:15000
@@ -12,8 +13,9 @@ x-runtime-environment: &runtime-environment
   ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-kimi-for-coding}
   CLAUDE_AGENT_MODEL: ${CLAUDE_AGENT_MODEL:-kimi-for-coding}
   CLAUDE_PROJECT_DIR: /app
-  EVE_AGENT_HOST: ${EVE_AGENT_HOST:-}
+  EVE_AGENT_HOST: ${EVE_AGENT_HOST:-http://eve-agent:13010}
   EVE_AGENT_MODEL: ${EVE_AGENT_MODEL:-kimi-for-coding}
+  EVE_AGENT_SERVICE_TOKEN: ${EVE_AGENT_SERVICE_TOKEN:-}
   CLAUDE_CODE_AUTO_COMPACT_WINDOW: ${CLAUDE_CODE_AUTO_COMPACT_WINDOW:-262144}
 
 x-app-service: &app-service
@@ -103,6 +105,8 @@ services:
         condition: service_healthy
       toolbox:
         condition: service_started
+      eve-agent:
+        condition: service_healthy
     ports:
       - "14000:14000"
     healthcheck:
@@ -123,13 +127,35 @@ services:
         condition: service_healthy
       toolbox:
         condition: service_started
+      eve-agent:
+        condition: service_healthy
+
+  eve-agent:
+    <<: *app-service
+    command: sh -c "pnpm --filter @agent-template/agent-eve eve:build && pnpm --filter @agent-template/agent-eve eve:start"
+    environment:
+      <<: *runtime-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      toolbox:
+        condition: service_started
+    ports:
+      - "13010:13010"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:13010/eve/v1/health >/dev/null"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
 
   web:
     <<: *app-service
     command: pnpm --filter @agent-template/web start
     environment:
       NODE_ENV: production
-      NEXT_PUBLIC_API_BASE_URL: http://api:14000
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:14000
     depends_on:
       api:
         condition: service_healthy

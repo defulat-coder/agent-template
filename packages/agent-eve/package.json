@@ -7,6 +7,10 @@
   },
   "scripts": {
     "build": "tsup src/index.ts --format esm",
+    "eve:build": "eve build",
+    "eve:dev": "eve dev --host 0.0.0.0 --port 13010 --no-ui",
+    "eve:info": "eve info --json",
+    "eve:start": "eve start --host 0.0.0.0 --port 13010",
     "lint": "eslint src",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"

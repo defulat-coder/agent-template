@@ -29,7 +29,7 @@ The default `tools.yaml` exposes only read-only `TemplateEvent` tools under `age
 - Database tool permissions are visible in one audited `tools.yaml` file.
 - New database tools require an explicit tool and toolset entry.
 - Cloud runtime loads the default Toolbox toolset through Claude Code project files: `.mcp.json` for the server and `.claude/settings.json` for tool permissions.
-- Eve runtime keeps its own runtime boundary; any Toolbox access must be wired through Eve or an Eve-specific MCP bridge, not by importing `apps/toolbox/tools.yaml`.
+- Eve runtime loads the default Toolbox read tools through its own authored MCP connection at `packages/agent-eve/agent/connections/toolbox.ts`, not by importing `apps/toolbox/tools.yaml`.
 
 ## References
 

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Client, type MessageResult } from "eve/client";
+import { Client } from "eve/client";
 import type { AgentRunEvent } from "@agent-template/shared";
 import { defaultEveAgentModel, readEveAgentModel } from "./config.js";
 
@@ -8,7 +8,8 @@ export { defaultEveAgentModel, readEveAgentModel, readEveAnthropicBaseURL } from
 
 export const EveAgentConfigSchema = z.object({
   host: z.string().min(1).optional(),
-  model: z.string().min(1).default(defaultEveAgentModel)
+  model: z.string().min(1).default(defaultEveAgentModel),
+  serviceToken: z.string().min(1).optional()
 });
 
 export type EveAgentConfig = z.infer<typeof EveAgentConfigSchema>;
@@ -44,16 +45,22 @@ export type EveAgentRunResult =
 
 type EveClient = {
   session(): {
-    send(input: string): Promise<{
-      result(): Promise<MessageResult>;
-    }>;
+    send(input: string): Promise<EveMessageResponse>;
   };
+};
+
+type EveMessageResponse = AsyncIterable<unknown> & {
+  sessionId: string;
 };
 
 export function parseEveAgentConfig(input: Record<string, unknown>): EveAgentConfig {
   return EveAgentConfigSchema.parse({
     host: typeof input.EVE_AGENT_HOST === "string" && input.EVE_AGENT_HOST.length > 0 ? input.EVE_AGENT_HOST : undefined,
-    model: readEveAgentModel(input)
+    model: readEveAgentModel(input),
+    serviceToken:
+      typeof input.EVE_AGENT_SERVICE_TOKEN === "string" && input.EVE_AGENT_SERVICE_TOKEN.length > 0
+        ? input.EVE_AGENT_SERVICE_TOKEN
+        : undefined
   });
 }
 
@@ -74,7 +81,7 @@ export async function runEveAgent(
   input: EveAgentRunInput,
   config: EveAgentConfig,
   options: {
-    createClient?: (host: string) => EveClient;
+    createClient?: (host: string, config: EveAgentConfig) => EveClient;
     onEvent?: (event: AgentRunEvent) => void;
   } = {}
 ): Promise<EveAgentRunResult> {
@@ -82,46 +89,164 @@ export async function runEveAgent(
     return { status: "skipped", reason: "EVE_AGENT_HOST is not configured" };
   }
 
-  const client = (options.createClient ?? ((host: string) => new Client({ host })))(config.host);
+  const client = (options.createClient ?? createEveClient)(config.host, config);
   const response = await client.session().send(input.prompt);
-  const result = await response.result();
-  const events = result.events.map(formatEveAgentEvent);
+  const rawEvents: unknown[] = [];
+  const events: AgentRunEvent[] = [];
 
-  if (result.status === "failed") {
-    const reason = result.message ?? "Eve Agent runtime failed";
+  for await (const rawEvent of response) {
+    rawEvents.push(rawEvent);
+
+    for (const event of formatEveAgentEvents(rawEvent)) {
+      events.push(event);
+      options.onEvent?.(event);
+    }
+  }
+
+  const failure = findEveFailure(rawEvents);
+
+  if (failure) {
+    const reason = failure;
     const event = { kind: "error", message: reason } satisfies AgentRunEvent;
-    [...events, event].forEach((runEvent) => options.onEvent?.(runEvent));
+    options.onEvent?.(event);
 
     return {
       status: "failed",
       events: [...events, event],
       reason,
-      sessionId: result.sessionId
+      sessionId: response.sessionId
     };
   }
 
-  const output = result.message ?? formatEveOutput(result.data);
+  const output = findEveOutput(rawEvents);
   const event = { kind: "done", result: output } satisfies AgentRunEvent;
-  [...events, event].forEach((runEvent) => options.onEvent?.(runEvent));
+  options.onEvent?.(event);
 
   return {
     status: "completed",
     events: [...events, event],
     output,
-    sessionId: result.sessionId
+    sessionId: response.sessionId
   };
 }
 
-function formatEveAgentEvent(event: unknown): AgentRunEvent {
+function createEveClient(host: string, config: EveAgentConfig): EveClient {
+  return new Client({
+    host,
+    ...(config.serviceToken ? { headers: { "x-agent-template-eve-token": config.serviceToken } } : {})
+  });
+}
+
+function formatEveAgentEvents(event: unknown): AgentRunEvent[] {
   if (!isRecord(event) || typeof event.type !== "string") {
-    return { kind: "unknown", text: formatEveOutput(event) };
+    return [{ kind: "unknown", text: formatEveOutput(event) }];
   }
 
   if (event.type === "message.completed" && isRecord(event.data) && typeof event.data.message === "string") {
-    return { kind: "text", text: event.data.message };
+    return [{ kind: "text", text: event.data.message }];
   }
 
-  return { kind: "unknown", text: formatEveOutput(event) };
+  if (event.type === "actions.requested" && isRecord(event.data) && Array.isArray(event.data.actions)) {
+    return event.data.actions.map(formatEveActionRequest);
+  }
+
+  if (event.type === "action.result" && isRecord(event.data)) {
+    const tool = readEveActionResultToolName(event.data.result);
+    return tool ? [{ kind: "tool-result", tool }] : [];
+  }
+
+  if (
+    (event.type === "step.failed" || event.type === "turn.failed" || event.type === "session.failed") &&
+    isRecord(event.data) &&
+    typeof event.data.message === "string"
+  ) {
+    return [{ kind: "error", message: event.data.message }];
+  }
+
+  return [];
+}
+
+function formatEveActionRequest(action: unknown): AgentRunEvent {
+  if (!isRecord(action)) {
+    return { kind: "unknown", text: formatEveOutput(action) };
+  }
+
+  return {
+    kind: "tool-call",
+    tool: readEveActionRequestToolName(action),
+    input: formatEveOutput(action.input ?? {})
+  };
+}
+
+function readEveActionRequestToolName(action: Record<string, unknown>): string {
+  if (action.kind === "tool-call" && typeof action.toolName === "string") {
+    return action.toolName;
+  }
+
+  if (action.kind === "subagent-call" && typeof action.subagentName === "string") {
+    return `eve:subagent:${action.subagentName}`;
+  }
+
+  if (action.kind === "remote-agent-call" && typeof action.remoteAgentName === "string") {
+    return `eve:subagent:${action.remoteAgentName}`;
+  }
+
+  return "eve:load-skill";
+}
+
+function readEveActionResultToolName(result: unknown): string | undefined {
+  if (!isRecord(result)) {
+    return undefined;
+  }
+
+  if (result.kind === "tool-result" && typeof result.toolName === "string") {
+    return result.toolName;
+  }
+
+  if (result.kind === "subagent-result" && typeof result.subagentName === "string") {
+    return `eve:subagent:${result.subagentName}`;
+  }
+
+  if (result.kind === "load-skill-result") {
+    return "eve:load-skill";
+  }
+
+  return undefined;
+}
+
+function findEveFailure(events: unknown[]): string | undefined {
+  for (const event of events) {
+    if (
+      isRecord(event) &&
+      (event.type === "session.failed" || event.type === "turn.failed" || event.type === "step.failed") &&
+      isRecord(event.data) &&
+      typeof event.data.message === "string"
+    ) {
+      return event.data.message;
+    }
+  }
+
+  return undefined;
+}
+
+function findEveOutput(events: unknown[]): string {
+  let output = "";
+
+  for (const event of events) {
+    if (!isRecord(event) || !isRecord(event.data)) {
+      continue;
+    }
+
+    if (event.type === "result.completed") {
+      output = formatEveOutput(event.data.result);
+    }
+
+    if (event.type === "message.completed" && typeof event.data.message === "string") {
+      output = event.data.message;
+    }
+  }
+
+  return output;
 }
 
 function formatEveOutput(value: unknown): string {
