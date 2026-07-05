@@ -69,6 +69,7 @@ describe("Claude Agent runtime", () => {
             CLAUDE_CONFIG_DIR: expect.any(String),
           },
           cwd: expect.any(String),
+          includePartialMessages: true,
           maxTurns: defaultClaudeAgentMaxTurns,
           permissionMode: "dontAsk",
           persistSession: false,
@@ -84,6 +85,94 @@ describe("Claude Agent runtime", () => {
     expect(subprocessEnv).not.toHaveProperty("ANTHROPIC_DEFAULT_OPUS_MODEL");
     expect(subprocessEnv).not.toHaveProperty("ANTHROPIC_DEFAULT_SONNET_MODEL");
     expect(subprocessEnv).not.toHaveProperty("ANTHROPIC_MODEL");
+  });
+
+  it("forwards Claude partial text events while the model streams", async () => {
+    const events: unknown[] = [];
+
+    await expect(
+      runClaudeAgent(
+        { prompt: "Stream a short reply" },
+        {
+          authToken: "test-token",
+          baseUrl: defaultAnthropicBaseUrl,
+          model: "kimi-for-coding",
+        },
+        {
+          loadSdk: async () => ({
+            query() {
+              return (async function* () {
+                yield {
+                  event: {
+                    content_block: { citations: null, text: "", type: "text" },
+                    index: 0,
+                    type: "content_block_start",
+                  },
+                  parent_tool_use_id: null,
+                  session_id: "claude-session-1",
+                  type: "stream_event",
+                  uuid: "partial-1",
+                } as unknown as SDKMessage;
+                yield {
+                  event: {
+                    delta: { text: "Hel", type: "text_delta" },
+                    index: 0,
+                    type: "content_block_delta",
+                  },
+                  parent_tool_use_id: null,
+                  session_id: "claude-session-1",
+                  type: "stream_event",
+                  uuid: "partial-2",
+                } as unknown as SDKMessage;
+                yield {
+                  event: {
+                    delta: { text: "lo", type: "text_delta" },
+                    index: 0,
+                    type: "content_block_delta",
+                  },
+                  parent_tool_use_id: null,
+                  session_id: "claude-session-1",
+                  type: "stream_event",
+                  uuid: "partial-3",
+                } as unknown as SDKMessage;
+                yield {
+                  duration_api_ms: 0,
+                  duration_ms: 0,
+                  is_error: false,
+                  modelUsage: {},
+                  num_turns: 1,
+                  permission_denials: [],
+                  result: "Hello",
+                  session_id: "claude-session-1",
+                  stop_reason: "stop",
+                  subtype: "success",
+                  total_cost_usd: 0,
+                  type: "result",
+                  usage: {},
+                } as unknown as SDKMessage;
+              })();
+            },
+          }),
+          onEvent(event) {
+            events.push(event);
+          },
+        },
+      ),
+    ).resolves.toMatchObject({
+      events: [
+        { kind: "text", text: "Hel" },
+        { kind: "text", text: "Hello" },
+        { kind: "done", result: "Hello" },
+      ],
+      output: "Hello",
+      status: "completed",
+    });
+
+    expect(events).toEqual([
+      { kind: "text", text: "Hel" },
+      { kind: "text", text: "Hello" },
+      { kind: "done", result: "Hello" },
+    ]);
   });
 
   it("uses project Claude Code files instead of inline Toolbox MCP config", async () => {
@@ -169,6 +258,7 @@ describe("Claude Agent runtime", () => {
             "mcp__toolbox__list-template-events",
           ],
           cwd: expect.any(String),
+          includePartialMessages: true,
           env: {
             TOOLBOX_TOOLSET: "agent_template_read_model",
             TOOLBOX_URL: "http://toolbox:15000",

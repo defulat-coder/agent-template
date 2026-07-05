@@ -105,6 +105,7 @@ export async function runClaudeAgent(
   const runEvents: AgentRunEvent[] = [];
   let result: Extract<SDKMessage, { type: "result" }> | undefined;
   let sessionId: string | undefined;
+  let partialText = "";
 
   for await (const message of sdk.query({
     prompt: input.prompt,
@@ -116,6 +117,7 @@ export async function runClaudeAgent(
       permissionMode: "dontAsk",
       persistSession: false,
       tools: [],
+      includePartialMessages: true,
       ...(!config.baseUrl ? { model: config.model } : {}),
     },
   })) {
@@ -123,7 +125,24 @@ export async function runClaudeAgent(
       sessionId = message.session_id;
     }
 
-    for (const event of formatClaudeAgentProgressEvent(message)) {
+    const progressEvents = formatClaudeAgentProgressEvent(message);
+
+    if (isClaudePartialTextStart(message)) {
+      partialText = "";
+    }
+
+    const partialTextDelta = readClaudePartialTextDelta(message);
+
+    if (partialTextDelta !== undefined) {
+      partialText += partialTextDelta;
+      progressEvents.push({ kind: "text", text: partialText });
+    }
+
+    if (message.type === "assistant") {
+      partialText = "";
+    }
+
+    for (const event of progressEvents) {
       runEvents.push(event);
       options.onEvent?.(event);
     }
@@ -175,7 +194,7 @@ export async function runClaudeAgent(
 }
 
 function formatClaudeAgentProgressEvent(message: SDKMessage): AgentRunEvent[] {
-  if (message.type === "result" || message.type === "system") {
+  if (message.type === "result" || message.type === "system" || message.type === "stream_event") {
     return [];
   }
 
@@ -190,6 +209,24 @@ function formatClaudeAgentProgressEvent(message: SDKMessage): AgentRunEvent[] {
   return [
     { kind: "unknown", text: JSON.stringify(message) ?? String(message) },
   ];
+}
+
+function readClaudePartialTextDelta(message: SDKMessage): string | undefined {
+  if (message.type !== "stream_event") {
+    return undefined;
+  }
+
+  const { event } = message;
+
+  if (event.type !== "content_block_delta" || event.delta.type !== "text_delta") {
+    return undefined;
+  }
+
+  return event.delta.text;
+}
+
+function isClaudePartialTextStart(message: SDKMessage) {
+  return message.type === "stream_event" && message.event.type === "content_block_start" && message.event.content_block.type === "text";
 }
 
 function formatClaudeAssistantMessage(
