@@ -1,10 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { applySpecStreamPatch } from "@json-render/core";
-import type { Spec } from "@json-render/react";
+import { useState } from "react";
 import type { AgentArtifact, AgentJsonRenderUiPatch, AgentRunEvent, AgentRunUi, AgentRunsDashboardUi } from "@agent-template/shared";
-import { JsonRenderReport } from "./json-render-report";
+import { JsonRenderStreamPanel } from "./json-render-stream-panel";
 
 type TimelineRow =
   | { kind: "event"; event: AgentRunEvent }
@@ -24,7 +22,9 @@ export function AgentRunTimeline({ events }: { events: AgentRunEvent[] }) {
         <div className="mt-4 flex flex-col gap-3">
           {rows.map((row, index) => (
             row.kind === "json-render" ? (
-              <JsonRenderStreamPanel key={`json-render-${row.id}`} patches={row.patches} title={row.title} />
+              <LogRow key={`json-render-${row.id}`} label={`Structured UI: ${row.title}`} tone="blue">
+                {`${row.patches.length} patches`}
+              </LogRow>
             ) : (
               <AgentRunEventRow event={row.event} key={`${row.event.kind}-${index}`} />
             )
@@ -139,20 +139,6 @@ function AgentRunUiPanel({ ui }: { ui: AgentRunUi }) {
   return <AgentRunsDashboardPanel ui={ui} />;
 }
 
-function JsonRenderStreamPanel({ patches, title }: { patches: AgentJsonRenderUiPatch[]; title: string }) {
-  const spec = useMemo(() => compileJsonRenderSpec(patches), [patches]);
-
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center justify-between gap-3 text-xs text-slate-500">
-        <span>{title}</span>
-        <span>{patches.length} patches</span>
-      </div>
-      <JsonRenderReport spec={spec} />
-    </div>
-  );
-}
-
 function AgentRunsDashboardPanel({ ui }: { ui: AgentRunsDashboardUi }) {
   const [selectedRunId, setSelectedRunId] = useState(ui.data.runs[0]?.runId ?? "");
   const selectedRun = ui.data.runs.find((run) => run.runId === selectedRunId) ?? ui.data.runs[0];
@@ -261,14 +247,4 @@ function collapseJsonRenderEvents(events: AgentRunEvent[]): TimelineRow[] {
   }
 
   return rows;
-}
-
-function compileJsonRenderSpec(patches: AgentJsonRenderUiPatch[]) {
-  const spec: Record<string, unknown> = { elements: {}, root: "" };
-
-  for (const { patch } of patches) {
-    applySpecStreamPatch(spec, patch);
-  }
-
-  return spec.root ? (spec as unknown as Spec) : null;
 }

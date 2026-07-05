@@ -2,9 +2,10 @@
 
 import { FormEvent, useState } from "react";
 import { Button } from "@agent-template/ui";
-import type { AgentRunEvent, AgentRunResult } from "@agent-template/shared";
+import type { AgentJsonRenderUiPatch, AgentRunEvent, AgentRunResult } from "@agent-template/shared";
 import { streamAgentChat } from "@/lib/agent-client";
 import { AgentRunTimeline } from "./agent-run-timeline";
+import { JsonRenderStreamPanel } from "./json-render-stream-panel";
 
 type AgentConsoleStatus = "idle" | "submitting" | "running" | "completed" | "skipped" | "failed";
 
@@ -16,6 +17,7 @@ export function AgentConsole() {
   const [error, setError] = useState("");
   const [status, setStatus] = useState<AgentConsoleStatus>("idle");
   const submitting = status === "submitting" || status === "running";
+  const messageParts = buildAgentMessageParts(events);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -76,14 +78,28 @@ export function AgentConsole() {
         </p>
       </div>
 
-      {result || streamedOutput ? (
+      {result || streamedOutput || messageParts.length ? (
         <section className="rounded-md border border-slate-200 bg-white p-4">
           <p className={result?.status === "failed" ? "text-sm font-medium text-red-700" : "text-sm font-medium text-green-700"}>
             Agent 回复
           </p>
-          <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-slate-950">
-            {streamedOutput || result?.output || result?.reason || "Agent 未返回内容。"}
-          </p>
+          <div className="mt-3 flex flex-col gap-4">
+            {messageParts.length ? (
+              messageParts.map((part, index) =>
+                part.kind === "json-render" ? (
+                  <JsonRenderStreamPanel key={`reply-json-render-${part.id}`} patches={part.patches} title={part.title} />
+                ) : (
+                  <p className="whitespace-pre-wrap break-words text-sm leading-6 text-slate-950" key={`reply-text-${index}`}>
+                    {part.text}
+                  </p>
+                )
+              )
+            ) : (
+              <p className="whitespace-pre-wrap break-words text-sm leading-6 text-slate-950">
+                {streamedOutput || result?.output || result?.reason || "Agent 未返回内容。"}
+              </p>
+            )}
+          </div>
           {result ? (
             <p className="mt-3 text-xs text-slate-500">
               Runtime: {result.runtime} / Model: {result.model}
@@ -95,6 +111,47 @@ export function AgentConsole() {
       <AgentRunTimeline events={events} />
     </form>
   );
+}
+
+type AgentMessagePart =
+  | { kind: "text"; text: string }
+  | { id: string; kind: "json-render"; patches: AgentJsonRenderUiPatch[]; title: string };
+
+function buildAgentMessageParts(events: AgentRunEvent[]) {
+  const parts: AgentMessagePart[] = [];
+  const jsonRenderParts = new Map<string, Extract<AgentMessagePart, { kind: "json-render" }>>();
+
+  for (const event of events) {
+    if (event.kind === "text" || event.kind === "done") {
+      const text = event.kind === "text" ? event.text : event.result;
+
+      if (!text.trim()) {
+        continue;
+      }
+
+      const previous = parts.at(-1);
+
+      if (previous?.kind === "text") {
+        previous.text = text;
+      } else {
+        parts.push({ kind: "text", text });
+      }
+    }
+
+    if (event.kind === "ui" && event.ui.component === "json-render") {
+      const existing = jsonRenderParts.get(event.ui.id);
+
+      if (existing) {
+        existing.patches.push(event.ui);
+      } else {
+        const part = { id: event.ui.id, kind: "json-render" as const, patches: [event.ui], title: event.ui.title };
+        jsonRenderParts.set(event.ui.id, part);
+        parts.push(part);
+      }
+    }
+  }
+
+  return parts;
 }
 
 function appendRunEvent(events: AgentRunEvent[], event: AgentRunEvent) {

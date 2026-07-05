@@ -16,11 +16,14 @@ Add a Structured Agent UI branch to the shared Agent run event protocol. The eve
 
 Normal Chat text remains on existing `text` and `done` events. Structured UI is additive; it does not replace the final answer.
 
+In Web Chat, Structured Agent UI renders as an ordered Agent message part inside the assistant message body. The first `json-render` patch for a stream id creates the visible message part; later patches with the same id update that same block. The run timeline remains a debugging view and only shows a folded summary for json-render patches.
+
 ## Consequences
 
 - Frontend can render report and table data progressively in Chat.
 - Web stays guarded because it only registers a small component catalog.
 - API remains transport-only for SSE and does not build UI specs.
+- Chat keeps one user-facing answer surface instead of splitting text and structured output across separate panels.
 - New report shapes should first reuse the existing catalog; add components only when existing `Report`, `MetricGrid`, `Metric`, and `DataTable` cannot express the data.
 
 ## References
