@@ -72,6 +72,9 @@ pnpm db:seed
 
 ## 架构规则
 
+- 每个明确任务或需求完成后，提交前必须使用 `improve-codebase-architecture` 做一轮代码架构审查。
+- 架构审查产生的候选问题默认按该 skill 的推荐方案落地；只有涉及产品取舍、破坏性变更、成本明显扩大或外部约束无法判断时才向用户确认。
+- 每个架构候选修复后单独提交，全部候选修复并验证完成后再统一推送。
 - `apps/*` 只依赖 `@agent-template/agent` 的公共 runtime 边界，不直接依赖具体 runtime package。
 - Agent runtime 只通过 `AGENT_RUNTIME=claude|eve` 选择；不要从 request 或 job payload 覆盖。
 - Kimi Code 接入 Cloud 和 Eve 都使用 Anthropic-compatible 协议；API Key 只放本地 `.env` 或部署环境变量。
@@ -85,7 +88,7 @@ pnpm db:seed
 ## 提交规则
 
 - 涉及 Git 提交、提交信息、changelog 或提交规范时，必须使用 `.codex/skills/chinese-commit-conventions`。
-- 每个明确任务或需求完成后，默认提交并推送到当前跟踪分支；用户明确说“不要提交”“不要推送”“先别提交”时除外。
+- 每个明确任务或需求完成后，先完成架构审查和必要修复，再默认提交并推送到当前跟踪分支；用户明确说“不要提交”“不要推送”“先别提交”时除外。
 - 只查看、只分析、只给方案或没有文件改动时，不创建空提交。
 - 按功能点提交，不把无关改动混进同一个提交。
 - 提交前检查 `git status --short --branch`。
