@@ -2,13 +2,20 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { AgentRunsDashboardDataSchema, type AgentRunEvent, type AgentRunsDashboardData } from "@agent-template/shared";
 import { z } from "zod";
 
 export const defaultMcpToolboxServerId = "toolbox";
 export const defaultMcpToolboxToolset = "agent_template_read_model";
 export const defaultMcpHostConfigFileName = "mcp-host.config.json";
 
+export const McpHostServerConfigSchema = z.object({
+  url: z.string().url(),
+  toolset: z.string().min(1).default(defaultMcpToolboxToolset)
+});
+
 export const McpHostConfigSchema = z.object({
+  servers: z.record(z.string().min(1), McpHostServerConfigSchema).default({}),
   toolboxUrl: z.string().url().optional(),
   toolboxToolset: z.string().min(1).default(defaultMcpToolboxToolset)
 });
@@ -33,16 +40,6 @@ export type McpHostToolCallResult = {
   isError?: boolean | undefined;
 };
 
-export type AgentRunsDashboardData = {
-  runs: AgentRunSummary[];
-  metrics: {
-    totalRuns: number;
-    completedRuns: number;
-    failedRuns: number;
-    failureRate: number;
-  };
-};
-
 export type AgentRunSummary = {
   runId: string;
   eventCount: number;
@@ -62,11 +59,29 @@ type McpHostOptions = {
 };
 
 export function parseMcpHostConfig(input: Record<string, unknown>): McpHostConfig {
-  return McpHostConfigSchema.parse({
-    toolboxUrl: typeof input.toolboxUrl === "string" && input.toolboxUrl.length > 0 ? input.toolboxUrl : input.TOOLBOX_URL,
-    toolboxToolset:
-      typeof input.toolboxToolset === "string" && input.toolboxToolset.length > 0 ? input.toolboxToolset : input.TOOLBOX_TOOLSET
+  const toolboxUrl = readString(input.toolboxUrl) ?? readString(input.TOOLBOX_URL);
+  const toolboxToolset = readString(input.toolboxToolset) ?? readString(input.TOOLBOX_TOOLSET) ?? defaultMcpToolboxToolset;
+  const servers = readServerConfigMap(input.servers);
+
+  if (toolboxUrl && !servers[defaultMcpToolboxServerId]) {
+    servers[defaultMcpToolboxServerId] = {
+      toolset: toolboxToolset,
+      url: toolboxUrl
+    };
+  }
+
+  const parsed = McpHostConfigSchema.parse({
+    servers,
+    toolboxToolset,
+    toolboxUrl
   });
+  const toolboxServer = parsed.servers[defaultMcpToolboxServerId];
+
+  return {
+    ...parsed,
+    toolboxToolset: toolboxServer?.toolset ?? parsed.toolboxToolset,
+    ...(toolboxServer ? { toolboxUrl: toolboxServer.url } : {})
+  };
 }
 
 export function loadMcpHostConfig(input: Record<string, unknown> = process.env): McpHostConfig {
@@ -82,15 +97,11 @@ export function createMcpHost(config: McpHostConfig, options: McpHostOptions = {
   const createClient = options.createClient ?? createMcpClient;
 
   function getServers(): McpHostServer[] {
-    return config.toolboxUrl
-      ? [
-          {
-            id: defaultMcpToolboxServerId,
-            toolset: config.toolboxToolset,
-            url: `${config.toolboxUrl.replace(/\/$/, "")}/mcp`
-          }
-        ]
-      : [];
+    return Object.entries(config.servers).map(([id, server]) => ({
+      id,
+      toolset: server.toolset,
+      url: `${server.url.replace(/\/$/, "")}/mcp`
+    }));
   }
 
   async function listTools(serverId = defaultMcpToolboxServerId): Promise<McpHostTool[]> {
@@ -114,7 +125,7 @@ export function createMcpHost(config: McpHostConfig, options: McpHostOptions = {
     const completedRuns = runs.filter((run) => run.terminalEvent === "agent.run.completed").length;
     const failedRuns = runs.filter((run) => run.terminalEvent === "agent.run.failed").length;
 
-    return {
+    return AgentRunsDashboardDataSchema.parse({
       runs,
       metrics: {
         totalRuns: runs.length,
@@ -122,7 +133,36 @@ export function createMcpHost(config: McpHostConfig, options: McpHostOptions = {
         failedRuns,
         failureRate: runs.length === 0 ? 0 : failedRuns / runs.length
       }
-    };
+    });
+  }
+
+  async function createAgentRunsDashboardEvents(prompt: string): Promise<AgentRunEvent[]> {
+    if (!shouldRenderAgentRunsDashboard(prompt)) {
+      return [];
+    }
+
+    const tool = "mcp-host/toolbox/list-agent-runs";
+    const data = await createAgentRunsDashboard(20);
+
+    return [
+      {
+        input: "{\"limit\":20}",
+        kind: "tool-call",
+        tool
+      },
+      {
+        kind: "tool-result",
+        tool
+      },
+      {
+        kind: "ui",
+        ui: {
+          component: "agent-runs-dashboard",
+          data,
+          title: "Agent 运行分析"
+        }
+      }
+    ];
   }
 
   async function withClient<T>(serverId: string, task: (client: McpClientLike) => Promise<T>): Promise<T> {
@@ -144,7 +184,8 @@ export function createMcpHost(config: McpHostConfig, options: McpHostOptions = {
     getServers,
     listTools,
     callTool,
-    createAgentRunsDashboard
+    createAgentRunsDashboard,
+    createAgentRunsDashboardEvents
   };
 }
 
@@ -160,9 +201,55 @@ function readMcpHostConfigFile(input: Record<string, unknown>) {
   }
 
   return {
+    servers: readFileServerConfigMap(parsed.servers, input),
     toolboxToolset: typeof parsed.toolboxToolset === "string" ? expandEnv(parsed.toolboxToolset, input) : undefined,
     toolboxUrl: typeof parsed.toolboxUrl === "string" ? expandEnv(parsed.toolboxUrl, input) : undefined
   };
+}
+
+function readServerConfigMap(input: unknown) {
+  const servers: Record<string, { url: string; toolset: string }> = {};
+  if (!isRecord(input)) {
+    return servers;
+  }
+
+  for (const [id, value] of Object.entries(input)) {
+    if (!isRecord(value)) {
+      continue;
+    }
+
+    const url = readString(value.url);
+    if (!url) {
+      continue;
+    }
+
+    servers[id] = {
+      toolset: readString(value.toolset) ?? defaultMcpToolboxToolset,
+      url
+    };
+  }
+
+  return servers;
+}
+
+function readFileServerConfigMap(input: unknown, env: Record<string, unknown>) {
+  const servers: Record<string, { url: string; toolset: string }> = {};
+  if (!isRecord(input)) {
+    return servers;
+  }
+
+  for (const [id, value] of Object.entries(input)) {
+    if (!isRecord(value) || typeof value.url !== "string") {
+      continue;
+    }
+
+    servers[id] = {
+      toolset: typeof value.toolset === "string" ? expandEnv(value.toolset, env) : defaultMcpToolboxToolset,
+      url: expandEnv(value.url, env)
+    };
+  }
+
+  return servers;
 }
 
 function findMcpHostConfigPath(start: string) {
@@ -188,6 +275,14 @@ function expandEnv(value: string, input: Record<string, unknown>) {
     const envValue = input[name];
     return typeof envValue === "string" && envValue.length > 0 ? envValue : fallback;
   });
+}
+
+function shouldRenderAgentRunsDashboard(prompt: string) {
+  return /mcp|toolbox|统计|分析|图表|dashboard|运行|可交互/i.test(prompt);
+}
+
+function readString(value: unknown) {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
 export type McpHost = ReturnType<typeof createMcpHost>;

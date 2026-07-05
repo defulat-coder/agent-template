@@ -65,6 +65,16 @@ describe("POST /agent/chat", () => {
   it("streams Agent events and the final result", async () => {
     const app = buildApp({
       env: loadEnv({ NODE_ENV: "test" }),
+      mcpHost: {
+        getServers: () => [],
+        listTools: async () => [],
+        callTool: async () => ({ content: [] }),
+        createAgentRunsDashboard: async () => ({
+          metrics: { completedRuns: 0, failedRuns: 0, failureRate: 0, totalRuns: 0 },
+          runs: []
+        }),
+        createAgentRunsDashboardEvents: async () => []
+      },
       async runAgent(input, _env, options) {
         options?.onEvent?.({ kind: "text", text: "Working" });
 
@@ -117,7 +127,42 @@ describe("POST /agent/chat", () => {
               terminalEvent: "agent.run.completed"
             }
           ]
-        })
+        }),
+        createAgentRunsDashboardEvents: async () => [
+          {
+            input: "{\"limit\":20}",
+            kind: "tool-call",
+            tool: "mcp-host/toolbox/list-agent-runs"
+          },
+          {
+            kind: "tool-result",
+            tool: "mcp-host/toolbox/list-agent-runs"
+          },
+          {
+            kind: "ui",
+            ui: {
+              component: "agent-runs-dashboard",
+              data: {
+                metrics: {
+                  completedRuns: 1,
+                  failedRuns: 0,
+                  failureRate: 0,
+                  totalRuns: 1
+                },
+                runs: [
+                  {
+                    eventCount: 4,
+                    firstEventAt: "2026-07-04T11:30:00.000Z",
+                    lastEventAt: "2026-07-04T11:30:22.000Z",
+                    runId: "run_knowledge_001",
+                    terminalEvent: "agent.run.completed"
+                  }
+                ]
+              },
+              title: "Agent 运行分析"
+            }
+          }
+        ]
       },
       async runAgent(input, _env, options) {
         options?.onEvent?.({ kind: "text", text: "Working" });
@@ -163,7 +208,8 @@ describe("MCP Host API", () => {
         createAgentRunsDashboard: async () => ({
           metrics: { completedRuns: 0, failedRuns: 0, failureRate: 0, totalRuns: 0 },
           runs: []
-        })
+        }),
+        createAgentRunsDashboardEvents: async () => []
       }
     });
 

@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { z } from "zod";
 import type { McpServerConfig, SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import { createMcpHost, loadMcpHostConfig, type McpHostToolCallResult } from "@agent-template/mcp-host";
+import { createMcpHost, loadMcpHostConfig, type McpHostConfig, type McpHostToolCallResult } from "@agent-template/mcp-host";
 import type { AgentRunEvent } from "@agent-template/shared";
 
 export const defaultClaudeAgentModel = "kimi-for-coding";
@@ -330,7 +330,7 @@ function readClaudeProjectDir() {
 }
 
 function readHostManagedClaudeTools(config: ClaudeAgentConfig) {
-  return config.toolboxUrl
+  return readClaudeMcpHostConfig(config).toolboxUrl
     ? [
         "mcp__agent_template_mcp_host__get-template-event",
         "mcp__agent_template_mcp_host__list-agent-runs",
@@ -341,16 +341,13 @@ function readHostManagedClaudeTools(config: ClaudeAgentConfig) {
 }
 
 function createHostManagedClaudeMcpServers(sdk: ClaudeAgentSdk, config: ClaudeAgentConfig): Record<string, McpServerConfig> {
-  if (!config.toolboxUrl) {
+  const mcpHostConfig = readClaudeMcpHostConfig(config);
+
+  if (!mcpHostConfig.toolboxUrl) {
     return {};
   }
 
-  const host = createMcpHost(
-    loadMcpHostConfig({
-      TOOLBOX_TOOLSET: config.toolboxToolset,
-      TOOLBOX_URL: config.toolboxUrl,
-    }),
-  );
+  const host = createMcpHost(mcpHostConfig);
 
   return {
     agent_template_mcp_host: sdk.createSdkMcpServer({
@@ -385,4 +382,11 @@ function createHostManagedClaudeMcpServers(sdk: ClaudeAgentSdk, config: ClaudeAg
       ],
     }),
   };
+}
+
+function readClaudeMcpHostConfig(config: ClaudeAgentConfig): McpHostConfig {
+  return loadMcpHostConfig({
+    TOOLBOX_TOOLSET: config.toolboxToolset,
+    TOOLBOX_URL: config.toolboxUrl,
+  });
 }

@@ -63,7 +63,7 @@ packages/
 
 `apps/toolbox/tools.yaml` 定义生产 Agent 可加载的数据库工具。默认 toolset 是 `agent_template_read_model`，只包含 `TemplateEvent` 的只读查询；`pnpm db:seed` 会写入确定性的 Agent run 示例事件。prebuilt generic tools 仅用于开发期探索，不作为生产 Agent 默认能力。
 
-`mcp-host.config.json` 定义 MCP Host 要连接的 Toolbox 地址和 toolset；修改后重启 API/Agent 服务即可生效，不需要改 Cloud 或 Eve runtime 代码。
+`mcp-host.config.json` 通过 `servers` registry 定义 MCP Host 要连接的 server；默认 `toolbox` server 使用 `TOOLBOX_URL` 和 `TOOLBOX_TOOLSET` 占位，修改后重启 API/Agent 服务即可生效，不需要改 Cloud 或 Eve runtime 代码。
 
 Kimi Code 通过 Anthropic-compatible 协议接入两套 Agent runtime：
 

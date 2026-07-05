@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   defaultAnthropicBaseUrl,
@@ -298,5 +301,97 @@ describe("Claude Agent runtime", () => {
     ).options.env;
     expect(subprocessEnv).not.toHaveProperty("TOOLBOX_URL");
     expect(subprocessEnv).not.toHaveProperty("TOOLBOX_TOOLSET");
+  });
+
+  it("exposes Host-managed MCP tools from filesystem config without Toolbox env", async () => {
+    const previousInitCwd = process.env.INIT_CWD;
+    const dir = mkdtempSync(join(tmpdir(), "claude-mcp-host-config-"));
+    const calls: unknown[] = [];
+    process.env.INIT_CWD = dir;
+    writeFileSync(
+      join(dir, "mcp-host.config.json"),
+      JSON.stringify({
+        servers: {
+          toolbox: {
+            toolset: "agent_template_read_model",
+            url: "http://file-toolbox:15000",
+          },
+        },
+      }),
+      "utf8",
+    );
+
+    try {
+      await expect(
+        runClaudeAgent(
+          { prompt: "List recent agent runs" },
+          {
+            authToken: "test-token",
+            baseUrl: defaultAnthropicBaseUrl,
+            model: "kimi-for-coding",
+          },
+          {
+            loadSdk: async () => ({
+              createSdkMcpServer(options) {
+                return { ...options, instance: {} as never, name: String(options.name), type: "sdk" };
+              },
+              query(params) {
+                calls.push(params);
+
+                return (async function* () {
+                  yield {
+                    duration_api_ms: 0,
+                    duration_ms: 0,
+                    is_error: false,
+                    modelUsage: {},
+                    num_turns: 1,
+                    permission_denials: [],
+                    result: "Found recent runs",
+                    session_id: "claude-session-1",
+                    stop_reason: "stop",
+                    subtype: "success",
+                    total_cost_usd: 0,
+                    type: "result",
+                    usage: {},
+                  } as unknown as SDKMessage;
+                })();
+              },
+              tool(name, description, inputSchema, handler) {
+                return { description, handler, inputSchema, name };
+              },
+            }),
+          },
+        ),
+      ).resolves.toMatchObject({
+        output: "Found recent runs",
+        status: "completed",
+      });
+
+      expect(calls).toMatchObject([
+        {
+          options: {
+            allowedTools: [
+              "mcp__agent_template_mcp_host__get-template-event",
+              "mcp__agent_template_mcp_host__list-agent-runs",
+              "mcp__agent_template_mcp_host__list-agent-run-timeline",
+              "mcp__agent_template_mcp_host__list-template-events",
+            ],
+            mcpServers: {
+              agent_template_mcp_host: {
+                name: "agent_template_mcp_host",
+                type: "sdk",
+              },
+            },
+          },
+        },
+      ]);
+    } finally {
+      if (previousInitCwd === undefined) {
+        delete process.env.INIT_CWD;
+      } else {
+        process.env.INIT_CWD = previousInitCwd;
+      }
+      rmSync(dir, { force: true, recursive: true });
+    }
   });
 });

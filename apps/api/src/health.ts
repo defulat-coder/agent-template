@@ -1,5 +1,5 @@
 import { getAgentRuntimeStateFromEnv } from "@agent-template/agent";
-import { loadMcpHostConfig } from "@agent-template/mcp-host";
+import { defaultMcpToolboxServerId, loadMcpHostConfig } from "@agent-template/mcp-host";
 import { createHealthStatus, agentQueueName, type DependencyState, type HealthStatus } from "@agent-template/shared";
 import { createRedisPingConnection } from "./queue.js";
 import type { Env } from "./env.js";
@@ -89,6 +89,7 @@ export async function getHealth(env: Env, options: HealthOptions): Promise<Healt
   const [database, redis] = await Promise.all([adapters.database(), adapters.redis()]);
   const status = database.status === "error" || redis.status === "error" ? "degraded" : "ok";
   const mcpHostConfig = loadMcpHostConfig(env);
+  const toolboxServer = mcpHostConfig.servers[defaultMcpToolboxServerId];
 
   return createHealthStatus({
     service: "api",
@@ -102,9 +103,9 @@ export async function getHealth(env: Env, options: HealthOptions): Promise<Healt
     },
     agent: getAgentRuntimeStateFromEnv(env),
     toolbox: {
-      configured: Boolean(mcpHostConfig.toolboxUrl && mcpHostConfig.toolboxToolset),
-      url: mcpHostConfig.toolboxUrl ?? "",
-      toolset: mcpHostConfig.toolboxToolset
+      configured: Boolean(toolboxServer),
+      url: toolboxServer?.url ?? "",
+      toolset: toolboxServer?.toolset ?? mcpHostConfig.toolboxToolset
     }
   });
 }

@@ -81,7 +81,7 @@ pnpm db:seed
 - `TOOLBOX_URL` 和 `TOOLBOX_TOOLSET` 只表达 Host-managed MCP 连接信息，不参与 runtime 选择。
 - 生产 Agent 默认只加载 `apps/toolbox/tools.yaml` 中显式声明的自定义 toolset。
 - MCP Host 是平台能力，统一放在 `@agent-template/mcp-host`；Claude/Eve runtime 不直接持有 Toolbox MCP connection。
-- MCP Host server registry 默认从根目录 `mcp-host.config.json` 读取；改 MCP Server 地址或 toolset 时改文件并重启服务，不改 Cloud/Eve runtime 代码。
+- MCP Host server registry 默认从根目录 `mcp-host.config.json` 的 `servers` 读取；改 MCP Server 地址或 toolset 时改文件并重启服务，不改 Cloud/Eve runtime 代码。旧的 `toolboxUrl` / `toolboxToolset` 仅作为兼容入口。
 - Web 不直接连接 MCP Server；交互式 MCP 输出通过 `apps/api` 的 Chat SSE 或 MCP Host API 返回到前端。
 - Queue runtime 暂不抽新 module；等第三个 queue consumer 或可替换 adapter 需求出现再抽。
 

@@ -7,26 +7,28 @@ export const AgentArtifactSchema = z.object({
   content: z.string()
 });
 
+export const AgentRunsDashboardDataSchema = z.object({
+  metrics: z.object({
+    totalRuns: z.number(),
+    completedRuns: z.number(),
+    failedRuns: z.number(),
+    failureRate: z.number()
+  }),
+  runs: z.array(
+    z.object({
+      runId: z.string(),
+      eventCount: z.number(),
+      terminalEvent: z.string().nullable(),
+      firstEventAt: z.string(),
+      lastEventAt: z.string()
+    })
+  )
+});
+
 export const AgentRunUiSchema = z.object({
   component: z.literal("agent-runs-dashboard"),
   title: z.string(),
-  data: z.object({
-    metrics: z.object({
-      totalRuns: z.number(),
-      completedRuns: z.number(),
-      failedRuns: z.number(),
-      failureRate: z.number()
-    }),
-    runs: z.array(
-      z.object({
-        runId: z.string(),
-        eventCount: z.number(),
-        terminalEvent: z.string().nullable(),
-        firstEventAt: z.string(),
-        lastEventAt: z.string()
-      })
-    )
-  })
+  data: AgentRunsDashboardDataSchema
 });
 
 export const AgentRunEventSchema = z.discriminatedUnion("kind", [
@@ -41,5 +43,6 @@ export const AgentRunEventSchema = z.discriminatedUnion("kind", [
 ]);
 
 export type AgentArtifact = z.infer<typeof AgentArtifactSchema>;
+export type AgentRunsDashboardData = z.infer<typeof AgentRunsDashboardDataSchema>;
 export type AgentRunUi = z.infer<typeof AgentRunUiSchema>;
 export type AgentRunEvent = z.infer<typeof AgentRunEventSchema>;

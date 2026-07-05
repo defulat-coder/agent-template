@@ -1,4 +1,8 @@
 {
-  "toolboxUrl": "${TOOLBOX_URL:-http://localhost:15000}",
-  "toolboxToolset": "${TOOLBOX_TOOLSET:-agent_template_read_model}"
+  "servers": {
+    "toolbox": {
+      "url": "${TOOLBOX_URL:-http://localhost:15000}",
+      "toolset": "${TOOLBOX_TOOLSET:-agent_template_read_model}"
+    }
+  }
 }

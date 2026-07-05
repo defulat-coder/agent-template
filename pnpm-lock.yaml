@@ -247,6 +247,9 @@ importers:
 
   packages/mcp-host:
     dependencies:
+      '@agent-template/shared':
+        specifier: workspace:*
+        version: link:../shared
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.29.0(zod@4.4.3)

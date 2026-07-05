@@ -64,8 +64,8 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
           }
         });
 
-        if (shouldRenderAgentRunsDashboard(input.prompt)) {
-          await emitAgentRunsDashboard(stream, mcpHost);
+        for (const event of await mcpHost.createAgentRunsDashboardEvents(input.prompt)) {
+          writeSseEvent(stream, "agent-event", event);
         }
 
         writeSseEvent(stream, "result", result);
@@ -94,41 +94,12 @@ function writeSseEvent(stream: PassThrough, event: string, data: AgentRunEvent |
   stream.write(`data: ${JSON.stringify(data)}\n\n`);
 }
 
-async function emitAgentRunsDashboard(stream: PassThrough, mcpHost: McpHost) {
-  const tool = "mcp-host/toolbox/list-agent-runs";
-
-  writeSseEvent(stream, "agent-event", {
-    input: "{\"limit\":20}",
-    kind: "tool-call",
-    tool
-  });
-
-  const data = await mcpHost.createAgentRunsDashboard(20);
-
-  writeSseEvent(stream, "agent-event", {
-    kind: "tool-result",
-    tool
-  });
-  writeSseEvent(stream, "agent-event", {
-    kind: "ui",
-    ui: {
-      component: "agent-runs-dashboard",
-      data,
-      title: "Agent 运行分析"
-    }
-  });
-}
-
 function readToolArguments(input: unknown): Record<string, unknown> {
   if (!isRecord(input)) {
     return {};
   }
 
   return isRecord(input.arguments) ? input.arguments : input;
-}
-
-function shouldRenderAgentRunsDashboard(prompt: string) {
-  return /mcp|toolbox|统计|分析|图表|dashboard|运行|可交互/i.test(prompt);
 }
 
 function isRecord(input: unknown): input is Record<string, unknown> {
