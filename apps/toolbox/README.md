@@ -23,10 +23,10 @@
 | `get-ecommerce-order-detail`            | 单订单与订单项核查       | 精确订单号                               |
 | `list-ecommerce-fulfillment-exceptions` | 已付款未履约订单         | 时间窗 + 最大 100 行                     |
 
-## 电商 MCP 可执行验证
+## 电商 MCP Docker 集成验证
 
 ```bash
-pnpm --filter @agent-template/mcp-host verify:ecommerce-toolbox
+pnpm --filter @agent-template/mcp-host verify:ecommerce-toolbox:docker
 ```
 
 该门禁会启动 PostgreSQL 与 Toolbox、生成 Prisma Client、应用已提交 migration、写入 fixture、重建 Toolbox，然后精确断言裸 MCP `tools/list`、Host allowlist 和六个电商 Tool 的确定性返回值。

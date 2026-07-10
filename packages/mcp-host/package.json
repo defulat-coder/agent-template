@@ -10,7 +10,7 @@
     "lint": "eslint src",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "verify:ecommerce-toolbox": "tsx src/verify-ecommerce-toolbox.ts"
+    "verify:ecommerce-toolbox:docker": "tsx src/verify-ecommerce-toolbox.ts"
   },
   "dependencies": {
     "@agent-template/shared": "workspace:*",
