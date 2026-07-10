@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import { Button } from "@agent-template/ui";
 import type { AgentMcpAppUi, AgentRunEvent, AgentRunResult } from "@agent-template/shared";
 import { streamAgentChat } from "@/lib/agent-client";
+import { AgentMarkdown } from "./agent-markdown";
 import { AgentRunTimeline } from "./agent-run-timeline";
 import { McpAppPanel } from "./mcp-app-panel";
 
@@ -89,15 +90,15 @@ export function AgentConsole() {
                 part.kind === "mcp-app" ? (
                   <McpAppPanel key={`reply-mcp-app-${part.ui.id}`} ui={part.ui} />
                 ) : (
-                  <p className="whitespace-pre-wrap break-words text-sm leading-6 text-slate-950" key={`reply-text-${index}`}>
-                    {part.text}
-                  </p>
+                  <div className="flex flex-col gap-3 break-words text-sm text-slate-950" key={`reply-text-${index}`}>
+                    <AgentMarkdown>{part.text}</AgentMarkdown>
+                  </div>
                 )
               )
             ) : (
-              <p className="whitespace-pre-wrap break-words text-sm leading-6 text-slate-950">
-                {streamedOutput || result?.output || result?.reason || "Agent 未返回内容。"}
-              </p>
+              <div className="flex flex-col gap-3 break-words text-sm text-slate-950">
+                <AgentMarkdown>{streamedOutput || result?.output || result?.reason || "Agent 未返回内容。"}</AgentMarkdown>
+              </div>
             )}
           </div>
           {result ? (
