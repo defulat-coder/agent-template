@@ -40,6 +40,14 @@ _Avoid_: Production export, random demo data
 A synthetic retail order with customer segment, channel, payment, fulfillment state, and order lines. Refunds may be full or partial.
 _Avoid_: Template event, Agent run
 
+**Business semantic catalog**:
+A versioned mapping from business terms to certified metrics, dimensions, value mappings, and approved query paths. It makes the meaning of a business question explicit without exposing raw tables to an Agent.
+_Avoid_: Prompt glossary, table dictionary
+
+**Semantic query**:
+A structured analytical request whose metric, dimensions, filters, and time window are selected from a Business semantic catalog. It does not mean arbitrary natural-language SQL.
+_Avoid_: Raw SQL, unrestricted NL2SQL
+
 **Tool provider**:
 An external capability source that exposes tools an Agent run may use.
 _Avoid_: Agent runtime, app service

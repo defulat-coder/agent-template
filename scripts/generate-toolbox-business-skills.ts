@@ -1,4 +1,5 @@
 import {
+  copyFileSync,
   cpSync,
   existsSync,
   mkdirSync,
@@ -10,7 +11,7 @@ import {
 } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { format } from "prettier";
 
@@ -30,8 +31,9 @@ const businessSkills: BusinessSkill[] = [
     workflow: `1. 要求或确认不超过 31 天的 UTC \`[from, to)\` 时间窗。
 2. 先调用 \`summarize-ecommerce-sales-by-day\` 判断趋势和异常日期。
 3. 需要渠道归因时，再调用 \`summarize-ecommerce-sales-by-channel\`。
-4. 指标口径仅包含 \`PAID\`、\`FULFILLED\` 和 \`REFUNDED\` 订单；明确区分 \`grossSales\`、\`refundAmount\` 与 \`netSales\`。
-5. 渠道 \`averageOrderValue\` 是平均单笔净销售额，不要把退款前销售额描述成实际收入。`,
+4. 用户询问大区时调用 \`summarize_sales_by_region\`；询问新客、活跃、VIP 或流失风险人群时调用 \`summarize_sales_by_customer_segment\`。
+5. 指标口径仅包含 \`PAID\`、\`FULFILLED\` 和 \`REFUNDED\` 订单；明确区分 \`grossSales\`、\`refundAmount\` 与 \`netSales\`。
+6. 渠道、区域和分群 \`averageOrderValue\` 是平均单笔净销售额，不要把退款前销售额描述成实际收入。`,
   },
   {
     name: "ecommerce-product-analysis",
@@ -40,8 +42,9 @@ const businessSkills: BusinessSkill[] = [
       "按销量、商品销售总额和退款调整后的净商品销售额分析商品表现。用户询问商品排行、畅销商品、品类表现或选品分析时使用。",
     workflow: `1. 要求或确认不超过 31 天的 UTC \`[from, to)\` 时间窗，并设置有界 \`limit\`。
 2. 调用 \`list-ecommerce-top-products\` 获取商品排行。
-3. 同时解释销量、毛商品销售额与退款分摊后的净商品销售额；这两个销售额都不包含运费。
-4. 不从排行结果推断库存、利润或转化率；当前 Tool 没有这些字段。`,
+3. 用户询问品类时调用 \`summarize_merchandise_by_category\`，不把商品排行当作品类汇总。
+4. 同时解释销量、毛商品销售额与退款分摊后的净商品销售额；这两个销售额都不包含运费。
+5. 不从排行结果推断库存、利润或转化率；当前 Tool 没有这些字段。`,
   },
   {
     name: "ecommerce-order-operations",
@@ -68,6 +71,10 @@ const businessSkills: BusinessSkill[] = [
 const repositoryRoot = fileURLToPath(new URL("..", import.meta.url));
 const evePackageRoot = join(repositoryRoot, "packages/agent-eve");
 const toolboxConfig = join(repositoryRoot, "apps/toolbox/tools.yaml");
+const ecommerceSemanticCatalog = join(
+  repositoryRoot,
+  "apps/toolbox/semantic/ecommerce.yaml",
+);
 const toolboxExecutable = join(
   repositoryRoot,
   "node_modules/.bin",
@@ -147,6 +154,10 @@ async function main() {
       for (const [runtime, outputRoot] of Object.entries(outputRoots)) {
         const outputSkill = join(outputRoot, skill.name);
         const outputMarkdown = join(outputSkill, "SKILL.md");
+        const outputSemanticCatalog = join(
+          outputSkill,
+          "references/ecommerce-semantic-catalog.yaml",
+        );
         const markdown = await format(
           runtime === "eve"
             ? useEveToolNames(adaptedMarkdown, toolNames)
@@ -155,14 +166,21 @@ async function main() {
         );
 
         if (checkOnly) {
+          const expectedFiles = [
+            "SKILL.md",
+            "references/ecommerce-semantic-catalog.yaml",
+          ];
           const outputFiles = existsSync(outputSkill)
-            ? readdirSync(outputSkill).sort()
+            ? listRelativeFiles(outputSkill)
             : [];
           if (
-            outputFiles.length !== 1 ||
-            outputFiles[0] !== "SKILL.md" ||
+            JSON.stringify(outputFiles) !== JSON.stringify(expectedFiles) ||
             !existsSync(outputMarkdown) ||
-            readFileSync(outputMarkdown, "utf8") !== markdown
+            readFileSync(outputMarkdown, "utf8") !== markdown ||
+            !existsSync(outputSemanticCatalog) ||
+            !readFileSync(outputSemanticCatalog).equals(
+              readFileSync(ecommerceSemanticCatalog),
+            )
           ) {
             staleOutputs.push(outputMarkdown);
           }
@@ -172,6 +190,8 @@ async function main() {
         rmSync(outputSkill, { force: true, recursive: true });
         mkdirSync(outputSkill, { recursive: true });
         writeFileSync(outputMarkdown, markdown, "utf8");
+        mkdirSync(dirname(outputSemanticCatalog), { recursive: true });
+        copyFileSync(ecommerceSemanticCatalog, outputSemanticCatalog);
       }
     }
 
@@ -220,6 +240,10 @@ function adaptSkillMarkdown(markdown: string, workflow: string) {
 ## Workflow
 
 ${workflow}
+
+## Business semantic catalog
+
+涉及业务术语、指标、维度或枚举取值时，先读取 \`references/ecommerce-semantic-catalog.yaml\`。只使用其中认证的术语、口径和 Tool；遇到标记为 \`clarify\` 的术语，先向用户澄清，不要猜测或生成任意 SQL。
 ${toolReference}`;
 }
 
@@ -351,7 +375,7 @@ function synchronizeRawOutputRoot() {
 
 function readGeneratedToolNames(markdown: string) {
   const toolNames = Array.from(
-    markdown.matchAll(/^### ([a-z0-9-]+)$/gm),
+    markdown.matchAll(/^### ([a-z0-9_-]+)$/gm),
     (match) => match[1],
   ).filter((name): name is string => Boolean(name));
 

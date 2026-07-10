@@ -24,6 +24,9 @@ const expectedToolNames = [
   "list-template-events",
   "summarize-ecommerce-sales-by-channel",
   "summarize-ecommerce-sales-by-day",
+  "summarize_merchandise_by_category",
+  "summarize_sales_by_customer_segment",
+  "summarize_sales_by_region",
   "summarize-template-events-by-type",
   "summarize-tool-invocations",
 ].sort();
@@ -139,6 +142,30 @@ async function main() {
   assert.equal(channelSales[0]?.paidOrderCount, 60);
   assert.equal(channelSales[0]?.netSales, 30262.8);
 
+  const regionSales = readRows(
+    await host.callTool("toolbox", "summarize_sales_by_region", timeWindow),
+  );
+  assert.equal(regionSales.length, 6);
+  assert.ok(regionSales.every((row) => typeof row.region === "string"));
+  assert.ok(regionSales.every((row) => typeof row.netSales === "number"));
+
+  const segmentSales = readRows(
+    await host.callTool(
+      "toolbox",
+      "summarize_sales_by_customer_segment",
+      timeWindow,
+    ),
+  );
+  assert.deepEqual(segmentSales.map((row) => row.customerSegment).sort(), [
+    "ACTIVE",
+    "AT_RISK",
+    "NEW",
+    "VIP",
+  ]);
+  assert.ok(
+    segmentSales.every((row) => typeof row.averageOrderValue === "number"),
+  );
+
   const topProducts = readRows(
     await host.callTool("toolbox", "list-ecommerce-top-products", {
       ...timeWindow,
@@ -148,6 +175,23 @@ async function main() {
   assert.equal(topProducts.length, 5);
   assert.equal(topProducts[0]?.sku, "BEAUTY-004");
   assert.equal(topProducts[0]?.netMerchandiseSales, 11607);
+
+  const categorySales = readRows(
+    await host.callTool(
+      "toolbox",
+      "summarize_merchandise_by_category",
+      timeWindow,
+    ),
+  );
+  assert.equal(categorySales.length, 6);
+  assert.ok(categorySales.every((row) => typeof row.category === "string"));
+  assert.ok(
+    categorySales.every(
+      (row) =>
+        typeof row.grossMerchandiseSales === "number" &&
+        typeof row.netMerchandiseSales === "number",
+    ),
+  );
 
   const orders = readRows(
     await host.callTool("toolbox", "list-ecommerce-orders-in-window", {
@@ -187,7 +231,7 @@ async function main() {
   assert.equal(fulfillmentExceptions[0]?.hoursWaiting, 715.62);
 
   console.log(
-    "Ecommerce MCP verification passed: 15 tools listed and 6 business tools called through MCP Host.",
+    "Ecommerce MCP verification passed: 18 tools listed and 9 business tools called through MCP Host.",
   );
 }
 

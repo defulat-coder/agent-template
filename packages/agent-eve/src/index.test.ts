@@ -27,7 +27,17 @@ describe("Eve Agent runtime", () => {
 
       expect(skill).toContain(`name: ${skillName}`);
       expect(skill).toContain("Host-managed typed tools");
+      expect(skill).toContain("Business semantic catalog");
       expect(skill).not.toMatch(/^### [a-z0-9]+-[a-z0-9-]+$/m);
+
+      const semanticCatalog = readFileSync(
+        new URL(
+          `../agent/skills/${skillName}/references/ecommerce-semantic-catalog.yaml`,
+          import.meta.url,
+        ),
+        "utf8",
+      );
+      expect(semanticCatalog).toContain("kind: business-semantic-catalog");
     }
   });
 
@@ -112,6 +122,15 @@ describe("Eve Agent runtime", () => {
     const summarizeEcommerceSalesByDay = (
       await import("../agent/tools/summarize_ecommerce_sales_by_day")
     ).default as { description?: string };
+    const summarizeSalesByCustomerSegment = (
+      await import("../agent/tools/summarize_sales_by_customer_segment")
+    ).default as { description?: string };
+    const summarizeSalesByRegion = (
+      await import("../agent/tools/summarize_sales_by_region")
+    ).default as { description?: string };
+    const summarizeMerchandiseByCategory = (
+      await import("../agent/tools/summarize_merchandise_by_category")
+    ).default as { description?: string };
     const getTemplateEvent = (await import("../agent/tools/get_template_event"))
       .default as { description?: string };
 
@@ -147,6 +166,9 @@ describe("Eve Agent runtime", () => {
     expect(summarizeEcommerceSalesByDay.description).toContain(
       "synthetic ecommerce",
     );
+    expect(summarizeSalesByCustomerSegment.description).toContain("客户分群");
+    expect(summarizeSalesByRegion.description).toContain("大区");
+    expect(summarizeMerchandiseByCategory.description).toContain("商品品类");
     expect(getTemplateEvent.description).toContain("Host-managed Toolbox");
     expect(
       existsSync(new URL("../agent/connections/toolbox.ts", import.meta.url)),

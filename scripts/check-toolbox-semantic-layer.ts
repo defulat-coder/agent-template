@@ -14,6 +14,14 @@ type ToolboxParameter = {
 const repositoryRoot = fileURLToPath(new URL("..", import.meta.url));
 const toolboxConfigPath = join(repositoryRoot, "apps/toolbox/tools.yaml");
 const toolboxConfig = readFileSync(toolboxConfigPath, "utf8");
+const ecommerceSemanticCatalogPath = join(
+  repositoryRoot,
+  "apps/toolbox/semantic/ecommerce.yaml",
+);
+const ecommerceSemanticEvaluationPath = join(
+  repositoryRoot,
+  "apps/toolbox/semantic/ecommerce-evaluation.yaml",
+);
 const errors: string[] = [];
 const legacyToolNames = new Set([
   "get-agent-run-summary",
@@ -42,10 +50,15 @@ const expectedToolsets: Record<string, string[]> = {
     "list-ecommerce-orders-in-window",
     "get-ecommerce-order-detail",
   ],
-  "ecommerce-product-analytics": ["list-ecommerce-top-products"],
+  "ecommerce-product-analytics": [
+    "list-ecommerce-top-products",
+    "summarize_merchandise_by_category",
+  ],
   "ecommerce-sales-analytics": [
     "summarize-ecommerce-sales-by-day",
     "summarize-ecommerce-sales-by-channel",
+    "summarize_sales_by_region",
+    "summarize_sales_by_customer_segment",
   ],
 };
 const semanticDescriptionRequirements: Record<string, string[]> = {
@@ -75,6 +88,21 @@ const semanticDescriptionRequirements: Record<string, string[]> = {
     "grossSales",
     "netSales = grossSales - refundAmount",
   ],
+  summarize_merchandise_by_category: [
+    "grossMerchandiseSales",
+    "netMerchandiseSales",
+    "不包含运费",
+  ],
+  summarize_sales_by_customer_segment: [
+    "NEW、ACTIVE、VIP、AT_RISK",
+    "grossSales",
+    "averageOrderValue",
+  ],
+  summarize_sales_by_region: [
+    "PAID、FULFILLED、REFUNDED",
+    "customer.region",
+    "averageOrderValue",
+  ],
 };
 
 const documents = parseAllDocuments(toolboxConfig);
@@ -95,6 +123,11 @@ const toolNames = new Set(tools.map((tool) => readName(tool, "tool")));
 const toolsetByName = new Map(
   toolsets.map((toolset) => [readName(toolset, "toolset"), toolset]),
 );
+
+const ecommerceSemanticCatalog = validateEcommerceSemanticCatalog();
+if (ecommerceSemanticCatalog) {
+  validateEcommerceSemanticEvaluation(ecommerceSemanticCatalog);
+}
 
 if (sources.length === 0) {
   errors.push("Toolbox config must declare at least one source");
@@ -261,6 +294,265 @@ function validateToolset(toolset: ToolboxEntry) {
     if (!toolNames.has(toolName)) {
       errors.push(`${name}: references unknown tool ${toolName}`);
     }
+  }
+}
+
+function validateEcommerceSemanticCatalog(): ToolboxEntry | undefined {
+  const documents = parseAllDocuments(
+    readFileSync(ecommerceSemanticCatalogPath, "utf8"),
+  );
+
+  for (const [index, document] of documents.entries()) {
+    for (const error of document.errors) {
+      errors.push(
+        `Ecommerce semantic catalog document ${index + 1}: ${error.message}`,
+      );
+    }
+  }
+
+  const catalog = documents.length === 1 ? documents[0]?.toJS() : undefined;
+  if (!isToolboxEntry(catalog)) {
+    errors.push("Ecommerce semantic catalog must contain one YAML object");
+    return undefined;
+  }
+
+  if (catalog.kind !== "business-semantic-catalog") {
+    errors.push(
+      "Ecommerce semantic catalog kind must be business-semantic-catalog",
+    );
+  }
+
+  const terms = new Set<string>();
+  const metrics = readRecordArray(catalog.metrics, "metrics");
+  const dimensions = readRecordArray(catalog.dimensions, "dimensions");
+  const questionPatterns = readRecordArray(
+    catalog.questionPatterns,
+    "questionPatterns",
+  );
+  const referencedTools = new Set<string>();
+
+  for (const metric of metrics) {
+    validateSemanticEntry(metric, "metric", terms);
+    validateSemanticToolReferences(metric, "metric");
+    for (const tool of readStringArray(metric.tools)) referencedTools.add(tool);
+    requireString(metric, "definition", "metric");
+    requireString(metric, "resultField", "metric");
+    requireString(metric, "timeField", "metric");
+  }
+
+  for (const dimension of dimensions) {
+    validateSemanticEntry(dimension, "dimension", terms);
+    requireString(dimension, "field", "dimension");
+    const values = readRecordArray(
+      dimension.values ?? dimension.fixtureValues,
+      `${readString(dimension.id) || "dimension"} values`,
+    );
+    if (values.length === 0) {
+      errors.push(
+        `${readString(dimension.id) || "dimension"}: values are required`,
+      );
+    }
+
+    for (const value of values) {
+      requireString(value, "value", "dimension value");
+      const labels = readStringArray(value.labels);
+      if (labels.length === 0) {
+        errors.push(
+          `${readString(dimension.id) || "dimension"}: every value needs business labels`,
+        );
+      }
+    }
+  }
+
+  for (const pattern of questionPatterns) {
+    requireString(pattern, "id", "question pattern");
+    requireString(pattern, "tool", "question pattern");
+    const tool = readString(pattern.tool);
+    if (tool && !toolNames.has(tool)) {
+      errors.push(
+        `question pattern ${readString(pattern.id)}: unknown tool ${tool}`,
+      );
+    }
+    if (tool) referencedTools.add(tool);
+  }
+
+  const certifiedBusinessTools = new Set(
+    Object.values(expectedToolsets).flat(),
+  );
+  for (const tool of certifiedBusinessTools) {
+    if (!referencedTools.has(tool)) {
+      errors.push(
+        `Ecommerce semantic catalog must reference certified business tool ${tool}`,
+      );
+    }
+  }
+
+  for (const ambiguity of readRecordArray(catalog.ambiguities, "ambiguities")) {
+    requireString(ambiguity, "term", "ambiguity");
+    if (ambiguity.action !== "clarify") {
+      errors.push(
+        `${readString(ambiguity.term) || "ambiguity"}: action must be clarify`,
+      );
+    }
+  }
+
+  return catalog;
+}
+
+function validateEcommerceSemanticEvaluation(catalog: ToolboxEntry) {
+  const documents = parseAllDocuments(
+    readFileSync(ecommerceSemanticEvaluationPath, "utf8"),
+  );
+
+  for (const [index, document] of documents.entries()) {
+    for (const error of document.errors) {
+      errors.push(
+        `Ecommerce semantic evaluation document ${index + 1}: ${error.message}`,
+      );
+    }
+  }
+
+  const evaluation = documents.length === 1 ? documents[0]?.toJS() : undefined;
+  if (!isToolboxEntry(evaluation)) {
+    errors.push("Ecommerce semantic evaluation must contain one YAML object");
+    return;
+  }
+
+  if (evaluation.kind !== "semantic-query-evaluation") {
+    errors.push(
+      "Ecommerce semantic evaluation kind must be semantic-query-evaluation",
+    );
+  }
+
+  if (evaluation.catalog !== catalog.name) {
+    errors.push(
+      "Ecommerce semantic evaluation must reference the catalog name",
+    );
+  }
+
+  const knownTerms = new Set(
+    [
+      ...readRecordArray(catalog.metrics, "metrics"),
+      ...readRecordArray(catalog.dimensions, "dimensions"),
+    ]
+      .map((entry) => readString(entry.id))
+      .filter(Boolean),
+  );
+  const patternTools = new Map(
+    readRecordArray(catalog.questionPatterns, "questionPatterns")
+      .map((entry) => [readString(entry.id), readString(entry.tool)] as const)
+      .filter(([id, tool]) => Boolean(id) && Boolean(tool)),
+  );
+  const ambiguousTerms = new Set(
+    readRecordArray(catalog.ambiguities, "ambiguities")
+      .map((entry) => readString(entry.term))
+      .filter(Boolean),
+  );
+  const cases = readRecordArray(evaluation.cases, "semantic evaluation cases");
+
+  if (cases.length === 0) {
+    errors.push("Ecommerce semantic evaluation must contain cases");
+  }
+
+  for (const testCase of cases) {
+    const id = readString(testCase.id) || "semantic evaluation case";
+    requireString(testCase, "id", "semantic evaluation case");
+    requireString(testCase, "question", id);
+    const expected = isToolboxEntry(testCase.expected)
+      ? testCase.expected
+      : undefined;
+    if (!expected) {
+      errors.push(`${id}: expected is required`);
+      continue;
+    }
+
+    if (typeof expected.requiresClarification !== "boolean") {
+      errors.push(`${id}: expected.requiresClarification must be boolean`);
+      continue;
+    }
+
+    if (expected.requiresClarification) {
+      const ambiguity = readString(expected.ambiguity);
+      if (!ambiguousTerms.has(ambiguity)) {
+        errors.push(`${id}: ambiguity must exist in the semantic catalog`);
+      }
+      continue;
+    }
+
+    const intent = readString(expected.intent);
+    const tool = readString(expected.tool);
+    if (!patternTools.has(intent)) {
+      errors.push(`${id}: expected intent must exist in the semantic catalog`);
+    }
+    if (!toolNames.has(tool)) {
+      errors.push(`${id}: expected tool must exist in tools.yaml`);
+    }
+    if (patternTools.get(intent) && patternTools.get(intent) !== tool) {
+      errors.push(
+        `${id}: expected tool must match the intent's certified tool`,
+      );
+    }
+    const terms = readStringArray(expected.terms);
+    if (terms.length === 0) {
+      errors.push(`${id}: expected terms are required`);
+    }
+    for (const term of terms) {
+      if (!knownTerms.has(term)) {
+        errors.push(
+          `${id}: expected term ${term} must exist in the semantic catalog`,
+        );
+      }
+    }
+  }
+}
+
+function validateSemanticEntry(
+  entry: ToolboxEntry,
+  kind: string,
+  terms: Set<string>,
+) {
+  const id = readString(entry.id);
+  requireString(entry, "id", kind);
+  const labels = readStringArray(entry.labels);
+  if (labels.length === 0) {
+    errors.push(`${id || kind}: labels are required`);
+  }
+
+  for (const label of labels) {
+    const normalized = label.trim().toLocaleLowerCase("zh-CN");
+    if (terms.has(normalized)) {
+      errors.push(`${id || kind}: duplicate business term ${label}`);
+    }
+    terms.add(normalized);
+  }
+}
+
+function validateSemanticToolReferences(entry: ToolboxEntry, kind: string) {
+  const id = readString(entry.id) || kind;
+  const tools = readStringArray(entry.tools);
+  if (tools.length === 0) {
+    errors.push(`${id}: ${kind} must reference at least one approved tool`);
+  }
+
+  for (const tool of tools) {
+    if (!toolNames.has(tool)) {
+      errors.push(`${id}: references unknown tool ${tool}`);
+    }
+  }
+}
+
+function readRecordArray(value: unknown, label: string) {
+  if (!Array.isArray(value)) {
+    errors.push(`${label} must be an array`);
+    return [];
+  }
+
+  return value.filter((item): item is ToolboxEntry => isToolboxEntry(item));
+}
+
+function requireString(entry: ToolboxEntry, key: string, label: string) {
+  if (!readString(entry[key])) {
+    errors.push(`${label}: ${key} is required`);
   }
 }
 

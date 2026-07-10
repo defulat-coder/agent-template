@@ -398,6 +398,9 @@ function readHostManagedClaudeTools(config: ClaudeAgentConfig) {
         "mcp__agent_template_mcp_host__summarize-template-events-by-type",
         "mcp__agent_template_mcp_host__summarize-ecommerce-sales-by-channel",
         "mcp__agent_template_mcp_host__summarize-ecommerce-sales-by-day",
+        "mcp__agent_template_mcp_host__summarize_merchandise_by_category",
+        "mcp__agent_template_mcp_host__summarize_sales_by_customer_segment",
+        "mcp__agent_template_mcp_host__summarize_sales_by_region",
         "mcp__agent_template_mcp_host__summarize-tool-invocations",
       ]
     : [];
@@ -480,6 +483,28 @@ function createHostManagedClaudeMcpServers(
             ),
         ),
         sdk.tool(
+          "summarize_sales_by_region",
+          "Summarize synthetic ecommerce gross sales, refunds, net sales, buyers, and AOV by customer region in an explicit UTC time window.",
+          McpToolboxTimeWindowSchema.shape,
+          async (args) =>
+            host.callTool(
+              "toolbox",
+              "summarize_sales_by_region",
+              McpToolboxTimeWindowSchema.parse(args),
+            ),
+        ),
+        sdk.tool(
+          "summarize_sales_by_customer_segment",
+          "Summarize synthetic ecommerce gross sales, refunds, net sales, buyers, and AOV by customer segment in an explicit UTC time window.",
+          McpToolboxTimeWindowSchema.shape,
+          async (args) =>
+            host.callTool(
+              "toolbox",
+              "summarize_sales_by_customer_segment",
+              McpToolboxTimeWindowSchema.parse(args),
+            ),
+        ),
+        sdk.tool(
           "list-ecommerce-top-products",
           "Rank synthetic ecommerce products by paid quantity and net merchandise sales in an explicit UTC time window.",
           McpToolboxTimeWindowWithLimitSchema.shape,
@@ -488,6 +513,17 @@ function createHostManagedClaudeMcpServers(
               "toolbox",
               "list-ecommerce-top-products",
               McpToolboxTimeWindowWithLimitSchema.parse(args),
+            ),
+        ),
+        sdk.tool(
+          "summarize_merchandise_by_category",
+          "Summarize synthetic ecommerce units, gross merchandise sales, and refund-adjusted net merchandise sales by category in an explicit UTC time window.",
+          McpToolboxTimeWindowSchema.shape,
+          async (args) =>
+            host.callTool(
+              "toolbox",
+              "summarize_merchandise_by_category",
+              McpToolboxTimeWindowSchema.parse(args),
             ),
         ),
         sdk.tool(

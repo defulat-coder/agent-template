@@ -4,6 +4,8 @@
 
 [tools.yaml](./tools.yaml) 是 Tool、Toolset 与 MCP annotations 的可执行事实源，[SEMANTIC_LAYER.md](./SEMANTIC_LAYER.md) 记录人类可读的业务指标、时间口径和命名兼容策略。当前 PostgreSQL 项目实现的是 Google Toolbox 的工具语义契约，不是 AlloyDB AI NL 或 Looker 专属语义层。
 
+智能问数的术语、指标、实际字段/取值、歧义处理和 golden cases 位于 [semantic/](./semantic/)，完整的生产落地路径见 [INTELLIGENT_QUERY.md](./INTELLIGENT_QUERY.md)。
+
 ## 设计边界
 
 - 不暴露 `postgres-execute-sql` 或任何通用 SQL tool；每个 `postgres-sql` 都是预定义 statement，并由 Toolbox 以 prepared statement 执行。
@@ -22,7 +24,10 @@
 | --------------------------------------- | ------------------------ | ---------------------------------------- |
 | `summarize-ecommerce-sales-by-day`      | 日 GMV、退款、净销售趋势 | `[from, to)` 聚合                        |
 | `summarize-ecommerce-sales-by-channel`  | 多渠道经营对比           | `[from, to)` 聚合                        |
+| `summarize_sales_by_region`             | 大区销售、退款与客单价   | `[from, to)` 聚合；仅返回聚合结果        |
+| `summarize_sales_by_customer_segment`   | 新客、活跃、VIP 分群分析 | `[from, to)` 聚合；枚举值受语义目录约束  |
 | `list-ecommerce-top-products`           | 商品销量与净销售排行     | 时间窗 + 最大 100 行；按订单退款比例分摊 |
+| `summarize_merchandise_by_category`     | 品类销量与净商品销售额   | `[from, to)` 聚合；不包含运费            |
 | `list-ecommerce-orders-in-window`       | 订单运营视图             | 时间窗 + 最大 100 行；无联系方式         |
 | `get-ecommerce-order-detail`            | 单订单与订单项核查       | 精确订单号                               |
 | `list-ecommerce-fulfillment-exceptions` | 已付款未履约订单         | 时间窗 + 最大 100 行                     |
@@ -52,7 +57,7 @@ generated/toolbox-skills/        # Toolbox 官方原始完整产物
 packages/agent-eve/agent/skills/ # Eve 实际加载的适配版
 ```
 
-原始目录保留每个 Skill 的 `SKILL.md`、`assets/tools.yaml` 和 `scripts/*.js`，便于检查和本地诊断。Eve 使用下划线形式的 authored tool 名，Claude 使用 Toolbox 原始连字符工具名。实际版 Skill 只负责按需加载业务流程，执行仍走 MCP Host allowlist；官方数据库直连脚本不会复制进 Agent 运行目录。
+原始目录保留每个 Skill 的 `SKILL.md`、`assets/tools.yaml` 和 `scripts/*.js`，便于检查和本地诊断。Eve 使用下划线形式的 authored tool 名，Claude 保留 Toolbox 的原始 Tool 名。实际版 Skill 除了按需加载业务流程，还带有 `references/ecommerce-semantic-catalog.yaml`；执行仍走 MCP Host allowlist，官方数据库直连脚本不会复制进 Agent 运行目录。
 
 Toolbox 固定生成的标题、表头和脚本模板保持英文；可配置的 Skill 描述、补充说明、业务 Tool 描述和参数描述统一使用中文。生成门禁会检查这些业务内容包含中文。
 
@@ -64,7 +69,7 @@ Toolbox 固定生成的标题、表头和脚本模板保持英文；可配置的
 pnpm --filter @agent-template/mcp-host verify:ecommerce-toolbox:docker
 ```
 
-该门禁会启动 PostgreSQL 与 Toolbox、生成 Prisma Client、应用已提交 migration、写入 fixture、重建 Toolbox，然后精确断言裸 MCP `tools/list`、Host allowlist 和六个电商 Tool 的确定性返回值。
+该门禁会启动 PostgreSQL 与 Toolbox、生成 Prisma Client、应用已提交 migration、写入 fixture、重建 Toolbox，然后精确断言裸 MCP `tools/list`、Host allowlist 和九个电商 Tool 的确定性返回值。
 
 验证日销售、渠道和商品排行：
 

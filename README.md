@@ -61,7 +61,7 @@ packages/
   shared/        共享 Zod schema 和 TypeScript 类型
 ```
 
-`apps/toolbox/tools.yaml` 定义生产 Agent 可加载的数据库工具。默认 toolset 是 `agent_template_read_model`：保留 `TemplateEvent` 的只读运行观测，同时提供合成电商的日销售、渠道、商品排行、订单详情和履约异常查询。`pnpm db:seed` 会写入 96 个脱敏客户、24 个商品和 600 个确定性订单；指标口径和 MCP annotations 见 [Toolbox 业务语义契约](apps/toolbox/SEMANTIC_LAYER.md)，完整的参数、索引和 MCP 验证命令见 [apps/toolbox/README.md](apps/toolbox/README.md)。prebuilt generic tools 仅用于开发期探索，不作为生产 Agent 默认能力。
+`apps/toolbox/tools.yaml` 定义生产 Agent 可加载的数据库工具。默认 toolset 是 `agent_template_read_model`：保留 `TemplateEvent` 的只读运行观测，同时提供合成电商的日销售、渠道、区域、客户分群、品类、商品排行、订单详情和履约异常查询。`pnpm db:seed` 会写入 96 个脱敏客户、24 个商品和 600 个确定性订单；指标口径和 MCP annotations 见 [Toolbox 业务语义契约](apps/toolbox/SEMANTIC_LAYER.md)，智能问数的术语到字段/取值映射见 [智能问数落地](apps/toolbox/INTELLIGENT_QUERY.md)，完整的参数、索引和 MCP 验证命令见 [apps/toolbox/README.md](apps/toolbox/README.md)。prebuilt generic tools 仅用于开发期探索，不作为生产 Agent 默认能力。
 
 `mcp-host.config.json` 通过 `servers` registry 定义 MCP Host 要连接的 server；默认 `toolbox` server 使用 `TOOLBOX_URL` 和 `TOOLBOX_TOOLSET` 占位，修改后重启 API/Agent 服务即可生效，不需要改 Cloud 或 Eve runtime 代码。
 

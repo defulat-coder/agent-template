@@ -86,6 +86,85 @@ parameters:
     description: ISO-8601 UTC 销售时间窗结束时间（不包含），例如 2026-06-02T00:00:00Z。
 ---
 kind: tool
+name: summarize_sales_by_region
+type: postgres-sql
+source: agent-template-postgres
+description: |
+  按客户大区汇总已结算订单（PAID、FULFILLED、REFUNDED）的销售表现。
+  grossSales 为付款总额，refundAmount 为退款总额，netSales 为两者差额，averageOrderValue 为平均单笔净销售额。
+  区域来自合成客户档案 customer.region，仅适用于有界 UTC 付款时间窗，不返回客户联系方式或明细。
+annotations:
+  readOnlyHint: true
+  destructiveHint: false
+  idempotentHint: true
+  openWorldHint: false
+statement: |
+  SELECT
+    customer.region,
+    COUNT(*)::int AS "paidOrderCount",
+    COUNT(DISTINCT orders."customerId")::int AS "buyerCount",
+    COALESCE(SUM(orders."paidTotal"), 0) AS "grossSales",
+    COALESCE(SUM(orders."refundedTotal"), 0) AS "refundAmount",
+    COALESCE(SUM(orders."paidTotal" - orders."refundedTotal"), 0) AS "netSales",
+    COALESCE(
+      ROUND(AVG(orders."paidTotal" - orders."refundedTotal"), 2),
+      0
+    ) AS "averageOrderValue"
+  FROM "EcommerceOrder" AS orders
+  JOIN "EcommerceCustomer" AS customer ON customer.id = orders."customerId"
+  WHERE orders.status IN ('PAID', 'FULFILLED', 'REFUNDED')
+    AND orders."paidAt" >= $1::timestamptz
+    AND orders."paidAt" < $2::timestamptz
+  GROUP BY customer.region
+  ORDER BY "netSales" DESC, customer.region ASC;
+parameters:
+  - name: from
+    type: string
+    description: ISO-8601 UTC 销售时间窗开始时间（包含），例如 2026-06-01T00:00:00Z。
+  - name: to
+    type: string
+    description: ISO-8601 UTC 销售时间窗结束时间（不包含），例如 2026-06-02T00:00:00Z。
+---
+kind: tool
+name: summarize_sales_by_customer_segment
+type: postgres-sql
+source: agent-template-postgres
+description: |
+  按合成客户分群汇总已结算订单（PAID、FULFILLED、REFUNDED）的销售表现。
+  customerSegment 使用数据库枚举值 NEW、ACTIVE、VIP、AT_RISK；grossSales、refundAmount、netSales 与 averageOrderValue 口径和销售趋势 Tool 一致。
+annotations:
+  readOnlyHint: true
+  destructiveHint: false
+  idempotentHint: true
+  openWorldHint: false
+statement: |
+  SELECT
+    customer.segment::text AS "customerSegment",
+    COUNT(*)::int AS "paidOrderCount",
+    COUNT(DISTINCT orders."customerId")::int AS "buyerCount",
+    COALESCE(SUM(orders."paidTotal"), 0) AS "grossSales",
+    COALESCE(SUM(orders."refundedTotal"), 0) AS "refundAmount",
+    COALESCE(SUM(orders."paidTotal" - orders."refundedTotal"), 0) AS "netSales",
+    COALESCE(
+      ROUND(AVG(orders."paidTotal" - orders."refundedTotal"), 2),
+      0
+    ) AS "averageOrderValue"
+  FROM "EcommerceOrder" AS orders
+  JOIN "EcommerceCustomer" AS customer ON customer.id = orders."customerId"
+  WHERE orders.status IN ('PAID', 'FULFILLED', 'REFUNDED')
+    AND orders."paidAt" >= $1::timestamptz
+    AND orders."paidAt" < $2::timestamptz
+  GROUP BY customer.segment
+  ORDER BY "netSales" DESC, "customerSegment" ASC;
+parameters:
+  - name: from
+    type: string
+    description: ISO-8601 UTC 销售时间窗开始时间（包含），例如 2026-06-01T00:00:00Z。
+  - name: to
+    type: string
+    description: ISO-8601 UTC 销售时间窗结束时间（不包含），例如 2026-06-02T00:00:00Z。
+---
+kind: tool
 name: list-ecommerce-top-products
 type: postgres-sql
 source: agent-template-postgres
@@ -137,6 +216,49 @@ parameters:
     default: 20
     minValue: 1
     maxValue: 100
+---
+kind: tool
+name: summarize_merchandise_by_category
+type: postgres-sql
+source: agent-template-postgres
+description: |
+  按商品品类汇总已结算订单项的销量、商品销售额和退款后商品销售额。
+  grossMerchandiseSales 不包含运费；netMerchandiseSales 将订单级 refundedTotal 按 lineTotal / paidTotal 分摊到订单项。
+annotations:
+  readOnlyHint: true
+  destructiveHint: false
+  idempotentHint: true
+  openWorldHint: false
+statement: |
+  WITH settled_items AS (
+    SELECT
+      item.category,
+      item.quantity,
+      item."lineTotal",
+      item."lineTotal" * (
+        1 - COALESCE(orders."refundedTotal" / NULLIF(orders."paidTotal", 0), 0)
+      ) AS "netMerchandiseSales"
+    FROM "EcommerceOrderItem" AS item
+    JOIN "EcommerceOrder" AS orders ON orders.id = item."orderId"
+    WHERE orders.status IN ('PAID', 'FULFILLED', 'REFUNDED')
+      AND orders."paidAt" >= $1::timestamptz
+      AND orders."paidAt" < $2::timestamptz
+  )
+  SELECT
+    category,
+    SUM(quantity)::int AS "unitsSold",
+    COALESCE(SUM("lineTotal"), 0) AS "grossMerchandiseSales",
+    COALESCE(SUM("netMerchandiseSales"), 0) AS "netMerchandiseSales"
+  FROM settled_items
+  GROUP BY category
+  ORDER BY "netMerchandiseSales" DESC, "unitsSold" DESC, category ASC;
+parameters:
+  - name: from
+    type: string
+    description: ISO-8601 UTC 销售时间窗开始时间（包含），例如 2026-06-01T00:00:00Z。
+  - name: to
+    type: string
+    description: ISO-8601 UTC 销售时间窗结束时间（不包含），例如 2026-06-02T00:00:00Z。
 ---
 kind: tool
 name: list-ecommerce-orders-in-window
@@ -591,7 +713,10 @@ tools:
   - summarize-tool-invocations
   - summarize-ecommerce-sales-by-day
   - summarize-ecommerce-sales-by-channel
+  - summarize_sales_by_region
+  - summarize_sales_by_customer_segment
   - list-ecommerce-top-products
+  - summarize_merchandise_by_category
   - list-ecommerce-orders-in-window
   - get-ecommerce-order-detail
   - list-ecommerce-fulfillment-exceptions
@@ -601,11 +726,14 @@ name: ecommerce-sales-analytics
 tools:
   - summarize-ecommerce-sales-by-day
   - summarize-ecommerce-sales-by-channel
+  - summarize_sales_by_region
+  - summarize_sales_by_customer_segment
 ---
 kind: toolset
 name: ecommerce-product-analytics
 tools:
   - list-ecommerce-top-products
+  - summarize_merchandise_by_category
 ---
 kind: toolset
 name: ecommerce-order-operations

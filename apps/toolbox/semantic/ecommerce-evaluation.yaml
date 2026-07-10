@@ -1,0 +1,57 @@
+kind: semantic-query-evaluation
+catalog: ecommerce-retail-example
+version: 1
+cases:
+  - id: regional-gmv
+    question: 近30天华东GMV是多少？
+    expected:
+      intent: sales_by_region
+      tool: summarize_sales_by_region
+      terms: [gross_sales, region]
+      requiresTimeWindow: true
+      requiresClarification: false
+  - id: vip-net-sales
+    question: 本月VIP客户的退款后销售额和客单价怎样？
+    expected:
+      intent: sales_by_customer_segment
+      tool: summarize_sales_by_customer_segment
+      terms: [customer_segment, net_sales, average_order_value]
+      requiresTimeWindow: true
+      requiresClarification: false
+  - id: livestream-gmv
+    question: 上周直播渠道GMV和退款额分别是多少？
+    expected:
+      intent: sales_by_channel
+      tool: summarize-ecommerce-sales-by-channel
+      terms: [sales_channel, gross_sales, refund_amount]
+      requiresTimeWindow: true
+      requiresClarification: false
+  - id: category-merchandise
+    question: 近7天美妆个护的商品净销售额排名怎么样？
+    expected:
+      intent: merchandise_by_category
+      tool: summarize_merchandise_by_category
+      terms: [product_category, net_merchandise_sales]
+      requiresTimeWindow: true
+      requiresClarification: false
+  - id: fulfillment-backlog
+    question: 截止今天待履约订单有哪些？
+    expected:
+      intent: fulfillment_backlog
+      tool: list-ecommerce-fulfillment-exceptions
+      terms: [fulfillment_backlog]
+      requiresTimeWindow: true
+      requiresClarification: false
+  - id: order-detail
+    question: 查询订单号EC20260601001的订单明细
+    expected:
+      intent: order_detail
+      tool: get-ecommerce-order-detail
+      terms: [order_status]
+      requiresTimeWindow: false
+      requiresClarification: false
+  - id: ambiguous-revenue
+    question: 本月营收是多少？
+    expected:
+      ambiguity: 营收
+      requiresClarification: true

@@ -1,0 +1,265 @@
+kind: business-semantic-catalog
+name: ecommerce-retail-example
+version: 1
+description: >-
+  用于合成电商 fixture 的智能问数示例。定义业务术语、指标、维度、取值和受控
+  Toolbox 查询路径；不是任何真实业务的数据字典。
+owners:
+  - role: 电商数据负责人
+    responsibility: 审核指标口径、维度值和变更
+governance:
+  sourceOfTruth: apps/toolbox/tools.yaml
+  queryPolicy:
+    - 先将自然语言术语解析为本目录中的 canonical id。
+    - 只调用目录引用的受控 Toolbox Tool，不生成或执行任意 SQL。
+    - 遇到 ambiguity 标记的术语时先澄清，不以猜测替代业务口径。
+    - 每个答案都说明指标、时间窗、维度、纳入规则和限制。
+  productionSecurity:
+    - 组织和角色范围必须由可信身份注入，不得由模型提供。
+    - 聚合查询使用最小权限只读数据库角色；明细查询不得返回 PII。
+    - 每个指标需与权威 BI 或财务口径定期对账。
+entities:
+  - id: ecommerce_order
+    labels: [订单, 交易单]
+    grain: 一笔电商订单
+    source: EcommerceOrder
+    timeFields:
+      - id: payment_date
+        field: EcommerceOrder.paidAt
+        labels: [付款日期, 成交日期, 支付日期]
+      - id: order_date
+        field: EcommerceOrder.placedAt
+        labels: [下单日期, 订单日期]
+  - id: ecommerce_order_item
+    labels: [订单项, 商品明细]
+    grain: 一笔订单中的一个商品项
+    source: EcommerceOrderItem
+    relationship: EcommerceOrderItem.orderId -> EcommerceOrder.id
+  - id: ecommerce_customer
+    labels: [客户, 买家]
+    grain: 一个合成客户
+    source: EcommerceCustomer
+    relationship: EcommerceOrder.customerId -> EcommerceCustomer.id
+metrics:
+  - id: gross_sales
+    labels: [GMV, 销售额, 销售总额, 成交额]
+    resultField: grossSales
+    definition: 已结算订单 paidTotal 之和，包含后续已退款订单的原支付金额。
+    eligibility: status IN (PAID, FULFILLED, REFUNDED)
+    timeField: EcommerceOrder.paidAt
+    tools:
+      [
+        summarize-ecommerce-sales-by-day,
+        summarize-ecommerce-sales-by-channel,
+        summarize_sales_by_region,
+        summarize_sales_by_customer_segment,
+      ]
+  - id: refund_amount
+    labels: [退款额, 退款金额]
+    resultField: refundAmount
+    definition: 已结算订单 refundedTotal 之和，支持全额和部分退款。
+    eligibility: status IN (PAID, FULFILLED, REFUNDED)
+    timeField: EcommerceOrder.paidAt
+    tools:
+      [
+        summarize-ecommerce-sales-by-day,
+        summarize-ecommerce-sales-by-channel,
+        summarize_sales_by_region,
+        summarize_sales_by_customer_segment,
+      ]
+  - id: net_sales
+    labels: [净销售额, 净GMV, 退款后销售额]
+    resultField: netSales
+    definition: grossSales - refundAmount；不是会计确认收入或利润。
+    eligibility: status IN (PAID, FULFILLED, REFUNDED)
+    timeField: EcommerceOrder.paidAt
+    tools:
+      [
+        summarize-ecommerce-sales-by-day,
+        summarize-ecommerce-sales-by-channel,
+        summarize_sales_by_region,
+        summarize_sales_by_customer_segment,
+      ]
+  - id: average_order_value
+    labels: [客单价, AOV, 平均订单金额]
+    resultField: averageOrderValue
+    definition: 在当前维度内平均单笔 paidTotal - refundedTotal。
+    eligibility: status IN (PAID, FULFILLED, REFUNDED)
+    timeField: EcommerceOrder.paidAt
+    tools:
+      [
+        summarize-ecommerce-sales-by-channel,
+        summarize_sales_by_region,
+        summarize_sales_by_customer_segment,
+      ]
+  - id: paid_order_count
+    labels: [支付订单数, 成交订单数]
+    resultField: paidOrderCount
+    definition: 当前时间窗内已结算订单数。
+    eligibility: status IN (PAID, FULFILLED, REFUNDED)
+    timeField: EcommerceOrder.paidAt
+    tools:
+      [
+        summarize-ecommerce-sales-by-day,
+        summarize-ecommerce-sales-by-channel,
+        summarize_sales_by_region,
+        summarize_sales_by_customer_segment,
+      ]
+  - id: buyer_count
+    labels: [买家数, 付款买家数]
+    resultField: buyerCount
+    definition: 当前时间窗内已结算订单的去重 customerId 数。
+    eligibility: status IN (PAID, FULFILLED, REFUNDED)
+    timeField: EcommerceOrder.paidAt
+    tools:
+      [
+        summarize-ecommerce-sales-by-day,
+        summarize-ecommerce-sales-by-channel,
+        summarize_sales_by_region,
+        summarize_sales_by_customer_segment,
+      ]
+  - id: gross_merchandise_sales
+    labels: [商品销售额, 货品GMV]
+    resultField: grossMerchandiseSales
+    definition: 已结算订单项 lineTotal 之和，不包含运费。
+    eligibility: status IN (PAID, FULFILLED, REFUNDED)
+    timeField: EcommerceOrder.paidAt
+    tools: [list-ecommerce-top-products, summarize_merchandise_by_category]
+  - id: net_merchandise_sales
+    labels: [商品净销售额, 退款后商品销售额]
+    resultField: netMerchandiseSales
+    definition: 将订单 refundedTotal 按 lineTotal / paidTotal 分摊到订单项后的商品销售额，不包含运费。
+    eligibility: status IN (PAID, FULFILLED, REFUNDED)
+    timeField: EcommerceOrder.paidAt
+    tools: [list-ecommerce-top-products, summarize_merchandise_by_category]
+  - id: units_sold
+    labels: [销量, 件数, 销售件数]
+    resultField: unitsSold
+    definition: 已结算订单项 quantity 之和。
+    eligibility: status IN (PAID, FULFILLED, REFUNDED)
+    timeField: EcommerceOrder.paidAt
+    tools: [list-ecommerce-top-products, summarize_merchandise_by_category]
+  - id: fulfillment_backlog
+    labels: [待履约订单, 履约积压, 未发货订单]
+    resultField: orderNumber
+    definition: status = PAID 且 fulfilledAt 为空的订单；hoursWaiting 的参考时刻是请求参数 to。
+    timeField: EcommerceOrder.paidAt
+    tools: [list-ecommerce-fulfillment-exceptions]
+dimensions:
+  - id: sales_channel
+    labels: [渠道, 销售渠道]
+    field: EcommerceOrder.channel
+    values:
+      - value: WEB
+        labels: [Web, 网页, 官网]
+      - value: MINI_PROGRAM
+        labels: [小程序, 微信小程序]
+      - value: MARKETPLACE
+        labels: [平台, 电商平台, 第三方平台]
+      - value: LIVE_STREAM
+        labels: [直播, 直播间]
+  - id: customer_segment
+    labels: [客户分群, 用户分层, 人群]
+    field: EcommerceCustomer.segment
+    values:
+      - value: NEW
+        labels: [新客, 新用户]
+      - value: ACTIVE
+        labels: [活跃客户, 活跃用户]
+      - value: VIP
+        labels: [VIP, 高价值客户]
+      - value: AT_RISK
+        labels: [高流失风险客户, 流失风险客户]
+  - id: region
+    labels: [区域, 大区]
+    field: EcommerceCustomer.region
+    fixtureValues:
+      - value: 华东
+        labels: [华东]
+      - value: 华北
+        labels: [华北]
+      - value: 华南
+        labels: [华南]
+      - value: 华中
+        labels: [华中]
+      - value: 西南
+        labels: [西南]
+      - value: 西北
+        labels: [西北]
+  - id: product_category
+    labels: [品类, 商品品类]
+    field: EcommerceOrderItem.category
+    fixtureValues:
+      - value: 智能设备
+        labels: [智能设备]
+      - value: 居家生活
+        labels: [居家生活]
+      - value: 户外运动
+        labels: [户外运动]
+      - value: 美妆个护
+        labels: [美妆个护]
+      - value: 母婴用品
+        labels: [母婴用品]
+      - value: 食品饮料
+        labels: [食品饮料]
+  - id: order_status
+    labels: [订单状态, 交易状态]
+    field: EcommerceOrder.status
+    values:
+      - value: PENDING
+        labels: [待支付]
+      - value: PAID
+        labels: [已支付, 待履约]
+      - value: FULFILLED
+        labels: [已履约, 已发货]
+      - value: CANCELLED
+        labels: [已取消]
+      - value: REFUNDED
+        labels: [已退款, 退款订单]
+ambiguities:
+  - term: 营收
+    action: clarify
+    reason: 当前目录认证的是 grossSales 与 netSales，不等同于会计确认收入。
+  - term: 收入
+    action: clarify
+    reason: 当前目录不提供会计收入或利润口径。
+  - term: 订单数
+    action: clarify
+    reason: 应明确是已结算订单、下单订单、取消订单还是待履约订单。
+questionPatterns:
+  - id: sales_trend
+    examples: [最近7天GMV趋势, 本月退款后销售额]
+    tool: summarize-ecommerce-sales-by-day
+    required: [time_window]
+  - id: sales_by_channel
+    examples: [上周直播渠道GMV, 小程序客单价]
+    tool: summarize-ecommerce-sales-by-channel
+    required: [time_window]
+  - id: sales_by_region
+    examples: [本月华东GMV, 各大区退款额]
+    tool: summarize_sales_by_region
+    required: [time_window]
+  - id: sales_by_customer_segment
+    examples: [VIP客户净销售额, 新客订单数]
+    tool: summarize_sales_by_customer_segment
+    required: [time_window]
+  - id: merchandise_by_category
+    examples: [本月哪个品类卖得最好, 美妆个护退款后商品销售额]
+    tool: summarize_merchandise_by_category
+    required: [time_window]
+  - id: top_products
+    examples: [近30天爆款商品, 销量最高的商品]
+    tool: list-ecommerce-top-products
+    required: [time_window, limit]
+  - id: fulfillment_backlog
+    examples: [当前待履约订单, 过去7天履约积压]
+    tool: list-ecommerce-fulfillment-exceptions
+    required: [time_window, limit]
+  - id: orders_in_window
+    examples: [本周订单状态, 最近订单明细]
+    tool: list-ecommerce-orders-in-window
+    required: [time_window, limit]
+  - id: order_detail
+    examples: [查询订单号EC20260601001, 查看指定订单明细]
+    tool: get-ecommerce-order-detail
+    required: [order_number]

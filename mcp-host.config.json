@@ -15,7 +15,10 @@
         "summarize-tool-invocations",
         "summarize-ecommerce-sales-by-day",
         "summarize-ecommerce-sales-by-channel",
+        "summarize_sales_by_region",
+        "summarize_sales_by_customer_segment",
         "list-ecommerce-top-products",
+        "summarize_merchandise_by_category",
         "list-ecommerce-orders-in-window",
         "get-ecommerce-order-detail",
         "list-ecommerce-fulfillment-exceptions"

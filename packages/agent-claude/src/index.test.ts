@@ -31,7 +31,17 @@ describe("Claude Agent runtime", () => {
 
       expect(skill).toContain(`name: ${skillName}`);
       expect(skill).toContain("Host-managed typed tools");
+      expect(skill).toContain("Business semantic catalog");
       expect(skill).toMatch(/^### [a-z0-9]+-[a-z0-9-]+$/m);
+
+      const semanticCatalog = readFileSync(
+        new URL(
+          `../../../.claude/skills/${skillName}/references/ecommerce-semantic-catalog.yaml`,
+          import.meta.url,
+        ),
+        "utf8",
+      );
+      expect(semanticCatalog).toContain("kind: business-semantic-catalog");
     }
   });
 
@@ -327,6 +337,9 @@ describe("Claude Agent runtime", () => {
             "mcp__agent_template_mcp_host__summarize-template-events-by-type",
             "mcp__agent_template_mcp_host__summarize-ecommerce-sales-by-channel",
             "mcp__agent_template_mcp_host__summarize-ecommerce-sales-by-day",
+            "mcp__agent_template_mcp_host__summarize_merchandise_by_category",
+            "mcp__agent_template_mcp_host__summarize_sales_by_customer_segment",
+            "mcp__agent_template_mcp_host__summarize_sales_by_region",
             "mcp__agent_template_mcp_host__summarize-tool-invocations",
           ],
           cwd: expect.any(String),
@@ -349,7 +362,16 @@ describe("Claude Agent runtime", () => {
                   name: "summarize-ecommerce-sales-by-channel",
                 }),
                 expect.objectContaining({
+                  name: "summarize_sales_by_region",
+                }),
+                expect.objectContaining({
+                  name: "summarize_sales_by_customer_segment",
+                }),
+                expect.objectContaining({
                   name: "list-ecommerce-top-products",
+                }),
+                expect.objectContaining({
+                  name: "summarize_merchandise_by_category",
                 }),
                 expect.objectContaining({
                   name: "list-ecommerce-orders-in-window",
@@ -472,6 +494,9 @@ describe("Claude Agent runtime", () => {
               "mcp__agent_template_mcp_host__summarize-template-events-by-type",
               "mcp__agent_template_mcp_host__summarize-ecommerce-sales-by-channel",
               "mcp__agent_template_mcp_host__summarize-ecommerce-sales-by-day",
+              "mcp__agent_template_mcp_host__summarize_merchandise_by_category",
+              "mcp__agent_template_mcp_host__summarize_sales_by_customer_segment",
+              "mcp__agent_template_mcp_host__summarize_sales_by_region",
               "mcp__agent_template_mcp_host__summarize-tool-invocations",
             ],
             settingSources: ["project"],
