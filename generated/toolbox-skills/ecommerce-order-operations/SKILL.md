@@ -25,7 +25,7 @@ All scripts can be executed using Node.js. Replace `<param_name>` and `<param_va
 ### get-ecommerce-order-detail
 
 返回一笔合成电商订单及其客户业务背景和订单项。
-仅当用户提供明确的 orderNumber 时使用。
+通过明确的 orderNumber 精确查询，返回的客户信息仅为合成业务属性。
 
 
 #### Parameters
@@ -40,15 +40,15 @@ All scripts can be executed using Node.js. Replace `<param_name>` and `<param_va
 ### list-ecommerce-orders-in-window
 
 返回合成电商数据的有界订单运营视图。
-客户数据仅包含合成客户编码、分群和地区，不返回直接联系方式。
+时间口径为 placedAt；客户数据仅包含合成客户编码、分群和地区，不返回直接联系方式。
 
 
 #### Parameters
 
 | Name | Type | Description | Required | Default |
 | :--- | :--- | :--- | :--- | :--- |
-| from | string | ISO-8601 UTC 订单运营时间窗开始时间（包含）。 | Yes |  |
-| to | string | ISO-8601 UTC 订单运营时间窗结束时间（不包含）。 | Yes |  |
+| from | string | ISO-8601 UTC 订单运营时间窗开始时间（包含），例如 2026-06-01T00:00:00Z。 | Yes |  |
+| to | string | ISO-8601 UTC 订单运营时间窗结束时间（不包含），例如 2026-06-02T00:00:00Z。 | Yes |  |
 | limit | integer | 最多返回的订单数量。 | No | `50` |
 
 

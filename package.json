@@ -14,8 +14,10 @@
     "db:generate": "pnpm --filter @agent-template/db db:generate",
     "db:migrate": "pnpm --filter @agent-template/db db:migrate",
     "db:seed": "pnpm --filter @agent-template/db db:seed",
-    "skills:generate:toolbox": "tsx scripts/generate-toolbox-business-skills.ts",
-    "skills:check:toolbox": "tsx scripts/generate-toolbox-business-skills.ts --check",
+    "toolbox:check:semantic": "tsx scripts/check-toolbox-semantic-layer.ts",
+    "toolbox:check": "pnpm skills:check:toolbox",
+    "skills:generate:toolbox": "pnpm toolbox:check:semantic && tsx scripts/generate-toolbox-business-skills.ts",
+    "skills:check:toolbox": "pnpm toolbox:check:semantic && tsx scripts/generate-toolbox-business-skills.ts --check",
     "format": "prettier --write ."
   },
   "devDependencies": {
@@ -29,6 +31,7 @@
     "tsx": "^4.22.4",
     "turbo": "^2.10.0",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
-    "typescript-eslint": "^8.62.0"
+    "typescript-eslint": "^8.62.0",
+    "yaml": "^2.9.0"
   }
 }

@@ -2,12 +2,16 @@
 
 这里使用 Google 的 [MCP Toolbox for Databases](https://mcp-toolbox.dev/) 为 `TemplateEvent` 和合成电商读模型提供生产 Agent 可调用的只读 PostgreSQL 工具。配置入口是 [tools.yaml](./tools.yaml)，服务由根目录的 `docker-compose.yml` 以固定版本 `1.6.0` 运行。
 
+[tools.yaml](./tools.yaml) 是 Tool、Toolset 与 MCP annotations 的可执行事实源，[SEMANTIC_LAYER.md](./SEMANTIC_LAYER.md) 记录人类可读的业务指标、时间口径和命名兼容策略。当前 PostgreSQL 项目实现的是 Google Toolbox 的工具语义契约，不是 AlloyDB AI NL 或 Looker 专属语义层。
+
 ## 设计边界
 
 - 不暴露 `postgres-execute-sql` 或任何通用 SQL tool；每个 `postgres-sql` 都是预定义 statement，并由 Toolbox 以 prepared statement 执行。
 - 所有列表工具都有上限；最近查询固定在 30 天，任意时间窗由运行时校验为 ISO-8601 UTC 的 `[from, to)`，最长 31 天。
 - 所有工具只读；`TemplateEvent` payload 会原样返回的工具仅用于可信的内部运营 Agent，生产接入时仍需最小权限数据库角色。
 - 不使用 `templateParameters`，避免让模型控制表名、列名、排序字段或 SQL 结构。
+- 所有 SQL Tool 显式标注 `readOnlyHint: true`、`destructiveHint: false`、`idempotentHint: true` 和 `openWorldHint: false`。
+- 面向 Agent 的业务 Toolset 按单一分析或运营任务分组，避免一次向模型暴露无关 Tool 导致 context rot。
 - `mcp-host.config.json` 的 `allowedTools` 是 Host 侧可执行 allowlist。Google Toolbox 的 toolset 由其 Client SDK 选择；裸 MCP `tools/list` 默认可见服务端全部工具，因此新增 Tool 时必须同时更新 allowlist。
 
 ## 电商业务验证数据（主要路径）
@@ -29,10 +33,10 @@ Toolbox 官方的 `skills-generate` 会把自定义 Toolset 转换为 Agent Skil
 
 | Skill                              | Toolbox Toolset                    | 业务用途                 |
 | ---------------------------------- | ---------------------------------- | ------------------------ |
-| `ecommerce-sales-analysis`         | `ecommerce_sales_analytics`        | 销售趋势、退款、渠道分析 |
-| `ecommerce-product-analysis`       | `ecommerce_product_analytics`      | 商品排行与选品分析       |
-| `ecommerce-order-operations`       | `ecommerce_order_operations`       | 订单查询与单据排障       |
-| `ecommerce-fulfillment-operations` | `ecommerce_fulfillment_operations` | 履约积压与异常订单       |
+| `ecommerce-sales-analysis`         | `ecommerce-sales-analytics`        | 销售趋势、退款、渠道分析 |
+| `ecommerce-product-analysis`       | `ecommerce-product-analytics`      | 商品排行与选品分析       |
+| `ecommerce-order-operations`       | `ecommerce-order-operations`       | 订单查询与单据排障       |
+| `ecommerce-fulfillment-operations` | `ecommerce-fulfillment-operations` | 履约积压与异常订单       |
 
 本地重新生成：
 
@@ -131,7 +135,7 @@ docker compose exec toolbox /toolbox --config /app/tools.yaml invoke list-agent-
 修改工具或 Skill 后，默认先执行纯本地验证：
 
 ```bash
-pnpm skills:check:toolbox
+pnpm toolbox:check
 pnpm --filter @agent-template/shared test
 pnpm --filter @agent-template/agent-claude test
 pnpm --filter @agent-template/agent-eve test

@@ -11,6 +11,9 @@
 - 业务 Skill 生成编排放在根目录 `scripts/`，本目录只提供被官方生成器读取的 Toolset 事实源。
 - Toolbox 官方原始 Skill 完整保存在 `generated/toolbox-skills/`；runtime 适配版分别保存在 `.claude/skills/` 与 `packages/agent-eve/agent/skills/`。
 - Toolset 只用于 Skill 生成与业务分组，不代表运行时授权；运行时权限以 MCP Host `allowedTools` 为准。
+- `tools.yaml` 是 Tool、Toolset 和 annotations 的可执行事实源；`SEMANTIC_LAYER.md` 记录人类可读的业务指标与时间口径。
+- 新增 Tool 遵循官方 `snake_case` 命名，新增 Toolset 使用 `kebab-case`；现有连字符 Tool 名是兼容契约，不添加重复别名。
+- 只读 SQL Tool 必须显式声明 `readOnlyHint`、`destructiveHint`、`idempotentHint` 和 `openWorldHint`。
 - 生产 Agent 默认只使用自定义 toolset，不使用 prebuilt generic tools。
 - 数据库连接信息通过环境变量注入，不能把密码写死在 `tools.yaml`。
 
@@ -28,11 +31,13 @@
 - 官方文档: `https://mcp-toolbox.dev/`
 - PostgreSQL source: `https://mcp-toolbox.dev/integrations/postgres/source/`
 - Toolsets: `https://mcp-toolbox.dev/documentation/configuration/toolsets/`
+- Style guide: `https://mcp-toolbox.dev/reference/style-guide/`
+- Tool annotations: `https://mcp-toolbox.dev/documentation/configuration/tools/`
 
 ## 验证
 
 ```bash
-pnpm skills:check:toolbox
+pnpm toolbox:check
 ```
 
 只有用户明确要求容器集成验证时，才运行 Docker 门禁。

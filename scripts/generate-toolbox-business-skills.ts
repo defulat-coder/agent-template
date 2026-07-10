@@ -24,27 +24,28 @@ type BusinessSkill = {
 const businessSkills: BusinessSkill[] = [
   {
     name: "ecommerce-sales-analysis",
-    toolset: "ecommerce_sales_analytics",
+    toolset: "ecommerce-sales-analytics",
     description:
       "分析电商销售额、退款、净销售额、买家数与渠道表现。用户询问销售趋势、GMV、退款、净销售额或渠道对比时使用。",
     workflow: `1. 要求或确认不超过 31 天的 UTC \`[from, to)\` 时间窗。
 2. 先调用 \`summarize-ecommerce-sales-by-day\` 判断趋势和异常日期。
 3. 需要渠道归因时，再调用 \`summarize-ecommerce-sales-by-channel\`。
-4. 明确区分 \`grossSales\`、\`refundAmount\` 与 \`netSales\`，不要把退款前销售额描述成实际收入。`,
+4. 指标口径仅包含 \`PAID\`、\`FULFILLED\` 和 \`REFUNDED\` 订单；明确区分 \`grossSales\`、\`refundAmount\` 与 \`netSales\`。
+5. 渠道 \`averageOrderValue\` 是平均单笔净销售额，不要把退款前销售额描述成实际收入。`,
   },
   {
     name: "ecommerce-product-analysis",
-    toolset: "ecommerce_product_analytics",
+    toolset: "ecommerce-product-analytics",
     description:
       "按销量、商品销售总额和退款调整后的净商品销售额分析商品表现。用户询问商品排行、畅销商品、品类表现或选品分析时使用。",
     workflow: `1. 要求或确认不超过 31 天的 UTC \`[from, to)\` 时间窗，并设置有界 \`limit\`。
 2. 调用 \`list-ecommerce-top-products\` 获取商品排行。
-3. 同时解释销量、毛商品销售额与退款分摊后的净商品销售额。
+3. 同时解释销量、毛商品销售额与退款分摊后的净商品销售额；这两个销售额都不包含运费。
 4. 不从排行结果推断库存、利润或转化率；当前 Tool 没有这些字段。`,
   },
   {
     name: "ecommerce-order-operations",
-    toolset: "ecommerce_order_operations",
+    toolset: "ecommerce-order-operations",
     description:
       "通过有界订单列表和精确订单明细排查电商订单。用户询问订单状态、客户分群背景、具体订单号或订单级故障时使用。",
     workflow: `1. 用户提供订单号时，直接调用 \`get-ecommerce-order-detail\`，不要先扫描订单列表。
@@ -54,7 +55,7 @@ const businessSkills: BusinessSkill[] = [
   },
   {
     name: "ecommerce-fulfillment-operations",
-    toolset: "ecommerce_fulfillment_operations",
+    toolset: "ecommerce-fulfillment-operations",
     description:
       "查找已付款但未履约的电商订单并支持履约异常排查。用户询问履约积压、等待时长、延迟订单或运营异常时使用。",
     workflow: `1. 要求或确认不超过 31 天的 UTC \`[from, to)\` 时间窗，并设置有界 \`limit\`。

@@ -12,8 +12,14 @@ name: summarize-ecommerce-sales-by-day
 type: postgres-sql
 source: agent-template-postgres
 description: |
-  按日汇总合成电商数据的销售总额、退款、净销售额、订单数和买家数。
-  用于在明确的 ISO-8601 UTC 时间窗内进行有界的只读销售趋势分析。
+  按付款日汇总已结算订单（PAID、FULFILLED、REFUNDED）的销售表现。
+  grossSales 为 paidTotal 之和，refundAmount 为 refundedTotal 之和，netSales = grossSales - refundAmount。
+  返回每日付款订单数和去重买家数，适用于有界 UTC 销售趋势分析。
+annotations:
+  readOnlyHint: true
+  destructiveHint: false
+  idempotentHint: true
+  openWorldHint: false
 statement: |
   WITH settled_orders AS (
     SELECT
@@ -39,18 +45,23 @@ statement: |
 parameters:
   - name: from
     type: string
-    description: ISO-8601 UTC 销售时间窗开始时间（包含）。
+    description: ISO-8601 UTC 销售时间窗开始时间（包含），例如 2026-06-01T00:00:00Z。
   - name: to
     type: string
-    description: ISO-8601 UTC 销售时间窗结束时间（不包含）。
+    description: ISO-8601 UTC 销售时间窗结束时间（不包含），例如 2026-06-02T00:00:00Z。
 ---
 kind: tool
 name: summarize-ecommerce-sales-by-channel
 type: postgres-sql
 source: agent-template-postgres
 description: |
-  对比 Web、小程序、平台和直播渠道的合成电商销售表现。
-  用于有界的只读渠道经营表现分析。
+  对比 Web、小程序、平台和直播渠道的已结算订单（PAID、FULFILLED、REFUNDED）。
+  grossSales 为付款总额，refundAmount 为退款总额，netSales 为两者差额，averageOrderValue 为平均单笔净销售额。
+annotations:
+  readOnlyHint: true
+  destructiveHint: false
+  idempotentHint: true
+  openWorldHint: false
 statement: |
   SELECT
     channel::text AS channel,
@@ -69,18 +80,23 @@ statement: |
 parameters:
   - name: from
     type: string
-    description: ISO-8601 UTC 销售时间窗开始时间（包含）。
+    description: ISO-8601 UTC 销售时间窗开始时间（包含），例如 2026-06-01T00:00:00Z。
   - name: to
     type: string
-    description: ISO-8601 UTC 销售时间窗结束时间（不包含）。
+    description: ISO-8601 UTC 销售时间窗结束时间（不包含），例如 2026-06-02T00:00:00Z。
 ---
 kind: tool
 name: list-ecommerce-top-products
 type: postgres-sql
 source: agent-template-postgres
 description: |
-  按已支付销量、商品销售总额和净商品销售额对合成电商商品进行排行。
-  订单级退款按商品金额比例分摊，不包含运费。
+  按已结算订单的销量、grossMerchandiseSales 和 netMerchandiseSales 对合成电商商品排行。
+  订单级 refundedTotal 按商品 lineTotal 占 paidTotal 的比例分摊；商品销售额不包含运费。
+annotations:
+  readOnlyHint: true
+  destructiveHint: false
+  idempotentHint: true
+  openWorldHint: false
 statement: |
   WITH settled_items AS (
     SELECT
@@ -111,10 +127,10 @@ statement: |
 parameters:
   - name: from
     type: string
-    description: ISO-8601 UTC 销售时间窗开始时间（包含）。
+    description: ISO-8601 UTC 销售时间窗开始时间（包含），例如 2026-06-01T00:00:00Z。
   - name: to
     type: string
-    description: ISO-8601 UTC 销售时间窗结束时间（不包含）。
+    description: ISO-8601 UTC 销售时间窗结束时间（不包含），例如 2026-06-02T00:00:00Z。
   - name: limit
     type: integer
     description: 最多返回的商品数量。
@@ -128,7 +144,12 @@ type: postgres-sql
 source: agent-template-postgres
 description: |
   返回合成电商数据的有界订单运营视图。
-  客户数据仅包含合成客户编码、分群和地区，不返回直接联系方式。
+  时间口径为 placedAt；客户数据仅包含合成客户编码、分群和地区，不返回直接联系方式。
+annotations:
+  readOnlyHint: true
+  destructiveHint: false
+  idempotentHint: true
+  openWorldHint: false
 statement: |
   SELECT
     orders."orderNumber",
@@ -152,10 +173,10 @@ statement: |
 parameters:
   - name: from
     type: string
-    description: ISO-8601 UTC 订单运营时间窗开始时间（包含）。
+    description: ISO-8601 UTC 订单运营时间窗开始时间（包含），例如 2026-06-01T00:00:00Z。
   - name: to
     type: string
-    description: ISO-8601 UTC 订单运营时间窗结束时间（不包含）。
+    description: ISO-8601 UTC 订单运营时间窗结束时间（不包含），例如 2026-06-02T00:00:00Z。
   - name: limit
     type: integer
     description: 最多返回的订单数量。
@@ -169,7 +190,12 @@ type: postgres-sql
 source: agent-template-postgres
 description: |
   返回一笔合成电商订单及其客户业务背景和订单项。
-  仅当用户提供明确的 orderNumber 时使用。
+  通过明确的 orderNumber 精确查询，返回的客户信息仅为合成业务属性。
+annotations:
+  readOnlyHint: true
+  destructiveHint: false
+  idempotentHint: true
+  openWorldHint: false
 statement: |
   SELECT
     orders."orderNumber",
@@ -218,8 +244,13 @@ name: list-ecommerce-fulfillment-exceptions
 type: postgres-sql
 source: agent-template-postgres
 description: |
-  列出有界 UTC 时间窗内已付款但尚未履约的合成电商订单。
-  用于只读的履约运营验证。
+  列出有界 UTC 时间窗内 status = PAID 且 fulfilledAt 为空的合成电商订单。
+  hoursWaiting 以参数 to 为等待时长参考时刻，不代表实时系统时间。
+annotations:
+  readOnlyHint: true
+  destructiveHint: false
+  idempotentHint: true
+  openWorldHint: false
 statement: |
   SELECT
     orders."orderNumber",
@@ -240,10 +271,10 @@ statement: |
 parameters:
   - name: from
     type: string
-    description: ISO-8601 UTC 已付款订单时间窗开始时间（包含）。
+    description: ISO-8601 UTC 已付款订单时间窗开始时间（包含），例如 2026-06-01T00:00:00Z。
   - name: to
     type: string
-    description: ISO-8601 UTC 已付款订单时间窗结束时间（不包含），同时作为等待时长参考时间。
+    description: ISO-8601 UTC 已付款订单时间窗结束时间（不包含），同时作为等待时长参考时间，例如 2026-06-02T00:00:00Z。
   - name: limit
     type: integer
     description: 最多返回的履约异常订单数量。
@@ -256,8 +287,13 @@ name: list-template-events
 type: postgres-sql
 source: agent-template-postgres
 description: |
-  List template events from the last 30 days for read-only Agent inspection.
-  Use this tool only when the user asks about recent Agent platform events.
+  返回最近 30 天的模板事件，用于 Agent 平台近期事件巡检。
+  结果按 createdAt 倒序且受 limit 限制，payload 为内部合成观测数据。
+annotations:
+  readOnlyHint: true
+  destructiveHint: false
+  idempotentHint: true
+  openWorldHint: false
 statement: |
   SELECT id, type, payload, "createdAt"
   FROM "TemplateEvent"
@@ -267,7 +303,7 @@ statement: |
 parameters:
   - name: limit
     type: integer
-    description: Maximum number of events to return.
+    description: 最多返回的事件数量。
     default: 20
     minValue: 1
     maxValue: 100
@@ -277,8 +313,12 @@ name: get-template-event
 type: postgres-sql
 source: agent-template-postgres
 description: |
-  Fetch one template event by id for read-only Agent inspection.
-  Use this tool only when the user provides a concrete template event id.
+  通过明确的 eventId 返回一条模板事件，用于精确的只读 Agent 事件核查。
+annotations:
+  readOnlyHint: true
+  destructiveHint: false
+  idempotentHint: true
+  openWorldHint: false
 statement: |
   SELECT id, type, payload, "createdAt"
   FROM "TemplateEvent"
@@ -287,15 +327,20 @@ statement: |
 parameters:
   - name: eventId
     type: string
-    description: Template event id.
+    description: 明确的模板事件 ID。
 ---
 kind: tool
 name: list-template-events-in-window
 type: postgres-sql
 source: agent-template-postgres
 description: |
-  List template events in an explicit UTC time window for read-only incident investigation.
-  Use an ISO-8601 [from, to) window no longer than 31 days and keep the result bounded.
+  返回明确 UTC [from, to) 时间窗内的模板事件，用于有界的只读故障调查。
+  时间窗最长 31 天，结果按 createdAt 倒序且受 limit 限制。
+annotations:
+  readOnlyHint: true
+  destructiveHint: false
+  idempotentHint: true
+  openWorldHint: false
 statement: |
   SELECT id, type, payload, "createdAt"
   FROM "TemplateEvent"
@@ -306,13 +351,13 @@ statement: |
 parameters:
   - name: from
     type: string
-    description: Inclusive ISO-8601 UTC window start, for example 2026-07-01T00:00:00Z.
+    description: ISO-8601 UTC 时间窗开始时间（包含），例如 2026-06-01T00:00:00Z。
   - name: to
     type: string
-    description: Exclusive ISO-8601 UTC window end, for example 2026-07-02T00:00:00Z.
+    description: ISO-8601 UTC 时间窗结束时间（不包含），例如 2026-06-02T00:00:00Z。
   - name: limit
     type: integer
-    description: Maximum number of events to return.
+    description: 最多返回的事件数量。
     default: 50
     minValue: 1
     maxValue: 100
@@ -322,8 +367,13 @@ name: summarize-template-events-by-type
 type: postgres-sql
 source: agent-template-postgres
 description: |
-  Summarize event volume and distinct Agent runs by event type in an explicit UTC time window.
-  Use this tool for bounded observability summaries, not to retrieve event payloads.
+  按事件类型汇总明确 UTC [from, to) 时间窗内的 eventCount 和去重 runCount。
+  同时返回 firstEventAt 与 lastEventAt，不返回事件 payload。
+annotations:
+  readOnlyHint: true
+  destructiveHint: false
+  idempotentHint: true
+  openWorldHint: false
 statement: |
   SELECT
     type,
@@ -339,18 +389,23 @@ statement: |
 parameters:
   - name: from
     type: string
-    description: Inclusive ISO-8601 UTC window start.
+    description: ISO-8601 UTC 时间窗开始时间（包含），例如 2026-06-01T00:00:00Z。
   - name: to
     type: string
-    description: Exclusive ISO-8601 UTC window end.
+    description: ISO-8601 UTC 时间窗结束时间（不包含），例如 2026-06-02T00:00:00Z。
 ---
 kind: tool
 name: list-agent-runs
 type: postgres-sql
 source: agent-template-postgres
 description: |
-  List Agent runs seen in the last 30 days from template events.
-  Use this tool when the user asks for Agent run summaries or recent runtime outcomes.
+  从模板事件中汇总最近 30 天的 Agent run，返回首末事件时间、事件数和最终终止事件。
+  terminalEvent 取该 run 最后一个 agent.run.completed 或 agent.run.failed。
+annotations:
+  readOnlyHint: true
+  destructiveHint: false
+  idempotentHint: true
+  openWorldHint: false
 statement: |
   SELECT
     payload->>'runId' AS "runId",
@@ -368,7 +423,7 @@ statement: |
 parameters:
   - name: limit
     type: integer
-    description: Maximum number of Agent runs to return.
+    description: 最多返回的 Agent run 数量。
     default: 20
     minValue: 1
     maxValue: 100
@@ -378,8 +433,13 @@ name: get-agent-run-summary
 type: postgres-sql
 source: agent-template-postgres
 description: |
-  Return one Agent run's read-only lifecycle summary.
-  Use this tool only when the user provides a concrete runId.
+  通过明确的 runId 返回一个 Agent run 的只读生命周期摘要。
+  terminalEvent 取该 run 最后一个 agent.run.completed 或 agent.run.failed。
+annotations:
+  readOnlyHint: true
+  destructiveHint: false
+  idempotentHint: true
+  openWorldHint: false
 statement: |
   SELECT
     payload->>'runId' AS "runId",
@@ -395,15 +455,20 @@ statement: |
 parameters:
   - name: runId
     type: string
-    description: Agent run id.
+    description: 明确的 Agent run ID。
 ---
 kind: tool
 name: list-agent-run-timeline
 type: postgres-sql
 source: agent-template-postgres
 description: |
-  List the event timeline for one Agent run.
-  Use this tool only when the user provides a concrete runId.
+  通过明确的 runId 返回一个 Agent run 的有界事件时间线。
+  结果按 createdAt 正序且受 limit 限制，便于重建完整调用顺序。
+annotations:
+  readOnlyHint: true
+  destructiveHint: false
+  idempotentHint: true
+  openWorldHint: false
 statement: |
   SELECT id, type, payload, "createdAt"
   FROM "TemplateEvent"
@@ -413,10 +478,10 @@ statement: |
 parameters:
   - name: runId
     type: string
-    description: Agent run id.
+    description: 明确的 Agent run ID。
   - name: limit
     type: integer
-    description: Maximum number of events to return from one run timeline.
+    description: 一条 run 时间线最多返回的事件数量。
     default: 100
     minValue: 1
     maxValue: 200
@@ -426,8 +491,13 @@ name: list-failed-agent-runs-in-window
 type: postgres-sql
 source: agent-template-postgres
 description: |
-  List Agent failure events in an explicit UTC time window for read-only incident triage.
-  The query returns only failure facts and does not allow arbitrary event filtering.
+  返回明确 UTC [from, to) 时间窗内的 agent.run.failed 事件，用于只读故障分诊。
+  结果仅包含 runId、reason、retryable 和 failedAt，不接受任意事件类型过滤。
+annotations:
+  readOnlyHint: true
+  destructiveHint: false
+  idempotentHint: true
+  openWorldHint: false
 statement: |
   SELECT
     payload->>'runId' AS "runId",
@@ -447,13 +517,13 @@ statement: |
 parameters:
   - name: from
     type: string
-    description: Inclusive ISO-8601 UTC window start.
+    description: ISO-8601 UTC 时间窗开始时间（包含），例如 2026-06-01T00:00:00Z。
   - name: to
     type: string
-    description: Exclusive ISO-8601 UTC window end.
+    description: ISO-8601 UTC 时间窗结束时间（不包含），例如 2026-06-02T00:00:00Z。
   - name: limit
     type: integer
-    description: Maximum number of failed runs to return.
+    description: 最多返回的失败 run 数量。
     default: 50
     minValue: 1
     maxValue: 100
@@ -463,8 +533,13 @@ name: summarize-tool-invocations
 type: postgres-sql
 source: agent-template-postgres
 description: |
-  Summarize Toolbox invocation count and latency in an explicit UTC time window.
-  Use this tool for read-only MCP tool reliability and performance investigation.
+  按 toolName 汇总明确 UTC [from, to) 时间窗内的 Toolbox 调用量、平均延迟和 P95 延迟。
+  仅计算可解析为非负数字的 latencyMs，用于只读 MCP Tool 可靠性和性能调查。
+annotations:
+  readOnlyHint: true
+  destructiveHint: false
+  idempotentHint: true
+  openWorldHint: false
 statement: |
   WITH invocation_events AS (
     SELECT
@@ -491,13 +566,13 @@ statement: |
 parameters:
   - name: from
     type: string
-    description: Inclusive ISO-8601 UTC window start.
+    description: ISO-8601 UTC 时间窗开始时间（包含），例如 2026-06-01T00:00:00Z。
   - name: to
     type: string
-    description: Exclusive ISO-8601 UTC window end.
+    description: ISO-8601 UTC 时间窗结束时间（不包含），例如 2026-06-02T00:00:00Z。
   - name: limit
     type: integer
-    description: Maximum number of tool summaries to return.
+    description: 最多返回的 Tool 汇总数量。
     default: 50
     minValue: 1
     maxValue: 100
@@ -522,24 +597,24 @@ tools:
   - list-ecommerce-fulfillment-exceptions
 ---
 kind: toolset
-name: ecommerce_sales_analytics
+name: ecommerce-sales-analytics
 tools:
   - summarize-ecommerce-sales-by-day
   - summarize-ecommerce-sales-by-channel
 ---
 kind: toolset
-name: ecommerce_product_analytics
+name: ecommerce-product-analytics
 tools:
   - list-ecommerce-top-products
 ---
 kind: toolset
-name: ecommerce_order_operations
+name: ecommerce-order-operations
 tools:
   - list-ecommerce-orders-in-window
   - get-ecommerce-order-detail
 ---
 kind: toolset
-name: ecommerce_fulfillment_operations
+name: ecommerce-fulfillment-operations
 tools:
   - list-ecommerce-fulfillment-exceptions
   - get-ecommerce-order-detail

@@ -25,7 +25,7 @@ All scripts can be executed using Node.js. Replace `<param_name>` and `<param_va
 ### get-ecommerce-order-detail
 
 返回一笔合成电商订单及其客户业务背景和订单项。
-仅当用户提供明确的 orderNumber 时使用。
+通过明确的 orderNumber 精确查询，返回的客户信息仅为合成业务属性。
 
 
 #### Parameters
@@ -39,16 +39,16 @@ All scripts can be executed using Node.js. Replace `<param_name>` and `<param_va
 
 ### list-ecommerce-fulfillment-exceptions
 
-列出有界 UTC 时间窗内已付款但尚未履约的合成电商订单。
-用于只读的履约运营验证。
+列出有界 UTC 时间窗内 status = PAID 且 fulfilledAt 为空的合成电商订单。
+hoursWaiting 以参数 to 为等待时长参考时刻，不代表实时系统时间。
 
 
 #### Parameters
 
 | Name | Type | Description | Required | Default |
 | :--- | :--- | :--- | :--- | :--- |
-| from | string | ISO-8601 UTC 已付款订单时间窗开始时间（包含）。 | Yes |  |
-| to | string | ISO-8601 UTC 已付款订单时间窗结束时间（不包含），同时作为等待时长参考时间。 | Yes |  |
+| from | string | ISO-8601 UTC 已付款订单时间窗开始时间（包含），例如 2026-06-01T00:00:00Z。 | Yes |  |
+| to | string | ISO-8601 UTC 已付款订单时间窗结束时间（不包含），同时作为等待时长参考时间，例如 2026-06-02T00:00:00Z。 | Yes |  |
 | limit | integer | 最多返回的履约异常订单数量。 | No | `50` |
 
 
