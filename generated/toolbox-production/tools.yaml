@@ -228,7 +228,8 @@ statement: |
   JOIN "EcommerceProduct" AS product ON product.id = item."productId"
   GROUP BY product.id, product.sku, product.name, product.category
   ORDER BY "netMerchandiseSales" DESC, "unitsSold" DESC, product.sku ASC
-  LIMIT $3;
+  LIMIT ($3 + 1)
+  OFFSET $4;
 parameters:
   - name: from
     type: string
@@ -242,6 +243,12 @@ parameters:
     default: 20
     minValue: 1
     maxValue: 100
+  - name: offset
+    type: integer
+    description: 从稳定排序结果中跳过的商品数量，用于分页；首页传 0。
+    default: 0
+    minValue: 0
+    maxValue: 10000
 authRequired:
   - agent-template-oidc
 scopesRequired:
@@ -325,7 +332,8 @@ statement: |
   WHERE orders."placedAt" >= $1::timestamptz
     AND orders."placedAt" < $2::timestamptz
   ORDER BY orders."placedAt" DESC, orders.id DESC
-  LIMIT $3;
+  LIMIT ($3 + 1)
+  OFFSET $4;
 parameters:
   - name: from
     type: string
@@ -339,6 +347,12 @@ parameters:
     default: 50
     minValue: 1
     maxValue: 100
+  - name: offset
+    type: integer
+    description: 从稳定排序结果中跳过的订单数量，用于分页；首页传 0。
+    default: 0
+    minValue: 0
+    maxValue: 10000
 authRequired:
   - agent-template-oidc
 scopesRequired:
@@ -431,7 +445,8 @@ statement: |
     AND orders."paidAt" < $2::timestamptz
     AND orders."fulfilledAt" IS NULL
   ORDER BY orders."paidAt" ASC, orders.id ASC
-  LIMIT $3;
+  LIMIT ($3 + 1)
+  OFFSET $4;
 parameters:
   - name: from
     type: string
@@ -445,6 +460,12 @@ parameters:
     default: 50
     minValue: 1
     maxValue: 100
+  - name: offset
+    type: integer
+    description: 从稳定排序结果中跳过的履约异常数量，用于分页；首页传 0。
+    default: 0
+    minValue: 0
+    maxValue: 10000
 authRequired:
   - agent-template-oidc
 scopesRequired:

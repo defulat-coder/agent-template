@@ -1,5 +1,4 @@
 import { strict as assert } from "node:assert";
-import { spawn, type ChildProcess } from "node:child_process";
 import { createSign, generateKeyPairSync, type KeyObject } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import { fileURLToPath } from "node:url";
@@ -10,11 +9,8 @@ import {
   loadMcpHostConfig,
   readAgentCapabilityTools,
 } from "./index.js";
+import { startLocalToolbox } from "./local-toolbox-server.js";
 
-const repositoryRoot = fileURLToPath(new URL("../../..", import.meta.url));
-const toolboxExecutable = fileURLToPath(
-  new URL("../../../node_modules/.bin/toolbox", import.meta.url),
-);
 const productionConfig = fileURLToPath(
   new URL("../../../generated/toolbox-production/tools.yaml", import.meta.url),
 );
@@ -33,14 +29,19 @@ const expectedToolCount = 18;
 
 async function main() {
   const oidc = await startLocalOidcIssuer(audience);
-  const toolboxPort = await reservePort();
-  const toolboxUrl = `http://127.0.0.1:${toolboxPort}`;
-  const toolbox = startToolbox({
-    audience,
-    issuer: oidc.issuer,
-    toolboxPort,
-    toolboxUrl,
+  const toolbox = await startLocalToolbox({
+    configPath: productionConfig,
+    env: {
+      TOOLBOX_OIDC_AUDIENCE: audience,
+      TOOLBOX_OIDC_ISSUER: oidc.issuer,
+      TOOLBOX_POSTGRES_DATABASE: database.database,
+      TOOLBOX_POSTGRES_HOST: database.host,
+      TOOLBOX_POSTGRES_PASSWORD: database.password,
+      TOOLBOX_POSTGRES_PORT: database.port,
+      TOOLBOX_POSTGRES_USER: database.user,
+    },
   });
+  const toolboxUrl = toolbox.url;
 
   try {
     await waitForAuthorizedToolbox(toolboxUrl, oidc.token);
@@ -88,60 +89,9 @@ async function main() {
       `Local Toolbox OIDC verification passed: unauthenticated MCP rejected, 18 scoped tools listed, ${Object.keys(hostConfig.capabilityProfiles).length} Agent capability profiles matched live tools, and an authenticated business query returned certified semantic provenance through MCP Host.`,
     );
   } finally {
-    await stopProcess(toolbox);
+    await toolbox.stop();
     await closeServer(oidc.server);
   }
-}
-
-function startToolbox(input: {
-  audience: string;
-  issuer: string;
-  toolboxPort: number;
-  toolboxUrl: string;
-}) {
-  const child = spawn(
-    toolboxExecutable,
-    [
-      "--config",
-      productionConfig,
-      "--toolbox-url",
-      input.toolboxUrl,
-      "--address",
-      "127.0.0.1",
-      "--port",
-      String(input.toolboxPort),
-      "--logging-format",
-      "JSON",
-    ],
-    {
-      cwd: repositoryRoot,
-      env: {
-        ...process.env,
-        TOOLBOX_OIDC_AUDIENCE: input.audience,
-        TOOLBOX_OIDC_ISSUER: input.issuer,
-        TOOLBOX_POSTGRES_DATABASE: database.database,
-        TOOLBOX_POSTGRES_HOST: database.host,
-        TOOLBOX_POSTGRES_PASSWORD: database.password,
-        TOOLBOX_POSTGRES_PORT: database.port,
-        TOOLBOX_POSTGRES_USER: database.user,
-      },
-      stdio: ["ignore", "pipe", "pipe"],
-    },
-  );
-
-  let logs = "";
-  child.stdout?.on("data", (chunk) => {
-    logs += String(chunk);
-  });
-  child.stderr?.on("data", (chunk) => {
-    logs += String(chunk);
-  });
-  child.once("exit", (code) => {
-    if (code && code !== 0) {
-      process.stderr.write(logs);
-    }
-  });
-  return child;
 }
 
 async function waitForAuthorizedToolbox(url: string, token: string) {
@@ -262,16 +212,6 @@ function encodeJson(value: unknown) {
   return Buffer.from(JSON.stringify(value)).toString("base64url");
 }
 
-async function reservePort() {
-  const server = createServer();
-  await listen(server);
-  const address = server.address();
-  assert.ok(address && typeof address === "object");
-  const { port } = address;
-  await closeServer(server);
-  return port;
-}
-
 function listen(server: Server) {
   return new Promise<void>((resolve, reject) => {
     server.once("error", reject);
@@ -282,21 +222,6 @@ function listen(server: Server) {
 function closeServer(server: Server) {
   return new Promise<void>((resolve, reject) => {
     server.close((error) => (error ? reject(error) : resolve()));
-  });
-}
-
-async function stopProcess(child: ChildProcess) {
-  if (child.exitCode !== null) return;
-  child.kill("SIGTERM");
-  await new Promise<void>((resolve) => {
-    const timeout = setTimeout(() => {
-      child.kill("SIGKILL");
-      resolve();
-    }, 2_000);
-    child.once("exit", () => {
-      clearTimeout(timeout);
-      resolve();
-    });
   });
 }
 

@@ -321,7 +321,7 @@ describe("MCP Host", () => {
         {
           createClient: async () => ({
             async callTool() {
-              return { content: [{ text: "[]", type: "text" }] };
+              return { content: [] };
             },
             async listTools() {
               return { tools: [] };
@@ -331,7 +331,10 @@ describe("MCP Host", () => {
       );
 
       await expect(
-        host.callTool("toolbox", "summarize-sales", { region: "华东" }),
+        host.callTool("toolbox", "summarize-sales", {
+          limit: 10,
+          offset: 20,
+        }),
       ).resolves.toMatchObject({
         structuredContent: {
           certifiedQuery: {
@@ -342,8 +345,21 @@ describe("MCP Host", () => {
               metrics: ["gross_sales"],
             },
             dataFreshness: { status: "not-declared" },
+            emptyResult: {
+              isEmpty: true,
+              suggestions: [
+                "将 offset 调小或回到首页确认是否已超过末页。",
+                "确认当前 Agent capability profile 与数据权限范围。",
+              ],
+            },
             kind: "certified-query-result",
-            request: { arguments: { region: "华东" } },
+            page: {
+              hasMore: false,
+              limit: 10,
+              offset: 20,
+              returnedCount: 0,
+            },
+            request: { arguments: { limit: 10, offset: 20 } },
             tool: { name: "summarize-sales", serverId: "toolbox" },
           },
         },

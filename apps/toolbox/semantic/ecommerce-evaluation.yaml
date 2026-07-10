@@ -117,3 +117,15 @@ cases:
       requiresClarification: false
       forbiddenProfile: ecommerce-sales
       allowedProfile: ecommerce-orders
+  - id: order-second-page
+    category: pagination
+    question: 查看本月订单列表第二页，每页3条
+    expected:
+      intent: orders_in_window
+      tool: list-ecommerce-orders-in-window
+      terms: [order_status]
+      requiresTimeWindow: true
+      requiresClarification: false
+      arguments:
+        limit: 3
+        offset: 3

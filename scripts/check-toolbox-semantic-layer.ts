@@ -105,6 +105,11 @@ const semanticDescriptionRequirements: Record<string, string[]> = {
     "averageOrderValue",
   ],
 };
+const pageableBusinessTools = new Set([
+  "list-ecommerce-fulfillment-exceptions",
+  "list-ecommerce-orders-in-window",
+  "list-ecommerce-top-products",
+]);
 
 const documents = parseAllDocuments(toolboxConfig);
 for (const [index, document] of documents.entries()) {
@@ -256,7 +261,7 @@ function validateTool(tool: ToolboxEntry) {
     errors.push(`${name}: list tools must enforce a SQL LIMIT`);
   }
 
-  if (/\bLIMIT\s+\$\d+/i.test(statement)) {
+  if (/\bLIMIT\s+\(?\$\d+/i.test(statement)) {
     const limit = parameters.find((parameter) => parameter.name === "limit") as
       | ToolboxParameter
       | undefined;
@@ -266,6 +271,23 @@ function validateTool(tool: ToolboxEntry) {
       errors.push(
         `${name}.limit: maxValue must be a number no greater than 200`,
       );
+    }
+  }
+
+  if (pageableBusinessTools.has(name)) {
+    if (!/\bLIMIT\s*\(\$\d+\s*\+\s*1\)/i.test(statement)) {
+      errors.push(
+        `${name}: pageable business tools must fetch limit + 1 rows for exact hasMore`,
+      );
+    }
+    if (!/\bOFFSET\s+\$\d+/i.test(statement)) {
+      errors.push(`${name}: pageable business tools must enforce SQL OFFSET`);
+    }
+    const offset = parameters.find(
+      (parameter) => parameter.name === "offset",
+    ) as ToolboxParameter | undefined;
+    if (!offset || typeof offset.maxValue !== "number") {
+      errors.push(`${name}.offset: pageable tools require a bounded offset`);
     }
   }
 }
@@ -497,6 +519,7 @@ function validateEcommerceSemanticEvaluation(catalog: ToolboxEntry) {
     "empty-result",
     "invalid-window",
     "partial-refund",
+    "pagination",
     "route",
     "utc-boundary",
   ]);

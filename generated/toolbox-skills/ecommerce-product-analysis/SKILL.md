@@ -36,6 +36,7 @@ All scripts can be executed using Node.js. Replace `<param_name>` and `<param_va
 | from | string | ISO-8601 UTC 销售时间窗开始时间（包含），例如 2026-06-01T00:00:00Z。 | Yes |  |
 | to | string | ISO-8601 UTC 销售时间窗结束时间（不包含），例如 2026-06-02T00:00:00Z。 | Yes |  |
 | limit | integer | 最多返回的商品数量。 | No | `20` |
+| offset | integer | 从稳定排序结果中跳过的商品数量，用于分页；首页传 0。 | No | `0` |
 
 
 ---

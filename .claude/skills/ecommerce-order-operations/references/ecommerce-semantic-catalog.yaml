@@ -333,7 +333,7 @@ queryContracts:
       ]
     limitations:
       - 商品销售额不包含运费，退款按订单项金额比例分摊。
-      - 结果受 limit 限制，不能据此推断库存、利润或转化率。
+      - 结果按净商品销售额、销量和 SKU 稳定排序，使用 limit/offset 分页；不能据此推断库存、利润或转化率。
   - id: category_sales_summary
     tool: summarize_merchandise_by_category
     metrics: [units_sold, gross_merchandise_sales, net_merchandise_sales]
@@ -362,7 +362,7 @@ queryContracts:
         refundedTotal,
       ]
     limitations:
-      - 时间按 placedAt 解释，结果有界且仅包含合成客户业务属性。
+      - 时间按 placedAt 解释，结果按 placedAt 与订单 id 稳定排序并使用 limit/offset 分页；仅包含合成客户业务属性。
   - id: order_detail
     tool: get-ecommerce-order-detail
     metrics: []
@@ -406,6 +406,7 @@ queryContracts:
     limitations:
       - 仅包含 status = PAID 且 fulfilledAt 为空的订单。
       - hoursWaiting 使用请求参数 to 作为参考时刻，不代表当前系统时间。
+      - 结果按 paidAt 与订单 id 稳定排序并使用 limit/offset 分页。
 ambiguities:
   - term: 营收
     action: clarify

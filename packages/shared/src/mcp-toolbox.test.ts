@@ -12,8 +12,9 @@ describe("MCP Toolbox input schemas", () => {
         from: "2026-07-01T00:00:00Z",
         to: "2026-07-02T00:00:00Z",
         limit: 50,
+        offset: 100,
       }),
-    ).toMatchObject({ limit: 50 });
+    ).toMatchObject({ limit: 50, offset: 100 });
   });
 
   it("rejects inverted and oversized time windows", () => {

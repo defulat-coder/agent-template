@@ -42,7 +42,10 @@ node_modules/.bin/toolbox \
   --config generated/toolbox-production/tools.yaml \
   --toolbox-url http://127.0.0.1:15000 \
   --address 127.0.0.1 \
-  --port 15000
+  --port 15000 \
+  --logging-format JSON \
+  --sql-commenter \
+  --telemetry-service-name agent-template-toolbox
 ```
 
 调用方通过 `TOOLBOX_AUTH_TOKEN` 或可信 invocation context 提供由该 issuer 签发、audience 与 scope 均匹配的 JWT。生产部署不得使用占位 token，也不得把终端用户提交的任意字符串直接当成可信 token。

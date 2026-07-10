@@ -8,6 +8,8 @@
 
 真实业务数据必须使用 [Toolbox 生产认证](./PRODUCTION_AUTH.md)：生成的 OIDC 配置在 `generated/toolbox-production/tools.yaml`，MCP Host 只从可信 context 或 `TOOLBOX_AUTH_TOKEN` 转发 Bearer token。开发 fixture 配置不启用认证，不能直接作为生产部署配置。
 
+生产日志、SQLCommenter、OpenTelemetry 与告警要求见 [Toolbox 生产可观测性](./OBSERVABILITY.md)。
+
 ## 设计边界
 
 - 不暴露 `postgres-execute-sql` 或任何通用 SQL tool；每个 `postgres-sql` 都是预定义 statement，并由 Toolbox 以 prepared statement 执行。
@@ -24,17 +26,17 @@
 
 `pnpm db:seed` 会写入完全确定性的合成零售数据：96 个脱敏客户、24 个商品、600 个订单、1,200 个订单项和 540 条支付记录。订单覆盖过去 60 天，并包含 Web、小程序、平台和直播四种渠道，以及已支付、已履约、全额退款、部分退款、取消和待支付状态。所有电商业务时间存为 `timestamptz`，窗口统一按 UTC 解释；它是生产形态的测试数据，不是任何真实客户或交易数据。
 
-| Tool                                    | 验证场景                 | 保护措施                                 |
-| --------------------------------------- | ------------------------ | ---------------------------------------- |
-| `summarize-ecommerce-sales-by-day`      | 日 GMV、退款、净销售趋势 | `[from, to)` 聚合                        |
-| `summarize-ecommerce-sales-by-channel`  | 多渠道经营对比           | `[from, to)` 聚合                        |
-| `summarize_sales_by_region`             | 大区销售、退款与客单价   | `[from, to)` 聚合；仅返回聚合结果        |
-| `summarize_sales_by_customer_segment`   | 新客、活跃、VIP 分群分析 | `[from, to)` 聚合；枚举值受语义目录约束  |
-| `list-ecommerce-top-products`           | 商品销量与净销售排行     | 时间窗 + 最大 100 行；按订单退款比例分摊 |
-| `summarize_merchandise_by_category`     | 品类销量与净商品销售额   | `[from, to)` 聚合；不包含运费            |
-| `list-ecommerce-orders-in-window`       | 订单运营视图             | 时间窗 + 最大 100 行；无联系方式         |
-| `get-ecommerce-order-detail`            | 单订单与订单项核查       | 精确订单号                               |
-| `list-ecommerce-fulfillment-exceptions` | 已付款未履约订单         | 时间窗 + 最大 100 行                     |
+| Tool                                    | 验证场景                 | 保护措施                                |
+| --------------------------------------- | ------------------------ | --------------------------------------- |
+| `summarize-ecommerce-sales-by-day`      | 日 GMV、退款、净销售趋势 | `[from, to)` 聚合                       |
+| `summarize-ecommerce-sales-by-channel`  | 多渠道经营对比           | `[from, to)` 聚合                       |
+| `summarize_sales_by_region`             | 大区销售、退款与客单价   | `[from, to)` 聚合；仅返回聚合结果       |
+| `summarize_sales_by_customer_segment`   | 新客、活跃、VIP 分群分析 | `[from, to)` 聚合；枚举值受语义目录约束 |
+| `list-ecommerce-top-products`           | 商品销量与净销售排行     | 时间窗 + `limit/offset`；按退款比例分摊 |
+| `summarize_merchandise_by_category`     | 品类销量与净商品销售额   | `[from, to)` 聚合；不包含运费           |
+| `list-ecommerce-orders-in-window`       | 订单运营视图             | 时间窗 + `limit/offset`；无联系方式     |
+| `get-ecommerce-order-detail`            | 单订单与订单项核查       | 精确订单号                              |
+| `list-ecommerce-fulfillment-exceptions` | 已付款未履约订单         | 时间窗 + `limit/offset`                 |
 
 ## 电商业务 Agent Skills
 
@@ -75,7 +77,7 @@ Toolbox 固定生成的标题、表头和脚本模板保持英文；可配置的
 pnpm toolbox:verify:local
 ```
 
-该命令直接使用 `.env`/默认本地连接，对本机数据库执行 migration 和确定性 seed，启动临时官方 Toolbox 二进制，然后验证原生 MCP `tools/list`、Host allowlist、9 个业务 Tool、语义溯源、部分退款、空结果、UTC 边界、非法时间窗与能力隔离。命令结束后临时 Toolbox 自动退出，不使用 Docker。
+该命令直接使用 `.env`/默认本地连接，对本机数据库执行 migration 和确定性 seed，启动临时官方 Toolbox 二进制，然后验证原生 MCP `tools/list`、Host allowlist、9 个业务 Tool、语义溯源、分页、可操作空结果、部分退款、UTC 边界、非法时间窗与能力隔离。命令结束后临时 Toolbox 自动退出，不使用 Docker。
 
 ## 电商 MCP Docker 集成验证（仅显式要求时）
 

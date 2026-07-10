@@ -12,6 +12,7 @@ export async function startLocalToolbox(input: {
   configPath: string;
   env?: Record<string, string | undefined>;
 }) {
+  const runtimeEnv = { ...process.env, ...input.env };
   const port = await reservePort();
   const url = `http://127.0.0.1:${port}`;
   const child = spawn(
@@ -27,11 +28,21 @@ export async function startLocalToolbox(input: {
       String(port),
       "--logging-format",
       "JSON",
+      "--log-level",
+      runtimeEnv.TOOLBOX_LOG_LEVEL ?? "INFO",
+      "--telemetry-service-name",
+      runtimeEnv.TOOLBOX_TELEMETRY_SERVICE_NAME ?? "agent-template-toolbox",
+      ...(runtimeEnv.TOOLBOX_SQL_COMMENTER === "false"
+        ? []
+        : ["--sql-commenter"]),
+      ...(runtimeEnv.TOOLBOX_OTLP_ENDPOINT
+        ? ["--telemetry-otlp", runtimeEnv.TOOLBOX_OTLP_ENDPOINT]
+        : []),
       ...(input.args ?? []),
     ],
     {
       cwd: repositoryRoot,
-      env: { ...process.env, ...input.env },
+      env: runtimeEnv,
       stdio: ["ignore", "pipe", "pipe"],
     },
   );

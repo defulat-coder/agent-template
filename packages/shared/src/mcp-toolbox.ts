@@ -4,6 +4,7 @@ const maxMcpToolboxWindowMs = 31 * 24 * 60 * 60 * 1000;
 
 export const McpToolboxRunIdSchema = z.string().min(1).max(200);
 export const McpToolboxLimitSchema = z.number().int().min(1).max(100);
+export const McpToolboxOffsetSchema = z.number().int().min(0).max(10_000);
 export const McpToolboxTimelineLimitSchema = z.number().int().min(1).max(200);
 export const McpToolboxTimestampSchema = z.string().datetime({ offset: true });
 
@@ -45,6 +46,7 @@ export const McpToolboxTimeWindowWithLimitSchema = z
   .object({
     ...McpToolboxTimeWindowFields,
     limit: McpToolboxLimitSchema.optional(),
+    offset: McpToolboxOffsetSchema.optional(),
   })
   .superRefine(validateMcpToolboxTimeWindow);
 

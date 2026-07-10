@@ -13,6 +13,7 @@
 - 出站 Bearer token 只从可信 `McpHostInvocationContext` 或 server 的 `authTokenEnv` 解析；不写入 server 列表、Tool schema、模型参数或 Tool 结果。
 - `capabilityProfiles` 是部署选择的模型可见工具子集，必须完全落在对应 server 的 `allowedTools` 内；它负责最小化能力呈现，不替代认证或授权。
 - `semanticCatalogs` 指向运行时 Zod 校验的业务语义目录；认证 Tool 结果必须由 Host 附加 `structuredContent.certifiedQuery`，不得伪造数据刷新时间。
+- Certified query result 统一补充分页元数据和可操作空结果建议；runtime adapter 不各自实现一套结果包装。
 - `mcp-host.config.json` 支持 `${NAME}` 和 `${NAME:-fallback}` 字符串占位，用于同一文件兼容本机和 Docker。
 - 浏览器不直接连接 MCP Server；`apps/web` 通过 `apps/api` 使用这里的能力。
 - Tool call、resource read 和 MCP App 需要返回结构化结果，供 API SSE 和 Web Chat 渲染。

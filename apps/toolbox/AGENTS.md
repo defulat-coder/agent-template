@@ -29,6 +29,8 @@
 - Toolset 只用于 Skill 生成和模型上下文分组，不能当作运行时最小权限。实际授权以 Host `allowedTools`、可信身份注入和数据库 RLS/等效控制为准；需要 capability 隔离时，先设计 Host capability profile seam。
 - Host 授权必须 fail-closed：每个 server 配置非空 `allowedTools`；`allowAllToolsForDevelopment` 只允许本地开发。生产 JWT 只从可信 invocation context 或 `TOOLBOX_AUTH_TOKEN` 注入，不能成为 Tool 参数。
 - 分析 Tool 必须声明业务时区、`[from, to)` 时间边界与数据库时间类型；UTC 输入承诺不能依赖 PostgreSQL session 的隐式时区转换。
+- 业务列表 Tool 必须使用稳定排序和有上限的 `limit/offset`；Host 的 Certified query result 返回分页状态与可操作空结果说明。
+- 本地与生产 Toolbox 使用 JSON 日志和 SQLCommenter；生产通过 `TOOLBOX_OTLP_ENDPOINT` 接入 OpenTelemetry，禁止记录 token、密码或业务明细。
 - 新增认证业务问数 Tool 必须同步 `tools.yaml`、Toolset、Host allowlist、Claude/Eve adapter、原始/实际 Skill、语义目录和 golden cases；完成语义门禁、Skill 生成校验与本地 native Tool 执行验收后才能合入。
 
 ## 不应该做

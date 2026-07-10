@@ -132,10 +132,40 @@ export function annotateCertifiedQueryResult(
 ): McpHostToolCallResult {
   if (!input.contract) return result;
 
+  const limit =
+    typeof input.arguments.limit === "number"
+      ? input.arguments.limit
+      : undefined;
+  const offset =
+    typeof input.arguments.offset === "number" ? input.arguments.offset : 0;
+  const hasMore = limit ? result.content.length > limit : false;
+  const visibleResult =
+    limit && hasMore
+      ? { ...result, content: result.content.slice(0, limit) }
+      : result;
+  const returnedCount = visibleResult.content.length;
+  const page = limit
+    ? {
+        hasMore,
+        limit,
+        ...(hasMore ? { nextOffset: offset + returnedCount } : {}),
+        offset,
+        returnedCount,
+      }
+    : { returnedCount };
+  const emptyResult =
+    returnedCount === 0
+      ? {
+          isEmpty: true,
+          reason: "当前参数范围内没有符合认证业务口径的数据。",
+          suggestions: createEmptyResultSuggestions(input.arguments),
+        }
+      : undefined;
+
   return {
-    ...result,
+    ...visibleResult,
     structuredContent: {
-      ...(result.structuredContent ?? {}),
+      ...(visibleResult.structuredContent ?? {}),
       certifiedQuery: {
         catalog: {
           name: input.contract.catalogName,
@@ -153,12 +183,30 @@ export function annotateCertifiedQueryResult(
           note: "数据源未提供可验证的刷新水位；executedAt 仅表示查询执行时间。",
         },
         execution: { executedAt: input.executedAt },
+        ...(emptyResult ? { emptyResult } : {}),
         kind: "certified-query-result",
+        page,
         request: { arguments: input.arguments },
         tool: { name: input.toolName, serverId: input.serverId },
       },
     },
   };
+}
+
+function createEmptyResultSuggestions(args: Record<string, unknown>) {
+  const suggestions = ["确认当前 Agent capability profile 与数据权限范围。"];
+  if (typeof args.from === "string" || typeof args.to === "string") {
+    suggestions.unshift(
+      "检查 UTC [from, to) 边界，或在不超过 31 天的前提下扩大时间窗。",
+    );
+  }
+  if (typeof args.orderNumber === "string") {
+    suggestions.unshift("核对完整订单号，避免空格、截断或环境不一致。");
+  }
+  if (typeof args.offset === "number" && args.offset > 0) {
+    suggestions.unshift("将 offset 调小或回到首页确认是否已超过末页。");
+  }
+  return suggestions;
 }
 
 export function contractKey(serverId: string, toolName: string) {

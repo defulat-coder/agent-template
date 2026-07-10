@@ -180,12 +180,20 @@ async function main() {
     assert.equal(utcBoundary.length, 1);
     assert.equal(utcBoundary[0]?.salesDate, "2026-06-01T00:00:00Z");
 
-    const emptySales = readRows(
-      await host.callTool("toolbox", "summarize-ecommerce-sales-by-day", {
+    const emptySalesResult = await host.callTool(
+      "toolbox",
+      "summarize-ecommerce-sales-by-day",
+      {
         from: "2027-01-01T00:00:00Z",
         to: "2027-01-02T00:00:00Z",
-      }),
+      },
     );
+    const emptySales = readRows(emptySalesResult);
+    const emptyResult = emptySalesResult.structuredContent?.certifiedQuery as
+      | { emptyResult?: { isEmpty?: boolean; suggestions?: string[] } }
+      | undefined;
+    assert.equal(emptyResult?.emptyResult?.isEmpty, true);
+    assert.ok((emptyResult?.emptyResult?.suggestions?.length ?? 0) >= 2);
     assert.deepEqual(emptySales, []);
 
     const channelSales = readRows(
@@ -253,14 +261,41 @@ async function main() {
       ),
     );
 
-    const orders = readRows(
+    const orderPageResult = await host.callTool(
+      "toolbox",
+      "list-ecommerce-orders-in-window",
+      {
+        ...timeWindow,
+        limit: 3,
+        offset: 0,
+      },
+    );
+    const orders = readRows(orderPageResult);
+    assert.equal(orders.length, 3);
+    assert.equal(orders[0]?.orderNumber, "EC20260630010");
+    assert.deepEqual(
+      (
+        orderPageResult.structuredContent?.certifiedQuery as {
+          page?: unknown;
+        }
+      )?.page,
+      {
+        hasMore: true,
+        limit: 3,
+        nextOffset: 3,
+        offset: 0,
+        returnedCount: 3,
+      },
+    );
+    const secondOrderPage = readRows(
       await host.callTool("toolbox", "list-ecommerce-orders-in-window", {
         ...timeWindow,
         limit: 3,
+        offset: 3,
       }),
     );
-    assert.equal(orders.length, 3);
-    assert.equal(orders[0]?.orderNumber, "EC20260630010");
+    assert.equal(secondOrderPage.length, 3);
+    assert.notEqual(secondOrderPage[0]?.orderNumber, orders[0]?.orderNumber);
 
     const orderDetail = readRows(
       await host.callTool("toolbox", "get-ecommerce-order-detail", {
@@ -311,7 +346,7 @@ async function main() {
     );
 
     console.log(
-      `Ecommerce MCP ${dockerMode ? "Docker" : "local"} verification passed: 18 tools listed, 9 business tools called, and partial-refund, empty-result, UTC-boundary, invalid-window, and capability-isolation cases verified.`,
+      `Ecommerce MCP ${dockerMode ? "Docker" : "local"} verification passed: 18 tools listed, 9 business tools called, and pagination, partial-refund, actionable-empty-result, UTC-boundary, invalid-window, and capability-isolation cases verified.`,
     );
   } finally {
     await localToolbox?.stop();
