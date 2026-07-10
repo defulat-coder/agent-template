@@ -1,6 +1,6 @@
 ---
 name: ecommerce-product-analysis
-description: Ranks ecommerce products by units, gross merchandise sales, and refund-adjusted net merchandise sales. Use when the user asks for product ranking, best sellers, category performance, or merchandising analysis.
+description: 按销量、商品销售总额和退款调整后的净商品销售额分析商品表现。用户询问商品排行、畅销商品、品类表现或选品分析时使用。
 ---
 
 ## Usage
@@ -18,15 +18,15 @@ description: Ranks ecommerce products by units, gross merchandise sales, and ref
 
 ### list-ecommerce-top-products
 
-Rank synthetic ecommerce products by paid quantity, gross merchandise sales, and net merchandise sales.
-Order-level refunds are allocated proportionally to merchandise; shipping is excluded.
+按已支付销量、商品销售总额和净商品销售额对合成电商商品进行排行。
+订单级退款按商品金额比例分摊，不包含运费。
 
 #### Parameters
 
-| Name  | Type    | Description                                | Required | Default |
-| :---- | :------ | :----------------------------------------- | :------- | :------ |
-| from  | string  | Inclusive ISO-8601 UTC sales window start. | Yes      |         |
-| to    | string  | Exclusive ISO-8601 UTC sales window end.   | Yes      |         |
-| limit | integer | Maximum number of products to return.      | No       | `20`    |
+| Name  | Type    | Description                                 | Required | Default |
+| :---- | :------ | :------------------------------------------ | :------- | :------ |
+| from  | string  | ISO-8601 UTC 销售时间窗开始时间（包含）。   | Yes      |         |
+| to    | string  | ISO-8601 UTC 销售时间窗结束时间（不包含）。 | Yes      |         |
+| limit | integer | 最多返回的商品数量。                        | No       | `20`    |
 
 ---

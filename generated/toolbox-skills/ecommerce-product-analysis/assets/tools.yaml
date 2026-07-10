@@ -12,8 +12,8 @@ name: summarize-ecommerce-sales-by-day
 type: postgres-sql
 source: agent-template-postgres
 description: |
-  Summarize synthetic ecommerce gross sales, refunds, net sales, orders, and buyers by day.
-  Use this read-only tool for bounded sales-trend analysis in an ISO-8601 UTC time window.
+  按日汇总合成电商数据的销售总额、退款、净销售额、订单数和买家数。
+  用于在明确的 ISO-8601 UTC 时间窗内进行有界的只读销售趋势分析。
 statement: |
   WITH settled_orders AS (
     SELECT
@@ -39,18 +39,18 @@ statement: |
 parameters:
   - name: from
     type: string
-    description: Inclusive ISO-8601 UTC sales window start.
+    description: ISO-8601 UTC 销售时间窗开始时间（包含）。
   - name: to
     type: string
-    description: Exclusive ISO-8601 UTC sales window end.
+    description: ISO-8601 UTC 销售时间窗结束时间（不包含）。
 ---
 kind: tool
 name: summarize-ecommerce-sales-by-channel
 type: postgres-sql
 source: agent-template-postgres
 description: |
-  Compare synthetic ecommerce sales performance across web, mini program, marketplace, and live stream channels.
-  Use this read-only tool for bounded channel-performance analysis.
+  对比 Web、小程序、平台和直播渠道的合成电商销售表现。
+  用于有界的只读渠道经营表现分析。
 statement: |
   SELECT
     channel::text AS channel,
@@ -69,18 +69,18 @@ statement: |
 parameters:
   - name: from
     type: string
-    description: Inclusive ISO-8601 UTC sales window start.
+    description: ISO-8601 UTC 销售时间窗开始时间（包含）。
   - name: to
     type: string
-    description: Exclusive ISO-8601 UTC sales window end.
+    description: ISO-8601 UTC 销售时间窗结束时间（不包含）。
 ---
 kind: tool
 name: list-ecommerce-top-products
 type: postgres-sql
 source: agent-template-postgres
 description: |
-  Rank synthetic ecommerce products by paid quantity, gross merchandise sales, and net merchandise sales.
-  Order-level refunds are allocated proportionally to merchandise; shipping is excluded.
+  按已支付销量、商品销售总额和净商品销售额对合成电商商品进行排行。
+  订单级退款按商品金额比例分摊，不包含运费。
 statement: |
   WITH settled_items AS (
     SELECT
@@ -111,13 +111,13 @@ statement: |
 parameters:
   - name: from
     type: string
-    description: Inclusive ISO-8601 UTC sales window start.
+    description: ISO-8601 UTC 销售时间窗开始时间（包含）。
   - name: to
     type: string
-    description: Exclusive ISO-8601 UTC sales window end.
+    description: ISO-8601 UTC 销售时间窗结束时间（不包含）。
   - name: limit
     type: integer
-    description: Maximum number of products to return.
+    description: 最多返回的商品数量。
     default: 20
     minValue: 1
     maxValue: 100
@@ -127,8 +127,8 @@ name: list-ecommerce-orders-in-window
 type: postgres-sql
 source: agent-template-postgres
 description: |
-  List a bounded operational order view for the synthetic ecommerce dataset.
-  Customer data is limited to synthetic customer code, segment, and region; no direct contact data is returned.
+  返回合成电商数据的有界订单运营视图。
+  客户数据仅包含合成客户编码、分群和地区，不返回直接联系方式。
 statement: |
   SELECT
     orders."orderNumber",
@@ -152,13 +152,13 @@ statement: |
 parameters:
   - name: from
     type: string
-    description: Inclusive ISO-8601 UTC operational window start.
+    description: ISO-8601 UTC 订单运营时间窗开始时间（包含）。
   - name: to
     type: string
-    description: Exclusive ISO-8601 UTC operational window end.
+    description: ISO-8601 UTC 订单运营时间窗结束时间（不包含）。
   - name: limit
     type: integer
-    description: Maximum number of orders to return.
+    description: 最多返回的订单数量。
     default: 50
     minValue: 1
     maxValue: 100
@@ -168,8 +168,8 @@ name: get-ecommerce-order-detail
 type: postgres-sql
 source: agent-template-postgres
 description: |
-  Return one synthetic ecommerce order with its customer business context and line items.
-  Use this tool only when the user provides a concrete orderNumber.
+  返回一笔合成电商订单及其客户业务背景和订单项。
+  仅当用户提供明确的 orderNumber 时使用。
 statement: |
   SELECT
     orders."orderNumber",
@@ -211,15 +211,15 @@ statement: |
 parameters:
   - name: orderNumber
     type: string
-    description: Concrete ecommerce order number, for example EC20260601001.
+    description: 明确的电商订单号，例如 EC20260601001。
 ---
 kind: tool
 name: list-ecommerce-fulfillment-exceptions
 type: postgres-sql
 source: agent-template-postgres
 description: |
-  List paid synthetic ecommerce orders that have not yet been fulfilled in a bounded UTC time window.
-  Use this read-only tool for fulfillment-operations validation.
+  列出有界 UTC 时间窗内已付款但尚未履约的合成电商订单。
+  用于只读的履约运营验证。
 statement: |
   SELECT
     orders."orderNumber",
@@ -240,13 +240,13 @@ statement: |
 parameters:
   - name: from
     type: string
-    description: Inclusive ISO-8601 UTC paid-order window start.
+    description: ISO-8601 UTC 已付款订单时间窗开始时间（包含）。
   - name: to
     type: string
-    description: Exclusive ISO-8601 UTC paid-order window end and the waiting-time reference.
+    description: ISO-8601 UTC 已付款订单时间窗结束时间（不包含），同时作为等待时长参考时间。
   - name: limit
     type: integer
-    description: Maximum number of fulfillment exceptions to return.
+    description: 最多返回的履约异常订单数量。
     default: 50
     minValue: 1
     maxValue: 100

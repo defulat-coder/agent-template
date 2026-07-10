@@ -26,7 +26,7 @@ const businessSkills: BusinessSkill[] = [
     name: "ecommerce-sales-analysis",
     toolset: "ecommerce_sales_analytics",
     description:
-      "Analyzes ecommerce revenue, refunds, net sales, buyers, and channel performance. Use when the user asks about sales trends, GMV, refunds, net sales, or channel comparison.",
+      "分析电商销售额、退款、净销售额、买家数与渠道表现。用户询问销售趋势、GMV、退款、净销售额或渠道对比时使用。",
     workflow: `1. 要求或确认不超过 31 天的 UTC \`[from, to)\` 时间窗。
 2. 先调用 \`summarize-ecommerce-sales-by-day\` 判断趋势和异常日期。
 3. 需要渠道归因时，再调用 \`summarize-ecommerce-sales-by-channel\`。
@@ -36,7 +36,7 @@ const businessSkills: BusinessSkill[] = [
     name: "ecommerce-product-analysis",
     toolset: "ecommerce_product_analytics",
     description:
-      "Ranks ecommerce products by units, gross merchandise sales, and refund-adjusted net merchandise sales. Use when the user asks for product ranking, best sellers, category performance, or merchandising analysis.",
+      "按销量、商品销售总额和退款调整后的净商品销售额分析商品表现。用户询问商品排行、畅销商品、品类表现或选品分析时使用。",
     workflow: `1. 要求或确认不超过 31 天的 UTC \`[from, to)\` 时间窗，并设置有界 \`limit\`。
 2. 调用 \`list-ecommerce-top-products\` 获取商品排行。
 3. 同时解释销量、毛商品销售额与退款分摊后的净商品销售额。
@@ -46,7 +46,7 @@ const businessSkills: BusinessSkill[] = [
     name: "ecommerce-order-operations",
     toolset: "ecommerce_order_operations",
     description:
-      "Investigates ecommerce orders using bounded operational lists and exact order details. Use when the user asks about order status, customer segment context, a concrete order number, or order-level troubleshooting.",
+      "通过有界订单列表和精确订单明细排查电商订单。用户询问订单状态、客户分群背景、具体订单号或订单级故障时使用。",
     workflow: `1. 用户提供订单号时，直接调用 \`get-ecommerce-order-detail\`，不要先扫描订单列表。
 2. 用户询问一段时间的订单时，调用 \`list-ecommerce-orders-in-window\`，时间窗不超过 31 天且结果有界。
 3. 需要继续核查时，只对用户选中的具体订单调用详情 Tool。
@@ -56,7 +56,7 @@ const businessSkills: BusinessSkill[] = [
     name: "ecommerce-fulfillment-operations",
     toolset: "ecommerce_fulfillment_operations",
     description:
-      "Finds paid but unfulfilled ecommerce orders and supports fulfillment exception investigation. Use when the user asks about fulfillment backlog, waiting time, delayed orders, or operational exceptions.",
+      "查找已付款但未履约的电商订单并支持履约异常排查。用户询问履约积压、等待时长、延迟订单或运营异常时使用。",
     workflow: `1. 要求或确认不超过 31 天的 UTC \`[from, to)\` 时间窗，并设置有界 \`limit\`。
 2. 调用 \`list-ecommerce-fulfillment-exceptions\` 获取已支付未履约订单。
 3. 将 \`to\` 解释为等待时长的参考时间，不要当作当前系统时间。
@@ -107,6 +107,8 @@ async function main() {
           skill.toolset,
           "--description",
           skill.description,
+          "--additional-notes",
+          skill.workflow,
           "--output-dir",
           generatedRoot,
           "--invocation-mode",
@@ -124,6 +126,7 @@ async function main() {
       const generatedSkill = join(generatedRoot, skill.name);
       const rawOutputSkill = join(rawOutputRoot, skill.name);
       const toolNames = readGeneratedToolNames(generatedMarkdown);
+      validateChineseBusinessContent(skill, generatedMarkdown, toolNames);
       validateExecutionSurfaces(skill.name, toolNames);
       const adaptedMarkdown = adaptSkillMarkdown(
         generatedMarkdown,
@@ -356,6 +359,79 @@ function readGeneratedToolNames(markdown: string) {
   }
 
   return toolNames;
+}
+
+function validateChineseBusinessContent(
+  skill: BusinessSkill,
+  markdown: string,
+  toolNames: string[],
+) {
+  const description = markdown.match(/^description: (.+)$/m)?.[1];
+
+  if (!description || !containsChinese(description)) {
+    throw new Error(`${skill.name} description must contain Chinese content`);
+  }
+
+  if (!markdown.includes(skill.workflow)) {
+    throw new Error(`${skill.name} must include its Chinese workflow`);
+  }
+
+  for (const toolName of toolNames) {
+    const toolStart = markdown.indexOf(`### ${toolName}`);
+
+    if (toolStart < 0) {
+      throw new Error(`${skill.name} does not document tool ${toolName}`);
+    }
+
+    const toolEnd = markdown.indexOf("\n---", toolStart);
+    const toolSection = markdown.slice(
+      toolStart,
+      toolEnd < 0 ? undefined : toolEnd,
+    );
+    const parametersStart = toolSection.indexOf("#### Parameters");
+    const toolDescription = toolSection.slice(
+      `### ${toolName}`.length,
+      parametersStart < 0 ? undefined : parametersStart,
+    );
+
+    if (!containsChinese(toolDescription)) {
+      throw new Error(
+        `${skill.name} tool ${toolName} must have a Chinese description`,
+      );
+    }
+
+    for (const parameter of readParameterDescriptions(toolSection)) {
+      if (!containsChinese(parameter.description)) {
+        throw new Error(
+          `${skill.name} tool ${toolName} parameter ${parameter.name} must have a Chinese description`,
+        );
+      }
+    }
+  }
+}
+
+function readParameterDescriptions(toolSection: string) {
+  return toolSection
+    .split("\n")
+    .filter((line) => line.startsWith("|"))
+    .map((line) =>
+      line
+        .split("|")
+        .slice(1, -1)
+        .map((cell) => cell.trim()),
+    )
+    .filter(
+      (cells) =>
+        cells.length >= 3 && cells[0] !== "Name" && !cells[0]?.startsWith(":"),
+    )
+    .map((cells) => ({
+      description: cells[2] ?? "",
+      name: cells[0] ?? "",
+    }));
+}
+
+function containsChinese(value: string) {
+  return /[\u3400-\u9fff]/u.test(value);
 }
 
 function validateExecutionSurfaces(skillName: string, toolNames: string[]) {

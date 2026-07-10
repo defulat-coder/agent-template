@@ -1,6 +1,6 @@
 ---
 name: ecommerce-fulfillment-operations
-description: Finds paid but unfulfilled ecommerce orders and supports fulfillment exception investigation. Use when the user asks about fulfillment backlog, waiting time, delayed orders, or operational exceptions.
+description: 查找已付款但未履约的电商订单并支持履约异常排查。用户询问履约积压、等待时长、延迟订单或运营异常时使用。
 ---
 
 ## Usage
@@ -18,28 +18,28 @@ description: Finds paid but unfulfilled ecommerce orders and supports fulfillmen
 
 ### get-ecommerce-order-detail
 
-Return one synthetic ecommerce order with its customer business context and line items.
-Use this tool only when the user provides a concrete orderNumber.
+返回一笔合成电商订单及其客户业务背景和订单项。
+仅当用户提供明确的 orderNumber 时使用。
 
 #### Parameters
 
-| Name        | Type   | Description                                                 | Required | Default |
-| :---------- | :----- | :---------------------------------------------------------- | :------- | :------ |
-| orderNumber | string | Concrete ecommerce order number, for example EC20260601001. | Yes      |         |
+| Name        | Type   | Description                            | Required | Default |
+| :---------- | :----- | :------------------------------------- | :------- | :------ |
+| orderNumber | string | 明确的电商订单号，例如 EC20260601001。 | Yes      |         |
 
 ---
 
 ### list-ecommerce-fulfillment-exceptions
 
-List paid synthetic ecommerce orders that have not yet been fulfilled in a bounded UTC time window.
-Use this read-only tool for fulfillment-operations validation.
+列出有界 UTC 时间窗内已付款但尚未履约的合成电商订单。
+用于只读的履约运营验证。
 
 #### Parameters
 
-| Name  | Type    | Description                                                                  | Required | Default |
-| :---- | :------ | :--------------------------------------------------------------------------- | :------- | :------ |
-| from  | string  | Inclusive ISO-8601 UTC paid-order window start.                              | Yes      |         |
-| to    | string  | Exclusive ISO-8601 UTC paid-order window end and the waiting-time reference. | Yes      |         |
-| limit | integer | Maximum number of fulfillment exceptions to return.                          | No       | `50`    |
+| Name  | Type    | Description                                                                 | Required | Default |
+| :---- | :------ | :-------------------------------------------------------------------------- | :------- | :------ |
+| from  | string  | ISO-8601 UTC 已付款订单时间窗开始时间（包含）。                             | Yes      |         |
+| to    | string  | ISO-8601 UTC 已付款订单时间窗结束时间（不包含），同时作为等待时长参考时间。 | Yes      |         |
+| limit | integer | 最多返回的履约异常订单数量。                                                | No       | `50`    |
 
 ---

@@ -15,6 +15,8 @@
 - `packages/agent-eve/agent/skills/`
 - `.claude/skills/`
 
+Toolbox 固定模板保持英文；由项目提供的 Skill 描述、补充说明、业务 Tool 描述和参数描述以中文为主。
+
 重新生成与检查：
 
 ```bash

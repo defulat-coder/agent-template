@@ -1,6 +1,6 @@
 ---
 name: ecommerce-order-operations
-description: Investigates ecommerce orders using bounded operational lists and exact order details. Use when the user asks about order status, customer segment context, a concrete order number, or order-level troubleshooting.
+description: 通过有界订单列表和精确订单明细排查电商订单。用户询问订单状态、客户分群背景、具体订单号或订单级故障时使用。
 ---
 
 ## Usage
@@ -18,28 +18,28 @@ description: Investigates ecommerce orders using bounded operational lists and e
 
 ### get_ecommerce_order_detail
 
-Return one synthetic ecommerce order with its customer business context and line items.
-Use this tool only when the user provides a concrete orderNumber.
+返回一笔合成电商订单及其客户业务背景和订单项。
+仅当用户提供明确的 orderNumber 时使用。
 
 #### Parameters
 
-| Name        | Type   | Description                                                 | Required | Default |
-| :---------- | :----- | :---------------------------------------------------------- | :------- | :------ |
-| orderNumber | string | Concrete ecommerce order number, for example EC20260601001. | Yes      |         |
+| Name        | Type   | Description                            | Required | Default |
+| :---------- | :----- | :------------------------------------- | :------- | :------ |
+| orderNumber | string | 明确的电商订单号，例如 EC20260601001。 | Yes      |         |
 
 ---
 
 ### list_ecommerce_orders_in_window
 
-List a bounded operational order view for the synthetic ecommerce dataset.
-Customer data is limited to synthetic customer code, segment, and region; no direct contact data is returned.
+返回合成电商数据的有界订单运营视图。
+客户数据仅包含合成客户编码、分群和地区，不返回直接联系方式。
 
 #### Parameters
 
-| Name  | Type    | Description                                      | Required | Default |
-| :---- | :------ | :----------------------------------------------- | :------- | :------ |
-| from  | string  | Inclusive ISO-8601 UTC operational window start. | Yes      |         |
-| to    | string  | Exclusive ISO-8601 UTC operational window end.   | Yes      |         |
-| limit | integer | Maximum number of orders to return.              | No       | `50`    |
+| Name  | Type    | Description                                     | Required | Default |
+| :---- | :------ | :---------------------------------------------- | :------- | :------ |
+| from  | string  | ISO-8601 UTC 订单运营时间窗开始时间（包含）。   | Yes      |         |
+| to    | string  | ISO-8601 UTC 订单运营时间窗结束时间（不包含）。 | Yes      |         |
+| limit | integer | 最多返回的订单数量。                            | No       | `50`    |
 
 ---

@@ -1,6 +1,6 @@
 ---
 name: ecommerce-product-analysis
-description: Ranks ecommerce products by units, gross merchandise sales, and refund-adjusted net merchandise sales. Use when the user asks for product ranking, best sellers, category performance, or merchandising analysis.
+description: 按销量、商品销售总额和退款调整后的净商品销售额分析商品表现。用户询问商品排行、畅销商品、品类表现或选品分析时使用。
 ---
 
 ## Usage
@@ -13,23 +13,28 @@ All scripts can be executed using Node.js. Replace `<param_name>` and `<param_va
 **PowerShell:**
 `node <skill_dir>/scripts/<script_name>.js '{\"<param_name>\": \"<param_value>\"}'`
 
+1. 要求或确认不超过 31 天的 UTC `[from, to)` 时间窗，并设置有界 `limit`。
+2. 调用 `list-ecommerce-top-products` 获取商品排行。
+3. 同时解释销量、毛商品销售额与退款分摊后的净商品销售额。
+4. 不从排行结果推断库存、利润或转化率；当前 Tool 没有这些字段。
+
 
 ## Scripts
 
 
 ### list-ecommerce-top-products
 
-Rank synthetic ecommerce products by paid quantity, gross merchandise sales, and net merchandise sales.
-Order-level refunds are allocated proportionally to merchandise; shipping is excluded.
+按已支付销量、商品销售总额和净商品销售额对合成电商商品进行排行。
+订单级退款按商品金额比例分摊，不包含运费。
 
 
 #### Parameters
 
 | Name | Type | Description | Required | Default |
 | :--- | :--- | :--- | :--- | :--- |
-| from | string | Inclusive ISO-8601 UTC sales window start. | Yes |  |
-| to | string | Exclusive ISO-8601 UTC sales window end. | Yes |  |
-| limit | integer | Maximum number of products to return. | No | `20` |
+| from | string | ISO-8601 UTC 销售时间窗开始时间（包含）。 | Yes |  |
+| to | string | ISO-8601 UTC 销售时间窗结束时间（不包含）。 | Yes |  |
+| limit | integer | 最多返回的商品数量。 | No | `20` |
 
 
 ---
