@@ -1,0 +1,9 @@
+{
+  "generatedBy": "scripts/generate-toolbox-business-skills.ts",
+  "skills": [
+    "ecommerce-fulfillment-operations",
+    "ecommerce-order-operations",
+    "ecommerce-product-analysis",
+    "ecommerce-sales-analysis"
+  ]
+}

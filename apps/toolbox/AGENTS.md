@@ -9,6 +9,7 @@
 - Toolbox server 是独立 Tool provider，不属于 Cloud 或 Eve Agent runtime。
 - `tools.yaml` 只定义 source、tool 和 toolset，不放业务运行时代码。
 - 业务 Skill 生成编排放在根目录 `scripts/`，本目录只提供被官方生成器读取的 Toolset 事实源。
+- Toolbox 官方原始 Skill 完整保存在 `generated/toolbox-skills/`；runtime 适配版分别保存在 `.claude/skills/` 与 `packages/agent-eve/agent/skills/`。
 - Toolset 只用于 Skill 生成与业务分组，不代表运行时授权；运行时权限以 MCP Host `allowedTools` 为准。
 - 生产 Agent 默认只使用自定义 toolset，不使用 prebuilt generic tools。
 - 数据库连接信息通过环境变量注入，不能把密码写死在 `tools.yaml`。

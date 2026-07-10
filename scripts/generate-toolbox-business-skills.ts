@@ -1,4 +1,5 @@
 import {
+  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -77,6 +78,8 @@ const eveExecutable = join(
   process.platform === "win32" ? "eve.cmd" : "eve",
 );
 const generatedRoot = mkdtempSync(join(tmpdir(), "toolbox-business-skills-"));
+const rawOutputRoot = join(repositoryRoot, "generated/toolbox-skills");
+const manifestPath = join(rawOutputRoot, "manifest.json");
 const checkOnly = process.argv.includes("--check");
 const staleOutputs: string[] = [];
 const outputRoots = {
@@ -118,12 +121,24 @@ async function main() {
         join(generatedRoot, skill.name, "SKILL.md"),
         "utf8",
       );
+      const generatedSkill = join(generatedRoot, skill.name);
+      const rawOutputSkill = join(rawOutputRoot, skill.name);
       const toolNames = readGeneratedToolNames(generatedMarkdown);
       validateExecutionSurfaces(skill.name, toolNames);
       const adaptedMarkdown = adaptSkillMarkdown(
         generatedMarkdown,
         skill.workflow,
       );
+
+      if (checkOnly) {
+        if (!directoriesMatch(generatedSkill, rawOutputSkill)) {
+          staleOutputs.push(rawOutputSkill);
+        }
+      } else {
+        rmSync(rawOutputSkill, { force: true, recursive: true });
+        mkdirSync(rawOutputRoot, { recursive: true });
+        cpSync(generatedSkill, rawOutputSkill, { recursive: true });
+      }
 
       for (const [runtime, outputRoot] of Object.entries(outputRoots)) {
         const outputSkill = join(outputRoot, skill.name);
@@ -155,6 +170,9 @@ async function main() {
         writeFileSync(outputMarkdown, markdown, "utf8");
       }
     }
+
+    synchronizeManagedOutputs();
+    synchronizeRawOutputRoot();
 
     if (staleOutputs.length > 0) {
       throw new Error(
@@ -199,6 +217,132 @@ function adaptSkillMarkdown(markdown: string, workflow: string) {
 
 ${workflow}
 ${toolReference}`;
+}
+
+function directoriesMatch(expectedRoot: string, actualRoot: string) {
+  if (!existsSync(actualRoot)) {
+    return false;
+  }
+
+  const expectedFiles = listRelativeFiles(expectedRoot);
+  const actualFiles = listRelativeFiles(actualRoot);
+
+  return (
+    JSON.stringify(expectedFiles) === JSON.stringify(actualFiles) &&
+    expectedFiles.every((file) =>
+      readFileSync(join(expectedRoot, file)).equals(
+        readFileSync(join(actualRoot, file)),
+      ),
+    )
+  );
+}
+
+function listRelativeFiles(root: string, directory = root): string[] {
+  return readdirSync(directory, { withFileTypes: true })
+    .flatMap((entry) => {
+      const path = join(directory, entry.name);
+
+      if (entry.isDirectory()) {
+        return listRelativeFiles(root, path);
+      }
+
+      return [path.slice(root.length + 1)];
+    })
+    .sort();
+}
+
+function synchronizeManagedOutputs() {
+  const currentSkills = businessSkills.map((skill) => skill.name).sort();
+  const previousSkills = readManagedSkillManifest();
+  const manifest = `${JSON.stringify(
+    {
+      generatedBy: "scripts/generate-toolbox-business-skills.ts",
+      skills: currentSkills,
+    },
+    null,
+    2,
+  )}\n`;
+
+  if (checkOnly) {
+    if (
+      !existsSync(manifestPath) ||
+      readFileSync(manifestPath, "utf8") !== manifest
+    ) {
+      staleOutputs.push(manifestPath);
+    }
+
+    for (const skillName of previousSkills) {
+      if (!currentSkills.includes(skillName)) {
+        for (const outputRoot of [
+          rawOutputRoot,
+          ...Object.values(outputRoots),
+        ]) {
+          const obsoleteSkill = join(outputRoot, skillName);
+          if (existsSync(obsoleteSkill)) {
+            staleOutputs.push(obsoleteSkill);
+          }
+        }
+      }
+    }
+    return;
+  }
+
+  for (const skillName of previousSkills) {
+    if (!currentSkills.includes(skillName)) {
+      for (const outputRoot of [rawOutputRoot, ...Object.values(outputRoots)]) {
+        rmSync(join(outputRoot, skillName), { force: true, recursive: true });
+      }
+    }
+  }
+
+  mkdirSync(rawOutputRoot, { recursive: true });
+  writeFileSync(manifestPath, manifest, "utf8");
+}
+
+function readManagedSkillManifest() {
+  if (!existsSync(manifestPath)) {
+    return [];
+  }
+
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
+    skills?: unknown;
+  };
+
+  if (
+    !Array.isArray(manifest.skills) ||
+    !manifest.skills.every(
+      (skillName): skillName is string => typeof skillName === "string",
+    )
+  ) {
+    throw new Error("Toolbox business skill manifest must contain skills[]");
+  }
+
+  return manifest.skills;
+}
+
+function synchronizeRawOutputRoot() {
+  const expectedDirectories = businessSkills.map((skill) => skill.name).sort();
+  const actualDirectories = existsSync(rawOutputRoot)
+    ? readdirSync(rawOutputRoot, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => entry.name)
+        .sort()
+    : [];
+
+  if (checkOnly) {
+    if (
+      JSON.stringify(actualDirectories) !== JSON.stringify(expectedDirectories)
+    ) {
+      staleOutputs.push(rawOutputRoot);
+    }
+    return;
+  }
+
+  for (const directory of actualDirectories) {
+    if (!expectedDirectories.includes(directory)) {
+      rmSync(join(rawOutputRoot, directory), { force: true, recursive: true });
+    }
+  }
 }
 
 function readGeneratedToolNames(markdown: string) {

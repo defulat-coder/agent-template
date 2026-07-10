@@ -40,7 +40,15 @@ Toolbox 官方的 `skills-generate` 会把自定义 Toolset 转换为 Agent Skil
 pnpm skills:generate:toolbox
 ```
 
-生成器使用锁定的 `@toolbox-sdk/server` 读取 [tools.yaml](./tools.yaml)，再把适配后的 `SKILL.md` 写入 `packages/agent-eve/agent/skills/` 和根目录 `.claude/skills/`。Eve 使用下划线形式的 authored tool 名，Claude 使用 Toolbox 原始连字符工具名。Skill 只负责按需加载业务流程，实际执行仍走 MCP Host allowlist；官方生成的数据库直连脚本不会进入 Agent 运行目录。
+生成器使用锁定的 `@toolbox-sdk/server` 读取 [tools.yaml](./tools.yaml)，产物分为三层：
+
+```text
+generated/toolbox-skills/        # Toolbox 官方原始完整产物
+.claude/skills/                  # Claude 实际加载的适配版
+packages/agent-eve/agent/skills/ # Eve 实际加载的适配版
+```
+
+原始目录保留每个 Skill 的 `SKILL.md`、`assets/tools.yaml` 和 `scripts/*.js`，便于检查和本地诊断。Eve 使用下划线形式的 authored tool 名，Claude 使用 Toolbox 原始连字符工具名。实际版 Skill 只负责按需加载业务流程，执行仍走 MCP Host allowlist；官方数据库直连脚本不会复制进 Agent 运行目录。
 
 这四个业务 Toolset 用于官方 Skill 生成和业务能力分组，不是运行时授权机制。当前 raw MCP client 不按 `TOOLBOX_TOOLSET` 隔离工具；生产可执行范围始终以 `mcp-host.config.json` 的 `allowedTools` 为准。
 
