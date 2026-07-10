@@ -8,6 +8,250 @@ user: ${TOOLBOX_POSTGRES_USER}
 password: ${TOOLBOX_POSTGRES_PASSWORD}
 ---
 kind: tool
+name: summarize-ecommerce-sales-by-day
+type: postgres-sql
+source: agent-template-postgres
+description: |
+  Summarize synthetic ecommerce gross sales, refunds, net sales, orders, and buyers by day.
+  Use this read-only tool for bounded sales-trend analysis in an ISO-8601 UTC time window.
+statement: |
+  WITH settled_orders AS (
+    SELECT
+      "paidAt"::date AS "salesDate",
+      "customerId",
+      "paidTotal",
+      "refundedTotal"
+    FROM "EcommerceOrder"
+    WHERE status IN ('PAID', 'FULFILLED', 'REFUNDED')
+      AND "paidAt" >= $1::timestamptz
+      AND "paidAt" < $2::timestamptz
+  )
+  SELECT
+    "salesDate",
+    COUNT(*)::int AS "paidOrderCount",
+    COUNT(DISTINCT "customerId")::int AS "buyerCount",
+    COALESCE(SUM("paidTotal"), 0) AS "grossSales",
+    COALESCE(SUM("refundedTotal"), 0) AS "refundAmount",
+    COALESCE(SUM("paidTotal" - "refundedTotal"), 0) AS "netSales"
+  FROM settled_orders
+  GROUP BY "salesDate"
+  ORDER BY "salesDate" ASC;
+parameters:
+  - name: from
+    type: string
+    description: Inclusive ISO-8601 UTC sales window start.
+  - name: to
+    type: string
+    description: Exclusive ISO-8601 UTC sales window end.
+---
+kind: tool
+name: summarize-ecommerce-sales-by-channel
+type: postgres-sql
+source: agent-template-postgres
+description: |
+  Compare synthetic ecommerce sales performance across web, mini program, marketplace, and live stream channels.
+  Use this read-only tool for bounded channel-performance analysis.
+statement: |
+  SELECT
+    channel::text AS channel,
+    COUNT(*)::int AS "paidOrderCount",
+    COUNT(DISTINCT "customerId")::int AS "buyerCount",
+    COALESCE(SUM("paidTotal"), 0) AS "grossSales",
+    COALESCE(SUM("refundedTotal"), 0) AS "refundAmount",
+    COALESCE(SUM("paidTotal" - "refundedTotal"), 0) AS "netSales",
+    COALESCE(ROUND(AVG("paidTotal" - "refundedTotal"), 2), 0) AS "averageOrderValue"
+  FROM "EcommerceOrder"
+  WHERE status IN ('PAID', 'FULFILLED', 'REFUNDED')
+    AND "paidAt" >= $1::timestamptz
+    AND "paidAt" < $2::timestamptz
+  GROUP BY channel
+  ORDER BY "netSales" DESC, channel ASC;
+parameters:
+  - name: from
+    type: string
+    description: Inclusive ISO-8601 UTC sales window start.
+  - name: to
+    type: string
+    description: Exclusive ISO-8601 UTC sales window end.
+---
+kind: tool
+name: list-ecommerce-top-products
+type: postgres-sql
+source: agent-template-postgres
+description: |
+  Rank synthetic ecommerce products by paid quantity, gross merchandise sales, and net merchandise sales.
+  Order-level refunds are allocated proportionally to merchandise; shipping is excluded.
+statement: |
+  WITH settled_items AS (
+    SELECT
+      item."productId",
+      item.quantity,
+      item."lineTotal",
+      item."lineTotal" * (
+        1 - COALESCE(orders."refundedTotal" / NULLIF(orders."paidTotal", 0), 0)
+      ) AS "netMerchandiseSales"
+    FROM "EcommerceOrderItem" AS item
+    JOIN "EcommerceOrder" AS orders ON orders.id = item."orderId"
+    WHERE orders.status IN ('PAID', 'FULFILLED', 'REFUNDED')
+      AND orders."paidAt" >= $1::timestamptz
+      AND orders."paidAt" < $2::timestamptz
+  )
+  SELECT
+    product.sku,
+    product.name AS "productName",
+    product.category,
+    SUM(item.quantity)::int AS "unitsSold",
+    COALESCE(SUM(item."lineTotal"), 0) AS "grossMerchandiseSales",
+    COALESCE(SUM(item."netMerchandiseSales"), 0) AS "netMerchandiseSales"
+  FROM settled_items AS item
+  JOIN "EcommerceProduct" AS product ON product.id = item."productId"
+  GROUP BY product.id, product.sku, product.name, product.category
+  ORDER BY "netMerchandiseSales" DESC, "unitsSold" DESC, product.sku ASC
+  LIMIT $3;
+parameters:
+  - name: from
+    type: string
+    description: Inclusive ISO-8601 UTC sales window start.
+  - name: to
+    type: string
+    description: Exclusive ISO-8601 UTC sales window end.
+  - name: limit
+    type: integer
+    description: Maximum number of products to return.
+    default: 20
+    minValue: 1
+    maxValue: 100
+---
+kind: tool
+name: list-ecommerce-orders-in-window
+type: postgres-sql
+source: agent-template-postgres
+description: |
+  List a bounded operational order view for the synthetic ecommerce dataset.
+  Customer data is limited to synthetic customer code, segment, and region; no direct contact data is returned.
+statement: |
+  SELECT
+    orders."orderNumber",
+    orders.status::text AS status,
+    orders.channel::text AS channel,
+    customer."customerCode",
+    customer.segment::text AS "customerSegment",
+    customer.region,
+    customer.city,
+    orders."placedAt",
+    orders."paidAt",
+    orders."fulfilledAt",
+    orders."paidTotal",
+    orders."refundedTotal"
+  FROM "EcommerceOrder" AS orders
+  JOIN "EcommerceCustomer" AS customer ON customer.id = orders."customerId"
+  WHERE orders."placedAt" >= $1::timestamptz
+    AND orders."placedAt" < $2::timestamptz
+  ORDER BY orders."placedAt" DESC, orders.id DESC
+  LIMIT $3;
+parameters:
+  - name: from
+    type: string
+    description: Inclusive ISO-8601 UTC operational window start.
+  - name: to
+    type: string
+    description: Exclusive ISO-8601 UTC operational window end.
+  - name: limit
+    type: integer
+    description: Maximum number of orders to return.
+    default: 50
+    minValue: 1
+    maxValue: 100
+---
+kind: tool
+name: get-ecommerce-order-detail
+type: postgres-sql
+source: agent-template-postgres
+description: |
+  Return one synthetic ecommerce order with its customer business context and line items.
+  Use this tool only when the user provides a concrete orderNumber.
+statement: |
+  SELECT
+    orders."orderNumber",
+    orders.status::text AS status,
+    orders.channel::text AS channel,
+    customer."customerCode",
+    customer.segment::text AS "customerSegment",
+    customer.region,
+    customer.city,
+    orders."placedAt",
+    orders."paidAt",
+    orders."fulfilledAt",
+    orders.subtotal,
+    orders."discountTotal",
+    orders."shippingTotal",
+    orders."paidTotal",
+    orders."refundedTotal",
+    COALESCE(
+      JSONB_AGG(
+        JSONB_BUILD_OBJECT(
+          'sku', item.sku,
+          'productName', item."productName",
+          'category', item.category,
+          'unitPrice', item."unitPrice",
+          'quantity', item.quantity,
+          'discountTotal', item."discountTotal",
+          'lineTotal', item."lineTotal"
+        )
+        ORDER BY item.sku ASC
+      ) FILTER (WHERE item.id IS NOT NULL),
+      '[]'::jsonb
+    ) AS items
+  FROM "EcommerceOrder" AS orders
+  JOIN "EcommerceCustomer" AS customer ON customer.id = orders."customerId"
+  LEFT JOIN "EcommerceOrderItem" AS item ON item."orderId" = orders.id
+  WHERE orders."orderNumber" = $1
+  GROUP BY orders.id, customer.id
+  LIMIT 1;
+parameters:
+  - name: orderNumber
+    type: string
+    description: Concrete ecommerce order number, for example EC20260601001.
+---
+kind: tool
+name: list-ecommerce-fulfillment-exceptions
+type: postgres-sql
+source: agent-template-postgres
+description: |
+  List paid synthetic ecommerce orders that have not yet been fulfilled in a bounded UTC time window.
+  Use this read-only tool for fulfillment-operations validation.
+statement: |
+  SELECT
+    orders."orderNumber",
+    customer."customerCode",
+    customer.region,
+    orders.channel::text AS channel,
+    orders."paidAt",
+    orders."paidTotal",
+    ROUND(EXTRACT(EPOCH FROM ($2::timestamptz - orders."paidAt")) / 3600, 2) AS "hoursWaiting"
+  FROM "EcommerceOrder" AS orders
+  JOIN "EcommerceCustomer" AS customer ON customer.id = orders."customerId"
+  WHERE orders.status = 'PAID'
+    AND orders."paidAt" >= $1::timestamptz
+    AND orders."paidAt" < $2::timestamptz
+    AND orders."fulfilledAt" IS NULL
+  ORDER BY orders."paidAt" ASC, orders.id ASC
+  LIMIT $3;
+parameters:
+  - name: from
+    type: string
+    description: Inclusive ISO-8601 UTC paid-order window start.
+  - name: to
+    type: string
+    description: Exclusive ISO-8601 UTC paid-order window end and the waiting-time reference.
+  - name: limit
+    type: integer
+    description: Maximum number of fulfillment exceptions to return.
+    default: 50
+    minValue: 1
+    maxValue: 100
+---
+kind: tool
 name: list-template-events
 type: postgres-sql
 source: agent-template-postgres
@@ -270,3 +514,9 @@ tools:
   - list-agent-run-timeline
   - list-failed-agent-runs-in-window
   - summarize-tool-invocations
+  - summarize-ecommerce-sales-by-day
+  - summarize-ecommerce-sales-by-channel
+  - list-ecommerce-top-products
+  - list-ecommerce-orders-in-window
+  - get-ecommerce-order-detail
+  - list-ecommerce-fulfillment-exceptions

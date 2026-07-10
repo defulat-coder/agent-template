@@ -32,6 +32,14 @@ _Avoid_: Timeline item, standalone panel
 A reusable sample event that records Agent platform activity for demos, local verification, and Toolbox inspection.
 _Avoid_: Database row, log line
 
+**Ecommerce fixture**:
+A deterministic, synthetic retail dataset for Toolbox functional validation. It contains no real customer or transaction data.
+_Avoid_: Production export, random demo data
+
+**Ecommerce order**:
+A synthetic retail order with customer segment, channel, payment, fulfillment state, and order lines. Refunds may be full or partial.
+_Avoid_: Template event, Agent run
+
 **Tool provider**:
 An external capability source that exposes tools an Agent run may use.
 _Avoid_: Agent runtime, app service

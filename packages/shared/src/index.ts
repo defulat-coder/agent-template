@@ -23,6 +23,7 @@ export {
 } from "./agent-run";
 export {
   McpToolboxLimitSchema,
+  McpToolboxOrderNumberInputSchema,
   McpToolboxRunIdSchema,
   McpToolboxRunSummaryInputSchema,
   McpToolboxRunTimelineInputSchema,

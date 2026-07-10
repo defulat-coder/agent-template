@@ -289,13 +289,19 @@ describe("Claude Agent runtime", () => {
         options: {
           allowedTools: [
             "mcp__agent_template_mcp_host__get-agent-run-summary",
+            "mcp__agent_template_mcp_host__get-ecommerce-order-detail",
             "mcp__agent_template_mcp_host__get-template-event",
             "mcp__agent_template_mcp_host__list-agent-run-timeline",
             "mcp__agent_template_mcp_host__list-agent-runs",
+            "mcp__agent_template_mcp_host__list-ecommerce-fulfillment-exceptions",
+            "mcp__agent_template_mcp_host__list-ecommerce-orders-in-window",
+            "mcp__agent_template_mcp_host__list-ecommerce-top-products",
             "mcp__agent_template_mcp_host__list-failed-agent-runs-in-window",
             "mcp__agent_template_mcp_host__list-template-events",
             "mcp__agent_template_mcp_host__list-template-events-in-window",
             "mcp__agent_template_mcp_host__summarize-template-events-by-type",
+            "mcp__agent_template_mcp_host__summarize-ecommerce-sales-by-channel",
+            "mcp__agent_template_mcp_host__summarize-ecommerce-sales-by-day",
             "mcp__agent_template_mcp_host__summarize-tool-invocations",
           ],
           cwd: expect.any(String),
@@ -309,6 +315,24 @@ describe("Claude Agent runtime", () => {
                 expect.objectContaining({ name: "get-agent-run-summary" }),
                 expect.objectContaining({ name: "list-agent-run-timeline" }),
                 expect.objectContaining({ name: "list-template-events" }),
+                expect.objectContaining({
+                  name: "summarize-ecommerce-sales-by-day",
+                }),
+                expect.objectContaining({
+                  name: "summarize-ecommerce-sales-by-channel",
+                }),
+                expect.objectContaining({
+                  name: "list-ecommerce-top-products",
+                }),
+                expect.objectContaining({
+                  name: "list-ecommerce-orders-in-window",
+                }),
+                expect.objectContaining({
+                  name: "get-ecommerce-order-detail",
+                }),
+                expect.objectContaining({
+                  name: "list-ecommerce-fulfillment-exceptions",
+                }),
                 expect.objectContaining({
                   name: "list-template-events-in-window",
                 }),
@@ -408,13 +432,19 @@ describe("Claude Agent runtime", () => {
           options: {
             allowedTools: [
               "mcp__agent_template_mcp_host__get-agent-run-summary",
+              "mcp__agent_template_mcp_host__get-ecommerce-order-detail",
               "mcp__agent_template_mcp_host__get-template-event",
               "mcp__agent_template_mcp_host__list-agent-run-timeline",
               "mcp__agent_template_mcp_host__list-agent-runs",
+              "mcp__agent_template_mcp_host__list-ecommerce-fulfillment-exceptions",
+              "mcp__agent_template_mcp_host__list-ecommerce-orders-in-window",
+              "mcp__agent_template_mcp_host__list-ecommerce-top-products",
               "mcp__agent_template_mcp_host__list-failed-agent-runs-in-window",
               "mcp__agent_template_mcp_host__list-template-events",
               "mcp__agent_template_mcp_host__list-template-events-in-window",
               "mcp__agent_template_mcp_host__summarize-template-events-by-type",
+              "mcp__agent_template_mcp_host__summarize-ecommerce-sales-by-channel",
+              "mcp__agent_template_mcp_host__summarize-ecommerce-sales-by-day",
               "mcp__agent_template_mcp_host__summarize-tool-invocations",
             ],
             mcpServers: {

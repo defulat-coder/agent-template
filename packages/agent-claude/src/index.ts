@@ -14,6 +14,7 @@ import {
 } from "@agent-template/mcp-host";
 import {
   McpToolboxLimitSchema,
+  McpToolboxOrderNumberInputSchema,
   McpToolboxRunSummaryInputSchema,
   McpToolboxRunTimelineInputSchema,
   McpToolboxTimeWindowSchema,
@@ -382,13 +383,19 @@ function readHostManagedClaudeTools(config: ClaudeAgentConfig) {
   return readClaudeMcpHostConfig(config).toolboxUrl
     ? [
         "mcp__agent_template_mcp_host__get-agent-run-summary",
+        "mcp__agent_template_mcp_host__get-ecommerce-order-detail",
         "mcp__agent_template_mcp_host__get-template-event",
         "mcp__agent_template_mcp_host__list-agent-run-timeline",
         "mcp__agent_template_mcp_host__list-agent-runs",
+        "mcp__agent_template_mcp_host__list-ecommerce-fulfillment-exceptions",
+        "mcp__agent_template_mcp_host__list-ecommerce-orders-in-window",
+        "mcp__agent_template_mcp_host__list-ecommerce-top-products",
         "mcp__agent_template_mcp_host__list-failed-agent-runs-in-window",
         "mcp__agent_template_mcp_host__list-template-events",
         "mcp__agent_template_mcp_host__list-template-events-in-window",
         "mcp__agent_template_mcp_host__summarize-template-events-by-type",
+        "mcp__agent_template_mcp_host__summarize-ecommerce-sales-by-channel",
+        "mcp__agent_template_mcp_host__summarize-ecommerce-sales-by-day",
         "mcp__agent_template_mcp_host__summarize-tool-invocations",
       ]
     : [];
@@ -447,6 +454,72 @@ function createHostManagedClaudeMcpServers(
           { limit: McpToolboxLimitSchema.optional() },
           async (args) =>
             host.callTool("toolbox", "list-template-events", args),
+        ),
+        sdk.tool(
+          "summarize-ecommerce-sales-by-day",
+          "Summarize daily gross sales, refunds, net sales, orders, and buyers for the synthetic ecommerce dataset.",
+          McpToolboxTimeWindowSchema.shape,
+          async (args) =>
+            host.callTool(
+              "toolbox",
+              "summarize-ecommerce-sales-by-day",
+              McpToolboxTimeWindowSchema.parse(args),
+            ),
+        ),
+        sdk.tool(
+          "summarize-ecommerce-sales-by-channel",
+          "Compare synthetic ecommerce sales performance by channel in an explicit UTC time window.",
+          McpToolboxTimeWindowSchema.shape,
+          async (args) =>
+            host.callTool(
+              "toolbox",
+              "summarize-ecommerce-sales-by-channel",
+              McpToolboxTimeWindowSchema.parse(args),
+            ),
+        ),
+        sdk.tool(
+          "list-ecommerce-top-products",
+          "Rank synthetic ecommerce products by paid quantity and net merchandise sales in an explicit UTC time window.",
+          McpToolboxTimeWindowWithLimitSchema.shape,
+          async (args) =>
+            host.callTool(
+              "toolbox",
+              "list-ecommerce-top-products",
+              McpToolboxTimeWindowWithLimitSchema.parse(args),
+            ),
+        ),
+        sdk.tool(
+          "list-ecommerce-orders-in-window",
+          "List bounded synthetic ecommerce orders with operational and customer-segment context in an explicit UTC time window.",
+          McpToolboxTimeWindowWithLimitSchema.shape,
+          async (args) =>
+            host.callTool(
+              "toolbox",
+              "list-ecommerce-orders-in-window",
+              McpToolboxTimeWindowWithLimitSchema.parse(args),
+            ),
+        ),
+        sdk.tool(
+          "get-ecommerce-order-detail",
+          "Get one synthetic ecommerce order and its line items from a concrete order number.",
+          McpToolboxOrderNumberInputSchema.shape,
+          async (args) =>
+            host.callTool(
+              "toolbox",
+              "get-ecommerce-order-detail",
+              McpToolboxOrderNumberInputSchema.parse(args),
+            ),
+        ),
+        sdk.tool(
+          "list-ecommerce-fulfillment-exceptions",
+          "List bounded paid but unfulfilled synthetic ecommerce orders in an explicit UTC time window.",
+          McpToolboxTimeWindowWithLimitSchema.shape,
+          async (args) =>
+            host.callTool(
+              "toolbox",
+              "list-ecommerce-fulfillment-exceptions",
+              McpToolboxTimeWindowWithLimitSchema.parse(args),
+            ),
         ),
         sdk.tool(
           "list-template-events-in-window",

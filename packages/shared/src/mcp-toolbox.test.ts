@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  McpToolboxOrderNumberInputSchema,
   McpToolboxTimeWindowSchema,
   McpToolboxTimeWindowWithLimitSchema,
 } from "./mcp-toolbox";
@@ -28,5 +29,13 @@ describe("MCP Toolbox input schemas", () => {
         to: "2026-08-02T00:00:01Z",
       }),
     ).toThrow(/must not exceed 31 days/);
+  });
+
+  it("accepts one bounded ecommerce order identifier", () => {
+    expect(
+      McpToolboxOrderNumberInputSchema.parse({
+        orderNumber: "EC20260601001",
+      }),
+    ).toEqual({ orderNumber: "EC20260601001" });
   });
 });

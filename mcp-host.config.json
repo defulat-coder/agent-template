@@ -12,7 +12,13 @@
         "get-agent-run-summary",
         "list-agent-run-timeline",
         "list-failed-agent-runs-in-window",
-        "summarize-tool-invocations"
+        "summarize-tool-invocations",
+        "summarize-ecommerce-sales-by-day",
+        "summarize-ecommerce-sales-by-channel",
+        "list-ecommerce-top-products",
+        "list-ecommerce-orders-in-window",
+        "get-ecommerce-order-detail",
+        "list-ecommerce-fulfillment-exceptions"
       ]
     }
   }

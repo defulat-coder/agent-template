@@ -56,3 +56,7 @@ export const McpToolboxRunTimelineInputSchema = z.object({
 export const McpToolboxRunSummaryInputSchema = z.object({
   runId: McpToolboxRunIdSchema,
 });
+
+export const McpToolboxOrderNumberInputSchema = z.object({
+  orderNumber: z.string().min(1).max(32),
+});
