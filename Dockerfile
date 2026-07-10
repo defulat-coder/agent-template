@@ -4,8 +4,6 @@ WORKDIR /app
 
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 
-RUN corepack enable && corepack prepare pnpm@10.30.3 --activate
-
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
 COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
@@ -18,7 +16,7 @@ COPY packages/logger/package.json packages/logger/package.json
 COPY packages/shared/package.json packages/shared/package.json
 COPY packages/ui/package.json packages/ui/package.json
 
-RUN pnpm install --frozen-lockfile
+RUN corepack enable && corepack install && pnpm install --frozen-lockfile
 
 COPY . .
 
