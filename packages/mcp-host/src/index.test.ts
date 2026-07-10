@@ -272,6 +272,87 @@ describe("MCP Host", () => {
     expect(calledTool).toBe("list-agent-runs");
   });
 
+  it("attaches certified semantic provenance to a business query result", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "mcp-semantic-catalog-"));
+    const catalogPath = join(dir, "catalog.yaml");
+    writeFileSync(
+      catalogPath,
+      JSON.stringify({
+        dimensions: [{ field: "Order.region", id: "region", labels: ["大区"] }],
+        kind: "business-semantic-catalog",
+        metrics: [
+          {
+            id: "gross_sales",
+            labels: ["GMV"],
+            resultField: "grossSales",
+            tools: ["summarize-sales"],
+          },
+        ],
+        name: "sales",
+        queryContracts: [
+          {
+            dimensions: ["region"],
+            id: "regional-sales",
+            limitations: ["仅返回聚合结果"],
+            metrics: ["gross_sales"],
+            resultFields: ["region", "grossSales"],
+            tool: "summarize-sales",
+          },
+        ],
+        version: 2,
+      }),
+      "utf8",
+    );
+
+    try {
+      const host = createMcpHost(
+        parseMcpHostConfig({
+          semanticCatalogs: {
+            sales: { path: catalogPath, serverId: "toolbox" },
+          },
+          servers: {
+            toolbox: {
+              allowedTools: ["summarize-sales"],
+              toolset: "sales",
+              url: "http://toolbox:15000",
+            },
+          },
+        }),
+        {
+          createClient: async () => ({
+            async callTool() {
+              return { content: [{ text: "[]", type: "text" }] };
+            },
+            async listTools() {
+              return { tools: [] };
+            },
+          }),
+        },
+      );
+
+      await expect(
+        host.callTool("toolbox", "summarize-sales", { region: "华东" }),
+      ).resolves.toMatchObject({
+        structuredContent: {
+          certifiedQuery: {
+            catalog: { name: "sales", version: 2 },
+            contract: {
+              dimensions: ["region"],
+              id: "regional-sales",
+              metrics: ["gross_sales"],
+            },
+            dataFreshness: { status: "not-declared" },
+            kind: "certified-query-result",
+            request: { arguments: { region: "华东" } },
+            tool: { name: "summarize-sales", serverId: "toolbox" },
+          },
+        },
+      });
+    } finally {
+      rmSync(dir, { force: true, recursive: true });
+    }
+  });
+
   it("builds Agent run dashboard data from a Host-managed Toolbox call", async () => {
     const host = createMcpHost(
       parseMcpHostConfig({

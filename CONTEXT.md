@@ -48,6 +48,10 @@ _Avoid_: Prompt glossary, table dictionary
 A structured analytical request whose metric, dimensions, filters, and time window are selected from a Business semantic catalog. It does not mean arbitrary natural-language SQL.
 _Avoid_: Raw SQL, unrestricted NL2SQL
 
+**Certified query result**:
+A Tool result annotated by the MCP Host with the executed Tool and arguments, Business semantic catalog name/version, certified metrics and dimensions, execution time, data-freshness status, result fields, and known limitations.
+_Avoid_: Raw database response, model-generated citation
+
 **Tool provider**:
 An external capability source that exposes tools an Agent run may use.
 _Avoid_: Agent runtime, app service

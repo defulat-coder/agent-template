@@ -75,6 +75,12 @@
       ]
     }
   },
+  "semanticCatalogs": {
+    "ecommerce": {
+      "path": "apps/toolbox/semantic/ecommerce.yaml",
+      "serverId": "toolbox"
+    }
+  },
   "servers": {
     "toolbox": {
       "url": "${TOOLBOX_URL:-http://localhost:15000}",

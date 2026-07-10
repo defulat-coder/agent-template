@@ -146,6 +146,12 @@ metrics:
     timeField: EcommerceOrder.paidAt
     tools: [list-ecommerce-fulfillment-exceptions]
 dimensions:
+  - id: payment_day
+    labels: [付款日, 成交日]
+    field: date_trunc('day', EcommerceOrder.paidAt)
+    valueSource:
+      kind: time-bucket
+      description: 由请求的 UTC 时间窗动态生成自然日，不维护静态枚举。
   - id: sales_channel
     labels: [渠道, 销售渠道]
     field: EcommerceOrder.channel
@@ -202,6 +208,12 @@ dimensions:
         labels: [母婴用品]
       - value: 食品饮料
         labels: [食品饮料]
+  - id: product
+    labels: [商品, SKU]
+    field: EcommerceProduct.sku
+    valueSource:
+      kind: entity-key
+      description: 使用合成商品目录中的 SKU 与 productName，不将动态实体值硬编码进语义目录。
   - id: order_status
     labels: [订单状态, 交易状态]
     field: EcommerceOrder.status
@@ -216,6 +228,184 @@ dimensions:
         labels: [已取消]
       - value: REFUNDED
         labels: [已退款, 退款订单]
+queryContracts:
+  - id: daily_sales_summary
+    tool: summarize-ecommerce-sales-by-day
+    metrics:
+      [gross_sales, refund_amount, net_sales, paid_order_count, buyer_count]
+    dimensions: [payment_day]
+    resultFields:
+      [
+        salesDate,
+        paidOrderCount,
+        buyerCount,
+        grossSales,
+        refundAmount,
+        netSales,
+      ]
+    limitations:
+      - 仅包含已结算订单，时间按 paidAt 的 UTC [from, to) 解释。
+      - 净销售额不是会计确认收入或利润。
+  - id: channel_sales_summary
+    tool: summarize-ecommerce-sales-by-channel
+    metrics:
+      [
+        gross_sales,
+        refund_amount,
+        net_sales,
+        average_order_value,
+        paid_order_count,
+        buyer_count,
+      ]
+    dimensions: [sales_channel]
+    resultFields:
+      [
+        channel,
+        paidOrderCount,
+        buyerCount,
+        grossSales,
+        refundAmount,
+        netSales,
+        averageOrderValue,
+      ]
+    limitations:
+      - 只返回渠道聚合，不支持区域、客户分群或商品的任意组合。
+  - id: regional_sales_summary
+    tool: summarize_sales_by_region
+    metrics:
+      [
+        gross_sales,
+        refund_amount,
+        net_sales,
+        average_order_value,
+        paid_order_count,
+        buyer_count,
+      ]
+    dimensions: [region]
+    resultFields:
+      [
+        region,
+        paidOrderCount,
+        buyerCount,
+        grossSales,
+        refundAmount,
+        netSales,
+        averageOrderValue,
+      ]
+    limitations:
+      - 区域来自合成客户档案，不返回客户明细或联系方式。
+  - id: customer_segment_sales_summary
+    tool: summarize_sales_by_customer_segment
+    metrics:
+      [
+        gross_sales,
+        refund_amount,
+        net_sales,
+        average_order_value,
+        paid_order_count,
+        buyer_count,
+      ]
+    dimensions: [customer_segment]
+    resultFields:
+      [
+        customerSegment,
+        paidOrderCount,
+        buyerCount,
+        grossSales,
+        refundAmount,
+        netSales,
+        averageOrderValue,
+      ]
+    limitations:
+      - 分群仅支持 NEW、ACTIVE、VIP、AT_RISK 四个认证枚举值。
+  - id: product_sales_ranking
+    tool: list-ecommerce-top-products
+    metrics: [units_sold, gross_merchandise_sales, net_merchandise_sales]
+    dimensions: [product, product_category]
+    resultFields:
+      [
+        sku,
+        productName,
+        category,
+        unitsSold,
+        grossMerchandiseSales,
+        netMerchandiseSales,
+      ]
+    limitations:
+      - 商品销售额不包含运费，退款按订单项金额比例分摊。
+      - 结果受 limit 限制，不能据此推断库存、利润或转化率。
+  - id: category_sales_summary
+    tool: summarize_merchandise_by_category
+    metrics: [units_sold, gross_merchandise_sales, net_merchandise_sales]
+    dimensions: [product_category]
+    resultFields:
+      [category, unitsSold, grossMerchandiseSales, netMerchandiseSales]
+    limitations:
+      - 商品销售额不包含运费，退款按订单项金额比例分摊。
+  - id: order_operations_window
+    tool: list-ecommerce-orders-in-window
+    metrics: []
+    dimensions: [order_status, sales_channel, customer_segment, region]
+    resultFields:
+      [
+        orderNumber,
+        status,
+        channel,
+        customerCode,
+        customerSegment,
+        region,
+        city,
+        placedAt,
+        paidAt,
+        fulfilledAt,
+        paidTotal,
+        refundedTotal,
+      ]
+    limitations:
+      - 时间按 placedAt 解释，结果有界且仅包含合成客户业务属性。
+  - id: order_detail
+    tool: get-ecommerce-order-detail
+    metrics: []
+    dimensions:
+      [order_status, sales_channel, customer_segment, region, product_category]
+    resultFields:
+      [
+        orderNumber,
+        status,
+        channel,
+        customerCode,
+        customerSegment,
+        region,
+        city,
+        placedAt,
+        paidAt,
+        fulfilledAt,
+        subtotal,
+        discountTotal,
+        shippingTotal,
+        paidTotal,
+        refundedTotal,
+        items,
+      ]
+    limitations:
+      - 仅支持明确订单号，不返回真实个人信息。
+  - id: fulfillment_exception_list
+    tool: list-ecommerce-fulfillment-exceptions
+    metrics: [fulfillment_backlog]
+    dimensions: [sales_channel, region]
+    resultFields:
+      [
+        orderNumber,
+        customerCode,
+        region,
+        channel,
+        paidAt,
+        paidTotal,
+        hoursWaiting,
+      ]
+    limitations:
+      - 仅包含 status = PAID 且 fulfilledAt 为空的订单。
+      - hoursWaiting 使用请求参数 to 作为参考时刻，不代表当前系统时间。
 ambiguities:
   - term: 营收
     action: clarify
@@ -230,36 +420,45 @@ questionPatterns:
   - id: sales_trend
     examples: [最近7天GMV趋势, 本月退款后销售额]
     tool: summarize-ecommerce-sales-by-day
+    contract: daily_sales_summary
     required: [time_window]
   - id: sales_by_channel
     examples: [上周直播渠道GMV, 小程序客单价]
     tool: summarize-ecommerce-sales-by-channel
+    contract: channel_sales_summary
     required: [time_window]
   - id: sales_by_region
     examples: [本月华东GMV, 各大区退款额]
     tool: summarize_sales_by_region
+    contract: regional_sales_summary
     required: [time_window]
   - id: sales_by_customer_segment
     examples: [VIP客户净销售额, 新客订单数]
     tool: summarize_sales_by_customer_segment
+    contract: customer_segment_sales_summary
     required: [time_window]
   - id: merchandise_by_category
     examples: [本月哪个品类卖得最好, 美妆个护退款后商品销售额]
     tool: summarize_merchandise_by_category
+    contract: category_sales_summary
     required: [time_window]
   - id: top_products
     examples: [近30天爆款商品, 销量最高的商品]
     tool: list-ecommerce-top-products
+    contract: product_sales_ranking
     required: [time_window, limit]
   - id: fulfillment_backlog
     examples: [当前待履约订单, 过去7天履约积压]
     tool: list-ecommerce-fulfillment-exceptions
+    contract: fulfillment_exception_list
     required: [time_window, limit]
   - id: orders_in_window
     examples: [本周订单状态, 最近订单明细]
     tool: list-ecommerce-orders-in-window
+    contract: order_operations_window
     required: [time_window, limit]
   - id: order_detail
     examples: [查询订单号EC20260601001, 查看指定订单明细]
     tool: get-ecommerce-order-detail
+    contract: order_detail
     required: [order_number]

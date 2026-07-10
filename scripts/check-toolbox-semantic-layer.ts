@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseAllDocuments } from "yaml";
+import { BusinessSemanticCatalogSchema } from "@agent-template/mcp-host";
 
 type ToolboxEntry = Record<string, unknown>;
 
@@ -322,6 +323,15 @@ function validateEcommerceSemanticCatalog(): ToolboxEntry | undefined {
     );
   }
 
+  const schemaResult = BusinessSemanticCatalogSchema.safeParse(catalog);
+  if (!schemaResult.success) {
+    for (const issue of schemaResult.error.issues) {
+      errors.push(
+        `Ecommerce semantic catalog schema ${issue.path.join(".")}: ${issue.message}`,
+      );
+    }
+  }
+
   const terms = new Set<string>();
   const metrics = readRecordArray(catalog.metrics, "metrics");
   const dimensions = readRecordArray(catalog.dimensions, "dimensions");
@@ -330,6 +340,16 @@ function validateEcommerceSemanticCatalog(): ToolboxEntry | undefined {
     "questionPatterns",
   );
   const referencedTools = new Set<string>();
+  const queryContracts = readRecordArray(
+    catalog.queryContracts,
+    "queryContracts",
+  );
+  const contractToolById = new Map(
+    queryContracts.map((contract) => [
+      readString(contract.id),
+      readString(contract.tool),
+    ]),
+  );
 
   for (const metric of metrics) {
     validateSemanticEntry(metric, "metric", terms);
@@ -343,13 +363,16 @@ function validateEcommerceSemanticCatalog(): ToolboxEntry | undefined {
   for (const dimension of dimensions) {
     validateSemanticEntry(dimension, "dimension", terms);
     requireString(dimension, "field", "dimension");
-    const values = readRecordArray(
-      dimension.values ?? dimension.fixtureValues,
-      `${readString(dimension.id) || "dimension"} values`,
-    );
-    if (values.length === 0) {
+    const valueCollection = dimension.values ?? dimension.fixtureValues;
+    const values = valueCollection
+      ? readRecordArray(
+          valueCollection,
+          `${readString(dimension.id) || "dimension"} values`,
+        )
+      : [];
+    if (values.length === 0 && !isToolboxEntry(dimension.valueSource)) {
       errors.push(
-        `${readString(dimension.id) || "dimension"}: values are required`,
+        `${readString(dimension.id) || "dimension"}: values or valueSource are required`,
       );
     }
 
@@ -367,22 +390,41 @@ function validateEcommerceSemanticCatalog(): ToolboxEntry | undefined {
   for (const pattern of questionPatterns) {
     requireString(pattern, "id", "question pattern");
     requireString(pattern, "tool", "question pattern");
+    requireString(pattern, "contract", "question pattern");
     const tool = readString(pattern.tool);
+    const contract = readString(pattern.contract);
     if (tool && !toolNames.has(tool)) {
       errors.push(
         `question pattern ${readString(pattern.id)}: unknown tool ${tool}`,
       );
     }
     if (tool) referencedTools.add(tool);
+    if (!contractToolById.has(contract)) {
+      errors.push(
+        `question pattern ${readString(pattern.id)}: unknown query contract ${contract}`,
+      );
+    } else if (contractToolById.get(contract) !== tool) {
+      errors.push(
+        `question pattern ${readString(pattern.id)}: query contract must certify the routed tool`,
+      );
+    }
   }
 
   const certifiedBusinessTools = new Set(
     Object.values(expectedToolsets).flat(),
   );
+  const contractTools = new Set(
+    queryContracts.map((contract) => readString(contract.tool)).filter(Boolean),
+  );
   for (const tool of certifiedBusinessTools) {
     if (!referencedTools.has(tool)) {
       errors.push(
         `Ecommerce semantic catalog must reference certified business tool ${tool}`,
+      );
+    }
+    if (!contractTools.has(tool)) {
+      errors.push(
+        `Ecommerce semantic catalog must define a query contract for ${tool}`,
       );
     }
   }

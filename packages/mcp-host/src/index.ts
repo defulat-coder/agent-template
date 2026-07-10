@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import {
@@ -9,6 +9,17 @@ import {
   type AgentRunsDashboardData,
 } from "@agent-template/shared";
 import { z } from "zod";
+import {
+  annotateCertifiedQueryResult,
+  contractKey,
+  loadCertifiedQueryContracts,
+  type SemanticCatalogSource,
+} from "./semantic-catalog.js";
+
+export {
+  BusinessSemanticCatalogSchema,
+  CertifiedQueryContractSchema,
+} from "./semantic-catalog.js";
 
 export const defaultMcpToolboxServerId = "toolbox";
 export const defaultMcpToolboxToolset = "agent_template_read_model";
@@ -60,11 +71,19 @@ const McpHostCapabilityProfileSchema = z.record(
     ),
 );
 
+const McpHostSemanticCatalogSourceSchema = z.object({
+  path: z.string().min(1),
+  serverId: z.string().min(1),
+});
+
 export const McpHostConfigSchema = z
   .object({
     agentCapabilityProfile: z.string().min(1).optional(),
     capabilityProfiles: z
       .record(z.string().min(1), McpHostCapabilityProfileSchema)
+      .default({}),
+    semanticCatalogs: z
+      .record(z.string().min(1), McpHostSemanticCatalogSourceSchema)
       .default({}),
     servers: z.record(z.string().min(1), McpHostServerConfigSchema).default({}),
     toolboxUrl: z.string().url().optional(),
@@ -108,6 +127,18 @@ export const McpHostConfigSchema = z
             });
           }
         }
+      }
+    }
+
+    for (const [catalogName, source] of Object.entries(
+      config.semanticCatalogs,
+    )) {
+      if (!config.servers[source.serverId]) {
+        context.addIssue({
+          code: "custom",
+          message: `Semantic catalog ${catalogName} references unknown MCP server ${source.serverId}`,
+          path: ["semanticCatalogs", catalogName, "serverId"],
+        });
       }
     }
   });
@@ -207,6 +238,7 @@ export function parseMcpHostConfig(
   const parsed = McpHostConfigSchema.parse({
     agentCapabilityProfile,
     capabilityProfiles: input.capabilityProfiles,
+    semanticCatalogs: input.semanticCatalogs,
     servers,
     toolboxToolset,
     toolboxUrl,
@@ -255,6 +287,9 @@ export function createMcpHost(
   options: McpHostOptions = {},
 ) {
   const createClient = options.createClient ?? createMcpClient;
+  const certifiedQueryContracts = loadCertifiedQueryContracts(
+    config.semanticCatalogs,
+  );
 
   function getServers(): McpHostServer[] {
     return Object.keys(config.servers).map((serverId) => {
@@ -286,14 +321,22 @@ export function createMcpHost(
     args: Record<string, unknown> = {},
     context: McpHostInvocationContext = {},
   ): Promise<McpHostToolCallResult> {
-    return withClient(serverId, context, (client, server) => {
+    return withClient(serverId, context, async (client, server) => {
       if (!isToolAllowed(server, name)) {
         throw new Error(
           `MCP tool ${name} is not allowed for server ${serverId}`,
         );
       }
 
-      return client.callTool({ name, arguments: args });
+      const result = await client.callTool({ name, arguments: args });
+      const contract = certifiedQueryContracts.get(contractKey(serverId, name));
+      return annotateCertifiedQueryResult(result, {
+        arguments: args,
+        ...(contract ? { contract } : {}),
+        executedAt: new Date().toISOString(),
+        serverId,
+        toolName: name,
+      });
     });
   }
 
@@ -463,6 +506,11 @@ function readMcpHostConfigFile(input: Record<string, unknown>) {
         ? expandEnv(parsed.agentCapabilityProfile, input)
         : undefined,
     capabilityProfiles: parsed.capabilityProfiles,
+    semanticCatalogs: readFileSemanticCatalogs(
+      parsed.semanticCatalogs,
+      dirname(configPath),
+      input,
+    ),
     servers: readFileServerConfigMap(parsed.servers, input),
     toolboxToolset:
       typeof parsed.toolboxToolset === "string"
@@ -473,6 +521,31 @@ function readMcpHostConfigFile(input: Record<string, unknown>) {
         ? expandEnv(parsed.toolboxUrl, input)
         : undefined,
   };
+}
+
+function readFileSemanticCatalogs(
+  input: unknown,
+  configDirectory: string,
+  env: Record<string, unknown>,
+) {
+  const catalogs: Record<string, SemanticCatalogSource> = {};
+  if (!isRecord(input)) return catalogs;
+
+  for (const [name, value] of Object.entries(input)) {
+    if (
+      !isRecord(value) ||
+      typeof value.path !== "string" ||
+      typeof value.serverId !== "string"
+    ) {
+      continue;
+    }
+    catalogs[name] = {
+      path: resolve(configDirectory, expandEnv(value.path, env)),
+      serverId: expandEnv(value.serverId, env),
+    };
+  }
+
+  return catalogs;
 }
 
 function readServerConfigMap(input: unknown) {

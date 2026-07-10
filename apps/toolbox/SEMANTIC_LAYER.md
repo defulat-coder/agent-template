@@ -4,7 +4,9 @@
 
 本项目使用标准 PostgreSQL source，因此这里的“语义层”是模型可见的 Toolbox Tool 契约：业务指标口径、Tool 名称与描述、参数、MCP annotations 和按任务分组的 Toolset。它不是 AlloyDB AI NL 的自然语言转 SQL 语义配置，也不是 Looker 模型。
 
-`tools.yaml` 是运行时 Tool、Toolset 和 annotations 的可执行事实源。本文档是人类可读的业务契约，`scripts/check-toolbox-semantic-layer.ts` 是该契约的本地验证 adapter。
+`tools.yaml` 是运行时 Tool、Toolset 和 annotations 的可执行事实源。`semantic/ecommerce.yaml` 中的 `queryContracts` 是认证指标、维度、返回字段和限制的可执行事实源；本地门禁与 MCP Host 运行时共同使用 `BusinessSemanticCatalogSchema`，避免文档与执行漂移。
+
+认证业务 Tool 返回后，MCP Host 会在 `structuredContent.certifiedQuery` 中附加目录名称/版本、查询契约、实际参数、执行时间和数据新鲜度状态。当前 PostgreSQL fixture 没有独立刷新水位，因此明确返回 `not-declared`，不会把查询时间冒充为数据时间。
 
 智能问数的业务术语、值映射、歧义规则和 golden cases 位于 [semantic/](./semantic/)，生产落地方式见 [INTELLIGENT_QUERY.md](./INTELLIGENT_QUERY.md)。
 

@@ -75,9 +75,17 @@ async function main() {
     });
     assert.equal(result.isError, undefined);
     assert.ok(result.content.length > 0);
+    const certifiedQuery = result.structuredContent?.certifiedQuery as
+      | Record<string, unknown>
+      | undefined;
+    assert.equal(certifiedQuery?.kind, "certified-query-result");
+    assert.deepEqual(certifiedQuery?.catalog, {
+      name: "ecommerce-retail-example",
+      version: 1,
+    });
 
     console.log(
-      `Local Toolbox OIDC verification passed: unauthenticated MCP rejected, 18 scoped tools listed, ${Object.keys(hostConfig.capabilityProfiles).length} Agent capability profiles matched live tools, and an authenticated business query executed through MCP Host.`,
+      `Local Toolbox OIDC verification passed: unauthenticated MCP rejected, 18 scoped tools listed, ${Object.keys(hostConfig.capabilityProfiles).length} Agent capability profiles matched live tools, and an authenticated business query returned certified semantic provenance through MCP Host.`,
     );
   } finally {
     await stopProcess(toolbox);

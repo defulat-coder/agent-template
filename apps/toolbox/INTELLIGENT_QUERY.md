@@ -21,6 +21,8 @@
 
 [ecommerce.yaml](./semantic/ecommerce.yaml) 是合成电商业务的语义目录，[ecommerce-evaluation.yaml](./semantic/ecommerce-evaluation.yaml) 是问数路由与歧义处理的 golden cases。它们会被 `pnpm toolbox:check:semantic` 校验，并随四个 Claude/Eve 业务 Skill 生成到 `references/ecommerce-semantic-catalog.yaml`。
 
+每个认证业务 Tool 还必须有一个 `queryContracts` 条目。MCP Host 在调用后生成 Certified query result，使 Agent 和上层 API 可以读取实际参数、目录版本、认证指标/维度、结果字段、执行时间、数据新鲜度状态和限制，而不是仅依赖自然语言回答自述口径。
+
 | 用户说法               | canonical 术语与实际字段/取值                                                      | 认证 Tool                               |
 | ---------------------- | ---------------------------------------------------------------------------------- | --------------------------------------- |
 | “近30天华东 GMV”       | `gross_sales`；`EcommerceCustomer.region = 华东`；付款时间 `EcommerceOrder.paidAt` | `summarize_sales_by_region`             |
