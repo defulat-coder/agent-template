@@ -22,6 +22,7 @@
 - 电商业务 Skill 以 Toolbox 官方 `skills-generate` 产物为来源，通过根目录 `pnpm skills:generate:toolbox` 同步到 Eve 与 Claude authored surface。
 - 运行时 Skill 只安装适配后的 `SKILL.md`，并调用已有 Host-managed typed tools；不要把官方生成的直连脚本复制进 Agent skill 目录。
 - Toolbox 能力通过 Eve authored tools 接入，工具实现委托 `@agent-template/mcp-host`；不要在 `agent/connections` 下恢复 runtime-owned Toolbox MCP connection。
+- Eve 的 Toolbox 工具使用官方 `defineDynamic` 在 `session.started` 按 `AGENT_CAPABILITY_PROFILE` 解析；profile 由部署环境选择，不从模型输入或普通请求参数读取。
 - Eve stream 事件需要转换成 shared `AgentRunEvent`，至少覆盖 `message.completed`、`actions.requested`、`action.result` 和失败事件，保证 API Chat SSE 与前端 timeline 可用。
 - `eve` 依赖的 package spec 保持 `latest`，不要改成固定版本、`^x.y.z` 或 major range；该框架迭代快，按用户要求跟随 npm latest tag。
 - 开发 Eve runtime、authored surface 或相关测试前，先使用 `.codex/skills/eve`。

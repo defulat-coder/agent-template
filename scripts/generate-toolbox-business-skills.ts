@@ -466,6 +466,10 @@ function validateExecutionSurfaces(skillName: string, toolNames: string[]) {
     servers?: { toolbox?: { allowedTools?: unknown } };
   };
   const allowedTools = hostConfig.servers?.toolbox?.allowedTools;
+  const eveToolboxAdapter = readFileSync(
+    join(evePackageRoot, "agent/tools/toolbox.ts"),
+    "utf8",
+  );
 
   if (
     !Array.isArray(allowedTools) ||
@@ -481,12 +485,7 @@ function validateExecutionSurfaces(skillName: string, toolNames: string[]) {
       );
     }
 
-    const eveTool = join(
-      evePackageRoot,
-      "agent/tools",
-      `${toolName.replaceAll("-", "_")}.ts`,
-    );
-    if (!existsSync(eveTool)) {
+    if (!eveToolboxAdapter.includes(`callHostTool("${toolName}"`)) {
       throw new Error(`${skillName} tool ${toolName} has no Eve adapter`);
     }
   }

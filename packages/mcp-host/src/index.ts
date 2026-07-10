@@ -50,11 +50,67 @@ export const McpHostServerConfigSchema = z
     }
   });
 
-export const McpHostConfigSchema = z.object({
-  servers: z.record(z.string().min(1), McpHostServerConfigSchema).default({}),
-  toolboxUrl: z.string().url().optional(),
-  toolboxToolset: z.string().min(1).default(defaultMcpToolboxToolset),
-});
+const McpHostCapabilityProfileSchema = z.record(
+  z.string().min(1),
+  z
+    .array(z.string().min(1))
+    .refine(
+      (tools) => new Set(tools).size === tools.length,
+      "capability profile tools must not contain duplicates",
+    ),
+);
+
+export const McpHostConfigSchema = z
+  .object({
+    agentCapabilityProfile: z.string().min(1).optional(),
+    capabilityProfiles: z
+      .record(z.string().min(1), McpHostCapabilityProfileSchema)
+      .default({}),
+    servers: z.record(z.string().min(1), McpHostServerConfigSchema).default({}),
+    toolboxUrl: z.string().url().optional(),
+    toolboxToolset: z.string().min(1).default(defaultMcpToolboxToolset),
+  })
+  .superRefine((config, context) => {
+    if (
+      config.agentCapabilityProfile &&
+      !config.capabilityProfiles[config.agentCapabilityProfile]
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: `Unknown Agent capability profile: ${config.agentCapabilityProfile}`,
+        path: ["agentCapabilityProfile"],
+      });
+    }
+
+    for (const [profileName, profile] of Object.entries(
+      config.capabilityProfiles,
+    )) {
+      for (const [serverId, profileTools] of Object.entries(profile)) {
+        const server = config.servers[serverId];
+        if (!server) {
+          context.addIssue({
+            code: "custom",
+            message: `Capability profile ${profileName} references unknown MCP server ${serverId}`,
+            path: ["capabilityProfiles", profileName, serverId],
+          });
+          continue;
+        }
+
+        if (server.allowedTools) {
+          const deniedTool = profileTools.find(
+            (toolName) => !server.allowedTools?.includes(toolName),
+          );
+          if (deniedTool) {
+            context.addIssue({
+              code: "custom",
+              message: `Capability profile ${profileName} exceeds the Host allowlist with tool ${deniedTool}`,
+              path: ["capabilityProfiles", profileName, serverId],
+            });
+          }
+        }
+      }
+    }
+  });
 
 export type McpHostConfig = z.infer<typeof McpHostConfigSchema>;
 
@@ -124,6 +180,9 @@ type McpHostOptions = {
 export function parseMcpHostConfig(
   input: Record<string, unknown>,
 ): McpHostConfig {
+  const agentCapabilityProfile =
+    readString(input.agentCapabilityProfile) ??
+    readString(input.AGENT_CAPABILITY_PROFILE);
   const toolboxUrl =
     readString(input.toolboxUrl) ?? readString(input.TOOLBOX_URL);
   const toolboxToolset =
@@ -146,6 +205,8 @@ export function parseMcpHostConfig(
   }
 
   const parsed = McpHostConfigSchema.parse({
+    agentCapabilityProfile,
+    capabilityProfiles: input.capabilityProfiles,
     servers,
     toolboxToolset,
     toolboxUrl,
@@ -168,6 +229,25 @@ export function loadMcpHostConfig(
     ...input,
     ...fileConfig,
   });
+}
+
+export function readAgentCapabilityTools(
+  config: McpHostConfig,
+  serverId = defaultMcpToolboxServerId,
+): string[] {
+  const profileName = config.agentCapabilityProfile;
+  if (!profileName) {
+    throw new Error(
+      "AGENT_CAPABILITY_PROFILE must select an explicit Agent capability profile",
+    );
+  }
+
+  const profile = config.capabilityProfiles[profileName];
+  if (!profile) {
+    throw new Error(`Unknown Agent capability profile: ${profileName}`);
+  }
+
+  return [...(profile[serverId] ?? [])];
 }
 
 export function createMcpHost(
@@ -378,6 +458,11 @@ function readMcpHostConfigFile(input: Record<string, unknown>) {
   }
 
   return {
+    agentCapabilityProfile:
+      typeof parsed.agentCapabilityProfile === "string"
+        ? expandEnv(parsed.agentCapabilityProfile, input)
+        : undefined,
+    capabilityProfiles: parsed.capabilityProfiles,
     servers: readFileServerConfigMap(parsed.servers, input),
     toolboxToolset:
       typeof parsed.toolboxToolset === "string"

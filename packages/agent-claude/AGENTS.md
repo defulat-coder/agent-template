@@ -12,6 +12,7 @@
 - Kimi Code 通过 Anthropic-compatible env 接入：`ANTHROPIC_BASE_URL=https://api.kimi.com/coding/`、`ANTHROPIC_MODEL=kimi-for-coding`、`ANTHROPIC_API_KEY`。
 - 传给 Claude Agent SDK subprocess 的 `env` 必须合并 `process.env`，不要替换掉 `PATH`、`HOME` 等运行时变量。
 - Toolbox server 通过 `@agent-template/mcp-host` 接入；Claude runtime 只创建 SDK MCP server 表面并委托 Host，不直接 import `apps/toolbox/tools.yaml`，不把 `TOOLBOX_URL` / `TOOLBOX_TOOLSET` 下发给 Claude Code subprocess。
+- Claude 实际可见的 MCP 工具必须由 `AGENT_CAPABILITY_PROFILE` 对应的 Host capability profile 生成 SDK `allowedTools`；不要在 runtime 内再维护一份硬编码全量名单。
 - 项目级业务 Skill 放在根目录 `.claude/skills/`；Claude Agent SDK 必须启用 project setting source 和 skills，Skill 仍只调用 Host-managed MCP tools。
 - 电商业务 Skill 由根目录的 Toolbox 官方生成器同步，不手工维护两份副本，也不安装官方生成的数据库直连脚本。
 

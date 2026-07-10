@@ -5,7 +5,11 @@ import { createServer, type Server } from "node:http";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { createMcpHost, loadMcpHostConfig } from "./index.js";
+import {
+  createMcpHost,
+  loadMcpHostConfig,
+  readAgentCapabilityTools,
+} from "./index.js";
 
 const repositoryRoot = fileURLToPath(new URL("../../..", import.meta.url));
 const toolboxExecutable = fileURLToPath(
@@ -42,15 +46,28 @@ async function main() {
     await waitForAuthorizedToolbox(toolboxUrl, oidc.token);
     await assertUnauthenticatedRequestIsRejected(toolboxUrl);
 
-    const host = createMcpHost(
-      loadMcpHostConfig({
-        DATABASE_URL: databaseUrl,
-        TOOLBOX_AUTH_TOKEN: oidc.token,
-        TOOLBOX_URL: toolboxUrl,
-      }),
-    );
+    const hostConfig = loadMcpHostConfig({
+      DATABASE_URL: databaseUrl,
+      TOOLBOX_AUTH_TOKEN: oidc.token,
+      TOOLBOX_URL: toolboxUrl,
+    });
+    const host = createMcpHost(hostConfig);
     const tools = await host.listTools("toolbox");
     assert.equal(tools.length, expectedToolCount);
+    const liveToolNames = new Set(tools.map((tool) => tool.name));
+    for (const profileName of Object.keys(hostConfig.capabilityProfiles)) {
+      const profileTools = readAgentCapabilityTools({
+        ...hostConfig,
+        agentCapabilityProfile: profileName,
+      });
+      assert.ok(profileTools.length > 0, `${profileName} must not be empty`);
+      for (const toolName of profileTools) {
+        assert.ok(
+          liveToolNames.has(toolName),
+          `${profileName} references missing live tool ${toolName}`,
+        );
+      }
+    }
 
     const result = await host.callTool("toolbox", "summarize_sales_by_region", {
       from: "2026-06-01T00:00:00Z",
@@ -60,7 +77,7 @@ async function main() {
     assert.ok(result.content.length > 0);
 
     console.log(
-      "Local Toolbox OIDC verification passed: unauthenticated MCP rejected, 18 scoped tools listed, and an authenticated business query executed through MCP Host.",
+      `Local Toolbox OIDC verification passed: unauthenticated MCP rejected, 18 scoped tools listed, ${Object.keys(hostConfig.capabilityProfiles).length} Agent capability profiles matched live tools, and an authenticated business query executed through MCP Host.`,
     );
   } finally {
     await stopProcess(toolbox);

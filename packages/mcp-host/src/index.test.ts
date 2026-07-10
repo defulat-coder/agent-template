@@ -7,9 +7,46 @@ import {
   defaultMcpHostConfigFileName,
   loadMcpHostConfig,
   parseMcpHostConfig,
+  readAgentCapabilityTools,
 } from "./index.js";
 
 describe("MCP Host", () => {
+  it("selects a deployment-owned Agent capability profile within the Host allowlist", () => {
+    const config = parseMcpHostConfig({
+      agentCapabilityProfile: "sales",
+      capabilityProfiles: {
+        sales: { toolbox: ["summarize-sales"] },
+      },
+      servers: {
+        toolbox: {
+          allowedTools: ["summarize-sales", "get-order"],
+          toolset: "business_read_model",
+          url: "http://toolbox:15000",
+        },
+      },
+    });
+
+    expect(readAgentCapabilityTools(config)).toEqual(["summarize-sales"]);
+  });
+
+  it("rejects an Agent capability profile that exceeds the Host allowlist", () => {
+    expect(() =>
+      parseMcpHostConfig({
+        agentCapabilityProfile: "sales",
+        capabilityProfiles: {
+          sales: { toolbox: ["postgres-execute-sql"] },
+        },
+        servers: {
+          toolbox: {
+            allowedTools: ["summarize-sales"],
+            toolset: "business_read_model",
+            url: "http://toolbox:15000",
+          },
+        },
+      }),
+    ).toThrow("exceeds the Host allowlist");
+  });
+
   it("fails closed when an MCP server omits its allowlist", () => {
     expect(() =>
       parseMcpHostConfig({ TOOLBOX_URL: "http://toolbox:15000" }),

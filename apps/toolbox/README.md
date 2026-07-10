@@ -18,6 +18,7 @@
 - 面向 Agent 的业务 Toolset 按单一分析或运营任务分组，避免一次向模型暴露无关 Tool 导致 context rot。
 - `mcp-host.config.json` 的 `allowedTools` 是 Host 侧可执行 allowlist。Google Toolbox 的 toolset 由其 Client SDK 选择；裸 MCP `tools/list` 默认可见服务端全部工具，因此新增 Tool 时必须同时更新 allowlist。
 - MCP Host 缺少 `allowedTools` 时默认拒绝配置；只有显式 `allowAllToolsForDevelopment` 才允许开发期全量发现。生产配置禁止启用该开关。
+- `AGENT_CAPABILITY_PROFILE` 选择 Agent 实际可见的业务工具子集；它必须是 `mcp-host.config.json` 中已声明的 profile，并且不能超出 Host allowlist。本地默认 `development-all`，生产应按岗位使用 `ecommerce-sales`、`ecommerce-product`、`ecommerce-orders`、`ecommerce-fulfillment`、`ecommerce-analyst` 或 `platform-observability`。
 
 ## 电商业务验证数据（主要路径）
 
@@ -64,7 +65,7 @@ packages/agent-eve/agent/skills/ # Eve 实际加载的适配版
 
 Toolbox 固定生成的标题、表头和脚本模板保持英文；可配置的 Skill 描述、补充说明、业务 Tool 描述和参数描述统一使用中文。生成门禁会检查这些业务内容包含中文。
 
-这四个业务 Toolset 用于官方 Skill 生成和业务能力分组，不是运行时授权机制。当前 raw MCP client 不按 `TOOLBOX_TOOLSET` 隔离工具；生产可执行范围始终以 `mcp-host.config.json` 的 `allowedTools` 为准。
+这四个业务 Toolset 用于官方 Skill 生成和业务能力分组，不是运行时授权机制。当前 raw MCP client 不按 `TOOLBOX_TOOLSET` 隔离工具；生产可执行范围以 `mcp-host.config.json` 的 `allowedTools` 为安全上限，Agent 模型可见范围再由 `AGENT_CAPABILITY_PROFILE` 收窄。Claude 使用 SDK `allowedTools`，Eve 使用 `session.started` 动态工具解析，两者读取同一份 profile。
 
 ## 电商 MCP Docker 集成验证（仅显式要求时）
 

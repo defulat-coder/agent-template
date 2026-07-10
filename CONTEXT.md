@@ -60,6 +60,10 @@ _Avoid_: Database helper, embedded database client
 A named group of Toolbox server tools that an Agent runtime may load for a specific Agent capability.
 _Avoid_: Runtime plugin, database permission set
 
+**Agent capability profile**:
+A deployment-selected, named subset of Host-allowed tools that an Agent runtime presents to the model for one business role. It narrows model-visible capabilities but does not replace authentication or the MCP Host allowlist.
+_Avoid_: User-selected mode, authorization policy
+
 **MCP Host**:
 The user-facing AI application that manages MCP server connections, presents chat, and renders MCP Apps or other interactive MCP outputs.
 _Avoid_: MCP server, Tool provider

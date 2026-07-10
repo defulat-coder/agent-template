@@ -80,99 +80,39 @@ describe("Eve Agent runtime", () => {
     expect(agent.model?.modelId).toBe(defaultEveAgentModel);
   });
 
-  it("exposes Toolbox through Host-managed Eve authored tools", async () => {
-    const listAgentRuns = (await import("../agent/tools/list_agent_runs"))
-      .default as { description?: string };
-    const getEcommerceOrderDetail = (
-      await import("../agent/tools/get_ecommerce_order_detail")
-    ).default as { description?: string };
-    const getAgentRunSummary = (
-      await import("../agent/tools/get_agent_run_summary")
-    ).default as { description?: string };
-    const listAgentRunTimeline = (
-      await import("../agent/tools/list_agent_run_timeline")
-    ).default as { description?: string };
-    const listFailedAgentRunsInWindow = (
-      await import("../agent/tools/list_failed_agent_runs_in_window")
-    ).default as { description?: string };
-    const listEcommerceFulfillmentExceptions = (
-      await import("../agent/tools/list_ecommerce_fulfillment_exceptions")
-    ).default as { description?: string };
-    const listEcommerceOrdersInWindow = (
-      await import("../agent/tools/list_ecommerce_orders_in_window")
-    ).default as { description?: string };
-    const listEcommerceTopProducts = (
-      await import("../agent/tools/list_ecommerce_top_products")
-    ).default as { description?: string };
-    const listTemplateEvents = (
-      await import("../agent/tools/list_template_events")
-    ).default as { description?: string };
-    const listTemplateEventsInWindow = (
-      await import("../agent/tools/list_template_events_in_window")
-    ).default as { description?: string };
-    const summarizeTemplateEventsByType = (
-      await import("../agent/tools/summarize_template_events_by_type")
-    ).default as { description?: string };
-    const summarizeToolInvocations = (
-      await import("../agent/tools/summarize_tool_invocations")
-    ).default as { description?: string };
-    const summarizeEcommerceSalesByChannel = (
-      await import("../agent/tools/summarize_ecommerce_sales_by_channel")
-    ).default as { description?: string };
-    const summarizeEcommerceSalesByDay = (
-      await import("../agent/tools/summarize_ecommerce_sales_by_day")
-    ).default as { description?: string };
-    const summarizeSalesByCustomerSegment = (
-      await import("../agent/tools/summarize_sales_by_customer_segment")
-    ).default as { description?: string };
-    const summarizeSalesByRegion = (
-      await import("../agent/tools/summarize_sales_by_region")
-    ).default as { description?: string };
-    const summarizeMerchandiseByCategory = (
-      await import("../agent/tools/summarize_merchandise_by_category")
-    ).default as { description?: string };
-    const getTemplateEvent = (await import("../agent/tools/get_template_event"))
-      .default as { description?: string };
+  it("resolves only the selected capability profile through Eve dynamic tools", async () => {
+    const previousProfile = process.env.AGENT_CAPABILITY_PROFILE;
+    process.env.AGENT_CAPABILITY_PROFILE = "ecommerce-sales";
 
-    expect(listAgentRuns.description).toContain("Host-managed Toolbox");
-    expect(getEcommerceOrderDetail.description).toContain(
-      "synthetic ecommerce",
-    );
-    expect(getAgentRunSummary.description).toContain("Host-managed Toolbox");
-    expect(listAgentRunTimeline.description).toContain("Host-managed Toolbox");
-    expect(listFailedAgentRunsInWindow.description).toContain(
-      "Host-managed Toolbox",
-    );
-    expect(listEcommerceFulfillmentExceptions.description).toContain(
-      "synthetic ecommerce",
-    );
-    expect(listEcommerceOrdersInWindow.description).toContain(
-      "synthetic ecommerce",
-    );
-    expect(listEcommerceTopProducts.description).toContain(
-      "synthetic ecommerce",
-    );
-    expect(listTemplateEvents.description).toContain("Host-managed Toolbox");
-    expect(listTemplateEventsInWindow.description).toContain(
-      "Host-managed Toolbox",
-    );
-    expect(summarizeTemplateEventsByType.description).toContain(
-      "Host-managed Toolbox",
-    );
-    expect(summarizeToolInvocations.description).toContain("MCP Toolbox");
-    expect(summarizeEcommerceSalesByChannel.description).toContain(
-      "synthetic ecommerce",
-    );
-    expect(summarizeEcommerceSalesByDay.description).toContain(
-      "synthetic ecommerce",
-    );
-    expect(summarizeSalesByCustomerSegment.description).toContain("客户分群");
-    expect(summarizeSalesByRegion.description).toContain("大区");
-    expect(summarizeMerchandiseByCategory.description).toContain("商品品类");
-    expect(getTemplateEvent.description).toContain("Host-managed Toolbox");
-    expect(
-      existsSync(new URL("../agent/connections/toolbox.ts", import.meta.url)),
-    ).toBe(false);
+    try {
+      const toolbox = (await import("../agent/tools/toolbox")).default as {
+        events: {
+          "session.started": (
+            event: unknown,
+            context: unknown,
+          ) => Promise<Record<string, { description?: string }>>;
+        };
+      };
+      const tools = await toolbox.events["session.started"]({}, {});
+
+      expect(Object.keys(tools)).toEqual([
+        "summarize_ecommerce_sales_by_day",
+        "summarize_ecommerce_sales_by_channel",
+        "summarize_sales_by_region",
+        "summarize_sales_by_customer_segment",
+      ]);
+      expect(tools.summarize_sales_by_region?.description).toContain("大区");
+      expect(tools).not.toHaveProperty("get_ecommerce_order_detail");
+      expect(
+        existsSync(new URL("../agent/connections/toolbox.ts", import.meta.url)),
+      ).toBe(false);
+    } finally {
+      if (previousProfile === undefined) {
+        delete process.env.AGENT_CAPABILITY_PROFILE;
+      } else {
+        process.env.AGENT_CAPABILITY_PROFILE = previousProfile;
+      }
+    }
   });
 
   it("defines the Eve channel route auth in the authored surface", async () => {

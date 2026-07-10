@@ -9,6 +9,7 @@ import type {
 import {
   createMcpHost,
   loadMcpHostConfig,
+  readAgentCapabilityTools,
   type McpHostConfig,
   type McpHostToolCallResult,
 } from "@agent-template/mcp-host";
@@ -382,27 +383,11 @@ function readClaudeProjectDir() {
 }
 
 function readHostManagedClaudeTools(config: ClaudeAgentConfig) {
-  return readClaudeMcpHostConfig(config).toolboxUrl
-    ? [
-        "mcp__agent_template_mcp_host__get-agent-run-summary",
-        "mcp__agent_template_mcp_host__get-ecommerce-order-detail",
-        "mcp__agent_template_mcp_host__get-template-event",
-        "mcp__agent_template_mcp_host__list-agent-run-timeline",
-        "mcp__agent_template_mcp_host__list-agent-runs",
-        "mcp__agent_template_mcp_host__list-ecommerce-fulfillment-exceptions",
-        "mcp__agent_template_mcp_host__list-ecommerce-orders-in-window",
-        "mcp__agent_template_mcp_host__list-ecommerce-top-products",
-        "mcp__agent_template_mcp_host__list-failed-agent-runs-in-window",
-        "mcp__agent_template_mcp_host__list-template-events",
-        "mcp__agent_template_mcp_host__list-template-events-in-window",
-        "mcp__agent_template_mcp_host__summarize-template-events-by-type",
-        "mcp__agent_template_mcp_host__summarize-ecommerce-sales-by-channel",
-        "mcp__agent_template_mcp_host__summarize-ecommerce-sales-by-day",
-        "mcp__agent_template_mcp_host__summarize_merchandise_by_category",
-        "mcp__agent_template_mcp_host__summarize_sales_by_customer_segment",
-        "mcp__agent_template_mcp_host__summarize_sales_by_region",
-        "mcp__agent_template_mcp_host__summarize-tool-invocations",
-      ]
+  const mcpHostConfig = readClaudeMcpHostConfig(config);
+  return mcpHostConfig.toolboxUrl
+    ? readAgentCapabilityTools(mcpHostConfig).map(
+        (toolName) => `mcp__agent_template_mcp_host__${toolName}`,
+      )
     : [];
 }
 
@@ -616,6 +601,7 @@ function createHostManagedClaudeMcpServers(
 
 function readClaudeMcpHostConfig(config: ClaudeAgentConfig): McpHostConfig {
   return loadMcpHostConfig({
+    ...process.env,
     TOOLBOX_TOOLSET: config.toolboxToolset,
     TOOLBOX_URL: config.toolboxUrl,
   });
