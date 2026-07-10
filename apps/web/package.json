@@ -7,7 +7,7 @@
     "start": "next start --hostname 0.0.0.0 --port 13000",
     "build": "next build",
     "lint": "eslint app src",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "node ../../scripts/tsc7.mjs -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
   "dependencies": {

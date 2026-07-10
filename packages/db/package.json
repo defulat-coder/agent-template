@@ -7,12 +7,12 @@
     "./config": "./src/config.ts"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "node ../../scripts/tsc7.mjs -p tsconfig.json",
     "db:generate": "prisma generate --schema prisma/schema.prisma",
     "db:migrate": "prisma migrate dev --schema prisma/schema.prisma --name init",
     "db:seed": "prisma db seed --schema prisma/schema.prisma",
     "lint": "eslint src prisma.config.ts prisma/seed.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "node ../../scripts/tsc7.mjs -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
   "dependencies": {

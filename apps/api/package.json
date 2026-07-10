@@ -7,7 +7,7 @@
     "start": "node dist/server.js",
     "build": "tsup",
     "lint": "eslint src",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "node ../../scripts/tsc7.mjs -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
   "dependencies": {

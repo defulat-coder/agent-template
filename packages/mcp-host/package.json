@@ -8,7 +8,7 @@
   "scripts": {
     "build": "tsup src/index.ts --format esm",
     "lint": "eslint src",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "node ../../scripts/tsc7.mjs -p tsconfig.json --noEmit",
     "test": "vitest run",
     "verify:ecommerce-toolbox:docker": "tsx src/verify-ecommerce-toolbox.ts"
   },
