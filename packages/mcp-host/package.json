@@ -9,7 +9,8 @@
     "build": "tsup src/index.ts --format esm",
     "lint": "eslint src",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "verify:ecommerce-toolbox": "tsx src/verify-ecommerce-toolbox.ts"
   },
   "dependencies": {
     "@agent-template/shared": "workspace:*",
