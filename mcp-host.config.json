@@ -3,6 +3,7 @@
     "toolbox": {
       "url": "${TOOLBOX_URL:-http://localhost:15000}",
       "toolset": "${TOOLBOX_TOOLSET:-agent_template_read_model}",
+      "authTokenEnv": "TOOLBOX_AUTH_TOKEN",
       "allowedTools": [
         "list-template-events",
         "get-template-event",

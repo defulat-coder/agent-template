@@ -6,6 +6,8 @@
 
 智能问数的术语、指标、实际字段/取值、歧义处理和 golden cases 位于 [semantic/](./semantic/)，完整的生产落地路径见 [INTELLIGENT_QUERY.md](./INTELLIGENT_QUERY.md)。
 
+真实业务数据必须使用 [Toolbox 生产认证](./PRODUCTION_AUTH.md)：生成的 OIDC 配置在 `generated/toolbox-production/tools.yaml`，MCP Host 只从可信 context 或 `TOOLBOX_AUTH_TOKEN` 转发 Bearer token。开发 fixture 配置不启用认证，不能直接作为生产部署配置。
+
 ## 设计边界
 
 - 不暴露 `postgres-execute-sql` 或任何通用 SQL tool；每个 `postgres-sql` 都是预定义 statement，并由 Toolbox 以 prepared statement 执行。
@@ -15,6 +17,7 @@
 - 所有 SQL Tool 显式标注 `readOnlyHint: true`、`destructiveHint: false`、`idempotentHint: true` 和 `openWorldHint: false`。
 - 面向 Agent 的业务 Toolset 按单一分析或运营任务分组，避免一次向模型暴露无关 Tool 导致 context rot。
 - `mcp-host.config.json` 的 `allowedTools` 是 Host 侧可执行 allowlist。Google Toolbox 的 toolset 由其 Client SDK 选择；裸 MCP `tools/list` 默认可见服务端全部工具，因此新增 Tool 时必须同时更新 allowlist。
+- MCP Host 缺少 `allowedTools` 时默认拒绝配置；只有显式 `allowAllToolsForDevelopment` 才允许开发期全量发现。生产配置禁止启用该开关。
 
 ## 电商业务验证数据（主要路径）
 

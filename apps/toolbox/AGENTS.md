@@ -18,6 +18,7 @@
 - 只读 SQL Tool 必须显式声明 `readOnlyHint`、`destructiveHint`、`idempotentHint` 和 `openWorldHint`。
 - 生产 Agent 默认只使用自定义 toolset，不使用 prebuilt generic tools。
 - 数据库连接信息通过环境变量注入，不能把密码写死在 `tools.yaml`。
+- 真实业务部署使用 `generated/toolbox-production/tools.yaml`，由 `pnpm toolbox:generate:production` 生成；它必须启用 Generic OIDC、server scope 和 Tool scope，不能手改生成产物。
 
 ## 智能问数后续设计标准
 
@@ -26,6 +27,7 @@
 - 认证业务问数 Tool 的准入物是：语义目录的指标/维度/值映射/歧义规则、问题模式、golden cases、数据负责人、可信身份访问范围和数据新鲜度。缺失任一项时先补目录，不新增 Tool。
 - 平台只读运维 Tool 不要求业务语义目录或业务 Skill，但仍必须有结果型描述、MCP annotations、有界参数、Host allowlist 和 native 执行验证；不要把它误归为智能问数能力。
 - Toolset 只用于 Skill 生成和模型上下文分组，不能当作运行时最小权限。实际授权以 Host `allowedTools`、可信身份注入和数据库 RLS/等效控制为准；需要 capability 隔离时，先设计 Host capability profile seam。
+- Host 授权必须 fail-closed：每个 server 配置非空 `allowedTools`；`allowAllToolsForDevelopment` 只允许本地开发。生产 JWT 只从可信 invocation context 或 `TOOLBOX_AUTH_TOKEN` 注入，不能成为 Tool 参数。
 - 分析 Tool 必须声明业务时区、`[from, to)` 时间边界与数据库时间类型；UTC 输入承诺不能依赖 PostgreSQL session 的隐式时区转换。
 - 新增认证业务问数 Tool 必须同步 `tools.yaml`、Toolset、Host allowlist、Claude/Eve adapter、原始/实际 Skill、语义目录和 golden cases；完成语义门禁、Skill 生成校验与本地 native Tool 执行验收后才能合入。
 

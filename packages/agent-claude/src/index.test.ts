@@ -417,6 +417,7 @@ describe("Claude Agent runtime", () => {
       JSON.stringify({
         servers: {
           toolbox: {
+            allowAllToolsForDevelopment: true,
             toolset: "agent_template_read_model",
             url: "http://file-toolbox:15000",
           },

@@ -15,18 +15,40 @@ export const defaultMcpToolboxToolset = "agent_template_read_model";
 export const defaultMcpHostConfigFileName = "mcp-host.config.json";
 export const agentRunsMcpAppResourceUri = "ui://agent-template/agent-runs";
 
-export const McpHostServerConfigSchema = z.object({
-  url: z.string().url(),
-  toolset: z.string().min(1).default(defaultMcpToolboxToolset),
-  allowedTools: z
-    .array(z.string().min(1))
-    .min(1)
-    .refine(
-      (tools) => new Set(tools).size === tools.length,
-      "allowedTools must not contain duplicates",
-    )
-    .optional(),
-});
+export const McpHostServerConfigSchema = z
+  .object({
+    url: z.string().url(),
+    toolset: z.string().min(1).default(defaultMcpToolboxToolset),
+    allowedTools: z
+      .array(z.string().min(1))
+      .min(1)
+      .refine(
+        (tools) => new Set(tools).size === tools.length,
+        "allowedTools must not contain duplicates",
+      )
+      .optional(),
+    allowAllToolsForDevelopment: z.boolean().default(false),
+    authorizationToken: z.string().min(1).optional(),
+  })
+  .superRefine((server, context) => {
+    if (!server.allowedTools && !server.allowAllToolsForDevelopment) {
+      context.addIssue({
+        code: "custom",
+        message:
+          "MCP server must configure allowedTools or explicitly enable allowAllToolsForDevelopment",
+        path: ["allowedTools"],
+      });
+    }
+
+    if (server.allowedTools && server.allowAllToolsForDevelopment) {
+      context.addIssue({
+        code: "custom",
+        message:
+          "MCP server cannot combine allowedTools with allowAllToolsForDevelopment",
+        path: ["allowAllToolsForDevelopment"],
+      });
+    }
+  });
 
 export const McpHostConfigSchema = z.object({
   servers: z.record(z.string().min(1), McpHostServerConfigSchema).default({}),
@@ -40,16 +62,24 @@ export type McpHostServer = {
   id: string;
   url: string;
   toolset: string;
+  authorizationToken?: string | undefined;
 };
 
 type McpHostConfiguredServer = McpHostServer & {
   allowedTools?: string[] | undefined;
+  allowAllToolsForDevelopment: boolean;
 };
 
 type McpHostServerConfigInput = {
   url: string;
   toolset: string;
   allowedTools?: unknown;
+  allowAllToolsForDevelopment?: unknown;
+  authorizationToken?: unknown;
+};
+
+export type McpHostInvocationContext = {
+  authorizationToken?: string | undefined;
 };
 
 export type McpHostTool = {
@@ -104,8 +134,14 @@ export function parseMcpHostConfig(
 
   if (toolboxUrl && !servers[defaultMcpToolboxServerId]) {
     servers[defaultMcpToolboxServerId] = {
+      allowAllToolsForDevelopment: readBoolean(
+        input.MCP_HOST_ALLOW_ALL_TOOLS_FOR_DEVELOPMENT,
+      ),
       toolset: toolboxToolset,
       url: toolboxUrl,
+      ...(readString(input.TOOLBOX_AUTH_TOKEN)
+        ? { authorizationToken: input.TOOLBOX_AUTH_TOKEN }
+        : {}),
     };
   }
 
@@ -150,8 +186,9 @@ export function createMcpHost(
 
   async function listTools(
     serverId = defaultMcpToolboxServerId,
+    context: McpHostInvocationContext = {},
   ): Promise<McpHostTool[]> {
-    return withClient(serverId, async (client, server) => {
+    return withClient(serverId, context, async (client, server) => {
       const result = await client.listTools();
       return result.tools
         .filter((tool) => isToolAllowed(server, tool.name))
@@ -167,8 +204,9 @@ export function createMcpHost(
     serverId: string,
     name: string,
     args: Record<string, unknown> = {},
+    context: McpHostInvocationContext = {},
   ): Promise<McpHostToolCallResult> {
-    return withClient(serverId, (client, server) => {
+    return withClient(serverId, context, (client, server) => {
       if (!isToolAllowed(server, name)) {
         throw new Error(
           `MCP tool ${name} is not allowed for server ${serverId}`,
@@ -243,25 +281,40 @@ export function createMcpHost(
   }
 
   function getConfiguredServer(serverId: string): McpHostConfiguredServer {
+    return getConfiguredServerForInvocation(serverId);
+  }
+
+  function getConfiguredServerForInvocation(
+    serverId: string,
+    context: McpHostInvocationContext = {},
+  ): McpHostConfiguredServer {
     const server = config.servers[serverId];
     if (!server) throw new Error(`Unknown MCP server: ${serverId}`);
 
     return {
+      allowAllToolsForDevelopment: server.allowAllToolsForDevelopment,
       id: serverId,
       toolset: server.toolset,
       url: `${server.url.replace(/\/$/, "")}/mcp`,
       ...(server.allowedTools ? { allowedTools: server.allowedTools } : {}),
+      ...((context.authorizationToken ?? server.authorizationToken)
+        ? {
+            authorizationToken:
+              context.authorizationToken ?? server.authorizationToken,
+          }
+        : {}),
     };
   }
 
   async function withClient<T>(
     serverId: string,
+    context: McpHostInvocationContext,
     task: (
       client: McpClientLike,
       server: McpHostConfiguredServer,
     ) => Promise<T>,
   ): Promise<T> {
-    const server = getConfiguredServer(serverId);
+    const server = getConfiguredServerForInvocation(serverId, context);
 
     const client = await createClient(server);
 
@@ -283,7 +336,10 @@ export function createMcpHost(
 }
 
 function isToolAllowed(server: McpHostConfiguredServer, toolName: string) {
-  return !server.allowedTools || server.allowedTools.includes(toolName);
+  return (
+    server.allowedTools?.includes(toolName) === true ||
+    server.allowAllToolsForDevelopment
+  );
 }
 
 function createAgentRunsMcpAppEvent(
@@ -351,11 +407,15 @@ function readServerConfigMap(input: unknown) {
     }
 
     servers[id] = {
+      allowAllToolsForDevelopment: value.allowAllToolsForDevelopment,
       toolset: readString(value.toolset) ?? defaultMcpToolboxToolset,
       url,
       ...(value.allowedTools === undefined
         ? {}
         : { allowedTools: value.allowedTools }),
+      ...(value.authorizationToken === undefined
+        ? {}
+        : { authorizationToken: value.authorizationToken }),
     };
   }
 
@@ -374,6 +434,7 @@ function readFileServerConfigMap(input: unknown, env: Record<string, unknown>) {
     }
 
     servers[id] = {
+      allowAllToolsForDevelopment: value.allowAllToolsForDevelopment,
       toolset:
         typeof value.toolset === "string"
           ? expandEnv(value.toolset, env)
@@ -382,6 +443,10 @@ function readFileServerConfigMap(input: unknown, env: Record<string, unknown>) {
       ...(value.allowedTools === undefined
         ? {}
         : { allowedTools: value.allowedTools }),
+      ...(typeof value.authTokenEnv === "string" &&
+      readString(env[value.authTokenEnv])
+        ? { authorizationToken: env[value.authTokenEnv] }
+        : {}),
     };
   }
 
@@ -564,6 +629,10 @@ function readString(value: unknown) {
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
+function readBoolean(value: unknown) {
+  return value === true || value === "true";
+}
+
 export type McpHost = ReturnType<typeof createMcpHost>;
 
 async function createMcpClient(server: McpHostServer): Promise<McpClientLike> {
@@ -571,7 +640,17 @@ async function createMcpClient(server: McpHostServer): Promise<McpClientLike> {
     name: "agent-template-mcp-host",
     version: "0.1.0",
   });
-  const transport = new StreamableHTTPClientTransport(new URL(server.url));
+  const transport = new StreamableHTTPClientTransport(new URL(server.url), {
+    ...(server.authorizationToken
+      ? {
+          requestInit: {
+            headers: {
+              Authorization: `Bearer ${server.authorizationToken}`,
+            },
+          },
+        }
+      : {}),
+  });
 
   await client.connect(transport as Parameters<Client["connect"]>[0]);
 

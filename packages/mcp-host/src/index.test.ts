@@ -10,9 +10,18 @@ import {
 } from "./index.js";
 
 describe("MCP Host", () => {
+  it("fails closed when an MCP server omits its allowlist", () => {
+    expect(() =>
+      parseMcpHostConfig({ TOOLBOX_URL: "http://toolbox:15000" }),
+    ).toThrow(
+      "MCP server must configure allowedTools or explicitly enable allowAllToolsForDevelopment",
+    );
+  });
+
   it("registers the Toolbox MCP server from static env config", () => {
     const host = createMcpHost(
       parseMcpHostConfig({
+        MCP_HOST_ALLOW_ALL_TOOLS_FOR_DEVELOPMENT: "true",
         TOOLBOX_URL: "http://toolbox:15000",
         TOOLBOX_TOOLSET: "agent_template_read_model",
       }),
@@ -32,10 +41,12 @@ describe("MCP Host", () => {
       parseMcpHostConfig({
         servers: {
           analytics: {
+            allowAllToolsForDevelopment: true,
             toolset: "analytics_read_model",
             url: "http://analytics:15000",
           },
           toolbox: {
+            allowAllToolsForDevelopment: true,
             toolset: "agent_template_read_model",
             url: "http://toolbox:15000",
           },
@@ -66,6 +77,7 @@ describe("MCP Host", () => {
       JSON.stringify({
         servers: {
           toolbox: {
+            allowAllToolsForDevelopment: true,
             toolset: "${TOOLBOX_TOOLSET:-file_toolset}",
             url: "http://file-toolbox:15000",
           },
@@ -101,7 +113,10 @@ describe("MCP Host", () => {
 
   it("lists tools through a Host-managed MCP client", async () => {
     const host = createMcpHost(
-      parseMcpHostConfig({ TOOLBOX_URL: "http://toolbox:15000" }),
+      parseMcpHostConfig({
+        MCP_HOST_ALLOW_ALL_TOOLS_FOR_DEVELOPMENT: "true",
+        TOOLBOX_URL: "http://toolbox:15000",
+      }),
       {
         createClient: async () => ({
           async listTools() {
@@ -129,6 +144,47 @@ describe("MCP Host", () => {
         name: "list-agent-runs",
       },
     ]);
+  });
+
+  it("passes a trusted bearer token to the MCP client without exposing it", async () => {
+    let clientToken: string | undefined;
+    const host = createMcpHost(
+      parseMcpHostConfig({
+        servers: {
+          toolbox: {
+            allowedTools: ["list-agent-runs"],
+            authorizationToken: "service-token",
+            toolset: "agent_template_read_model",
+            url: "http://toolbox:15000",
+          },
+        },
+      }),
+      {
+        createClient: async (server) => {
+          clientToken = server.authorizationToken;
+          return {
+            async listTools() {
+              return { tools: [] };
+            },
+            async callTool() {
+              return { content: [] };
+            },
+          };
+        },
+      },
+    );
+
+    expect(host.getServers()).toEqual([
+      {
+        id: "toolbox",
+        toolset: "agent_template_read_model",
+        url: "http://toolbox:15000/mcp",
+      },
+    ]);
+    await host.listTools();
+    expect(clientToken).toBe("service-token");
+    await host.listTools("toolbox", { authorizationToken: "caller-token" });
+    expect(clientToken).toBe("caller-token");
   });
 
   it("enforces a configured allowlist for tools/list and tools/call", async () => {
@@ -181,7 +237,10 @@ describe("MCP Host", () => {
 
   it("builds Agent run dashboard data from a Host-managed Toolbox call", async () => {
     const host = createMcpHost(
-      parseMcpHostConfig({ TOOLBOX_URL: "http://toolbox:15000" }),
+      parseMcpHostConfig({
+        MCP_HOST_ALLOW_ALL_TOOLS_FOR_DEVELOPMENT: "true",
+        TOOLBOX_URL: "http://toolbox:15000",
+      }),
       {
         createClient: async () => ({
           async listTools() {
@@ -247,7 +306,10 @@ describe("MCP Host", () => {
 
   it("builds MCP App UI events inside the Host boundary", async () => {
     const host = createMcpHost(
-      parseMcpHostConfig({ TOOLBOX_URL: "http://toolbox:15000" }),
+      parseMcpHostConfig({
+        MCP_HOST_ALLOW_ALL_TOOLS_FOR_DEVELOPMENT: "true",
+        TOOLBOX_URL: "http://toolbox:15000",
+      }),
       {
         createClient: async () => ({
           async listTools() {
@@ -308,7 +370,10 @@ describe("MCP Host", () => {
 
   it("builds an MCP App event and HTML resource for interactive prompts", async () => {
     const host = createMcpHost(
-      parseMcpHostConfig({ TOOLBOX_URL: "http://toolbox:15000" }),
+      parseMcpHostConfig({
+        MCP_HOST_ALLOW_ALL_TOOLS_FOR_DEVELOPMENT: "true",
+        TOOLBOX_URL: "http://toolbox:15000",
+      }),
       {
         createClient: async () => ({
           async listTools() {
@@ -363,7 +428,10 @@ describe("MCP Host", () => {
 
   it("builds Agent run dashboard data from Toolbox text rows", async () => {
     const host = createMcpHost(
-      parseMcpHostConfig({ TOOLBOX_URL: "http://toolbox:15000" }),
+      parseMcpHostConfig({
+        MCP_HOST_ALLOW_ALL_TOOLS_FOR_DEVELOPMENT: "true",
+        TOOLBOX_URL: "http://toolbox:15000",
+      }),
       {
         createClient: async () => ({
           async listTools() {
