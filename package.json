@@ -2,7 +2,18 @@
   "name": "agent-template",
   "private": true,
   "packageManager": "pnpm@10.30.3",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": "^24.0.0",
+      "onFail": "download"
+    }
+  },
   "scripts": {
+    "runtime:check": "node -e \"const major = process.versions.node.split('.')[0]; if (major !== '24') { console.error('需要 Node.js 24.x，当前为 v' + process.versions.node); process.exit(1); } console.log('Node.js v' + process.versions.node + ' 符合项目要求');\"",
     "dev": "turbo dev",
     "build": "turbo build",
     "lint": "turbo lint",
