@@ -67,10 +67,20 @@ Toolbox 固定生成的标题、表头和脚本模板保持英文；可配置的
 
 这四个业务 Toolset 用于官方 Skill 生成和业务能力分组，不是运行时授权机制。当前 raw MCP client 不按 `TOOLBOX_TOOLSET` 隔离工具；生产可执行范围以 `mcp-host.config.json` 的 `allowedTools` 为安全上限，Agent 模型可见范围再由 `AGENT_CAPABILITY_PROFILE` 收窄。Claude 使用 SDK `allowedTools`，Eve 使用 `session.started` 动态工具解析，两者读取同一份 profile。
 
+## 电商 MCP 本地端到端验证（默认）
+
+本机 PostgreSQL 监听 `15432` 后执行：
+
+```bash
+pnpm toolbox:verify:local
+```
+
+该命令直接使用 `.env`/默认本地连接，对本机数据库执行 migration 和确定性 seed，启动临时官方 Toolbox 二进制，然后验证原生 MCP `tools/list`、Host allowlist、9 个业务 Tool、语义溯源、部分退款、空结果、UTC 边界、非法时间窗与能力隔离。命令结束后临时 Toolbox 自动退出，不使用 Docker。
+
 ## 电商 MCP Docker 集成验证（仅显式要求时）
 
 ```bash
-pnpm --filter @agent-template/mcp-host verify:ecommerce-toolbox:docker
+pnpm toolbox:verify:docker
 ```
 
 该门禁会启动 PostgreSQL 与 Toolbox、生成 Prisma Client、应用已提交 migration、写入 fixture、重建 Toolbox，然后精确断言裸 MCP `tools/list`、Host allowlist 和九个电商 Tool 的确定性返回值。
@@ -106,13 +116,13 @@ docker compose exec toolbox /toolbox --config /app/tools.yaml invoke list-ecomme
 
 ## Agent 工具示例
 
-先启动本地 PostgreSQL 和 Toolbox，并准备确定性示例数据：
+默认使用本地验收命令准备数据并执行全部示例：
 
 ```bash
-docker compose up -d postgres toolbox
-DATABASE_URL='postgresql://project_template:project_template@localhost:15432/project_template?schema=public' pnpm db:migrate
-DATABASE_URL='postgresql://project_template:project_template@localhost:15432/project_template?schema=public' pnpm db:seed
+pnpm toolbox:verify:local
 ```
+
+下列 `docker compose exec` 只作为用户明确要求容器诊断时的手工调用示例，不属于默认验证流程。
 
 查询一个时间窗中的失败 run：
 

@@ -491,6 +491,16 @@ function validateEcommerceSemanticEvaluation(catalog: ToolboxEntry) {
       .filter(Boolean),
   );
   const cases = readRecordArray(evaluation.cases, "semantic evaluation cases");
+  const requiredEvaluationCategories = new Set([
+    "ambiguity",
+    "capability-isolation",
+    "empty-result",
+    "invalid-window",
+    "partial-refund",
+    "route",
+    "utc-boundary",
+  ]);
+  const evaluationCategories = new Set<string>();
 
   if (cases.length === 0) {
     errors.push("Ecommerce semantic evaluation must contain cases");
@@ -499,7 +509,9 @@ function validateEcommerceSemanticEvaluation(catalog: ToolboxEntry) {
   for (const testCase of cases) {
     const id = readString(testCase.id) || "semantic evaluation case";
     requireString(testCase, "id", "semantic evaluation case");
+    requireString(testCase, "category", id);
     requireString(testCase, "question", id);
+    evaluationCategories.add(readString(testCase.category));
     const expected = isToolboxEntry(testCase.expected)
       ? testCase.expected
       : undefined;
@@ -544,6 +556,14 @@ function validateEcommerceSemanticEvaluation(catalog: ToolboxEntry) {
           `${id}: expected term ${term} must exist in the semantic catalog`,
         );
       }
+    }
+  }
+
+  for (const category of requiredEvaluationCategories) {
+    if (!evaluationCategories.has(category)) {
+      errors.push(
+        `Ecommerce semantic evaluation must cover category ${category}`,
+      );
     }
   }
 }

@@ -11,7 +11,8 @@
     "typecheck": "node ../../scripts/tsc7.mjs -p tsconfig.json --noEmit",
     "test": "vitest run",
     "verify:toolbox-auth:local": "tsx src/verify-toolbox-auth-local.ts",
-    "verify:ecommerce-toolbox:docker": "tsx src/verify-ecommerce-toolbox.ts"
+    "verify:ecommerce-toolbox:local": "tsx src/verify-ecommerce-toolbox.ts",
+    "verify:ecommerce-toolbox:docker": "tsx src/verify-ecommerce-toolbox.ts --docker"
   },
   "dependencies": {
     "@agent-template/shared": "workspace:*",

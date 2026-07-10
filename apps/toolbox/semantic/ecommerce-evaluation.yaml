@@ -3,6 +3,7 @@ catalog: ecommerce-retail-example
 version: 1
 cases:
   - id: regional-gmv
+    category: route
     question: 近30天华东GMV是多少？
     expected:
       intent: sales_by_region
@@ -11,6 +12,7 @@ cases:
       requiresTimeWindow: true
       requiresClarification: false
   - id: vip-net-sales
+    category: route
     question: 本月VIP客户的退款后销售额和客单价怎样？
     expected:
       intent: sales_by_customer_segment
@@ -19,6 +21,7 @@ cases:
       requiresTimeWindow: true
       requiresClarification: false
   - id: livestream-gmv
+    category: route
     question: 上周直播渠道GMV和退款额分别是多少？
     expected:
       intent: sales_by_channel
@@ -27,6 +30,7 @@ cases:
       requiresTimeWindow: true
       requiresClarification: false
   - id: category-merchandise
+    category: route
     question: 近7天美妆个护的商品净销售额排名怎么样？
     expected:
       intent: merchandise_by_category
@@ -35,6 +39,7 @@ cases:
       requiresTimeWindow: true
       requiresClarification: false
   - id: fulfillment-backlog
+    category: route
     question: 截止今天待履约订单有哪些？
     expected:
       intent: fulfillment_backlog
@@ -43,6 +48,7 @@ cases:
       requiresTimeWindow: true
       requiresClarification: false
   - id: order-detail
+    category: route
     question: 查询订单号EC20260601001的订单明细
     expected:
       intent: order_detail
@@ -51,7 +57,63 @@ cases:
       requiresTimeWindow: false
       requiresClarification: false
   - id: ambiguous-revenue
+    category: ambiguity
     question: 本月营收是多少？
     expected:
       ambiguity: 营收
       requiresClarification: true
+  - id: partial-refund-order
+    category: partial-refund
+    question: 查询部分退款订单EC20260511008的付款额和退款额
+    expected:
+      intent: order_detail
+      tool: get-ecommerce-order-detail
+      terms: [refund_amount, order_status]
+      requiresTimeWindow: false
+      requiresClarification: false
+      result:
+        paidTotal: 497
+        refundedTotal: 198.8
+  - id: empty-future-window
+    category: empty-result
+    question: 2027年1月1日当天的GMV趋势
+    expected:
+      intent: sales_trend
+      tool: summarize-ecommerce-sales-by-day
+      terms: [gross_sales]
+      requiresTimeWindow: true
+      requiresClarification: false
+      result:
+        rowCount: 0
+  - id: utc-day-boundary
+    category: utc-boundary
+    question: 2026年6月1日UTC自然日的销售额
+    expected:
+      intent: sales_trend
+      tool: summarize-ecommerce-sales-by-day
+      terms: [gross_sales, payment_day]
+      requiresTimeWindow: true
+      requiresClarification: false
+      result:
+        firstSalesDate: 2026-06-01T00:00:00Z
+  - id: invalid-reversed-window
+    category: invalid-window
+    question: 查询从2026年6月2日到6月1日的GMV
+    expected:
+      intent: sales_trend
+      tool: summarize-ecommerce-sales-by-day
+      terms: [gross_sales]
+      requiresTimeWindow: true
+      requiresClarification: false
+      requiresValidationError: true
+  - id: sales-profile-order-detail
+    category: capability-isolation
+    question: 销售分析Agent查询订单EC20260601001的明细
+    expected:
+      intent: order_detail
+      tool: get-ecommerce-order-detail
+      terms: [order_status]
+      requiresTimeWindow: false
+      requiresClarification: false
+      forbiddenProfile: ecommerce-sales
+      allowedProfile: ecommerce-orders

@@ -21,3 +21,5 @@
 `tools.yaml` 仍是 SQL Tool 的唯一事实源，语义目录是 Host 查询溯源的可执行事实源。`pnpm toolbox:check:semantic` 会用与运行时相同的 Zod schema 校验目录、Tool 和查询契约，并同步生成 Claude 与 Eve Skill 的语义参考。
 
 生产目录不得把 `tenantId`、组织范围、角色或 PII 作为模型可控过滤条件。它们必须由认证后的可信身份在执行前注入，并在数据库侧以 RLS 或等效机制强制执行。
+
+golden evaluation 必须覆盖正常路由、歧义、部分退款、空结果、UTC 边界、非法时间窗和 capability isolation；`pnpm toolbox:verify:local` 会对可执行场景连接本机 PostgreSQL 与临时官方 Toolbox 做真实回归。

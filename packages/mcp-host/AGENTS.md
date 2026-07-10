@@ -17,6 +17,7 @@
 - 浏览器不直接连接 MCP Server；`apps/web` 通过 `apps/api` 使用这里的能力。
 - Tool call、resource read 和 MCP App 需要返回结构化结果，供 API SSE 和 Web Chat 渲染。
 - Agent 交互式 UI 统一用 MCP App：这里负责 `ui://` resource、`text/html;profile=mcp-app` 内容和初始 tool data，不再生成 JSON Render patch stream。
+- Toolbox 集成验证默认运行 `verify:ecommerce-toolbox:local`，由脚本启动临时官方二进制；只有用户明确要求时才运行 `verify:ecommerce-toolbox:docker`。
 
 ## 不应该做
 
@@ -38,4 +39,5 @@ pnpm --filter @agent-template/mcp-host lint
 pnpm --filter @agent-template/mcp-host test
 pnpm --filter @agent-template/mcp-host typecheck
 pnpm --filter @agent-template/mcp-host build
+pnpm --filter @agent-template/mcp-host verify:ecommerce-toolbox:local
 ```

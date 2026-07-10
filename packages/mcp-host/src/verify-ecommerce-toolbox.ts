@@ -3,10 +3,18 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { createMcpHost, loadMcpHostConfig } from "./index.js";
+import { McpToolboxTimeWindowSchema } from "@agent-template/shared";
+import {
+  createMcpHost,
+  loadMcpHostConfig,
+  readAgentCapabilityTools,
+} from "./index.js";
+import { startLocalToolbox } from "./local-toolbox-server.js";
 
 const repositoryRoot = fileURLToPath(new URL("../../..", import.meta.url));
-const toolboxUrl = process.env.TOOLBOX_URL ?? "http://localhost:15000";
+const toolboxConfigPath = fileURLToPath(
+  new URL("../../../apps/toolbox/tools.yaml", import.meta.url),
+);
 const databaseUrl =
   process.env.DATABASE_URL ??
   "postgresql://project_template:project_template@localhost:15432/project_template?schema=public";
@@ -59,7 +67,7 @@ function readRows(result: { content: unknown[] }) {
   });
 }
 
-async function listToolboxTools() {
+async function listToolboxTools(toolboxUrl: string) {
   const client = new Client(
     { name: "agent-template-ecommerce-verifier", version: "1.0.0" },
     { capabilities: {} },
@@ -76,12 +84,12 @@ async function listToolboxTools() {
   }
 }
 
-async function waitForToolbox() {
+async function waitForToolbox(toolboxUrl: string, getLogs = () => "") {
   let lastError: unknown;
 
   for (let attempt = 0; attempt < 30; attempt += 1) {
     try {
-      const names = await listToolboxTools();
+      const names = await listToolboxTools(toolboxUrl);
       if (names.length > 0) return names;
     } catch (error) {
       lastError = error;
@@ -90,11 +98,16 @@ async function waitForToolbox() {
     await new Promise((resolve) => setTimeout(resolve, 1_000));
   }
 
-  throw lastError ?? new Error("Toolbox did not become ready");
+  throw new Error(
+    `Toolbox did not become ready: ${String(lastError)}\n${getLogs()}`,
+  );
 }
 
 async function main() {
-  run("docker", ["compose", "up", "-d", "postgres", "toolbox"]);
+  const dockerMode = process.argv.includes("--docker");
+  if (dockerMode) {
+    run("docker", ["compose", "up", "-d", "postgres", "toolbox"]);
+  }
   run("pnpm", ["--filter", "@agent-template/db", "db:generate"]);
   run("pnpm", [
     "--filter",
@@ -107,132 +120,202 @@ async function main() {
     "prisma/schema.prisma",
   ]);
   run("pnpm", ["--filter", "@agent-template/db", "db:seed"]);
-  run("docker", ["compose", "up", "-d", "--force-recreate", "toolbox"]);
+  if (dockerMode) {
+    run("docker", ["compose", "up", "-d", "--force-recreate", "toolbox"]);
+  }
 
-  assert.deepEqual(await waitForToolbox(), expectedToolNames);
+  const localToolbox = dockerMode
+    ? undefined
+    : await startLocalToolbox({
+        configPath: toolboxConfigPath,
+        env: {
+          TOOLBOX_POSTGRES_DATABASE:
+            process.env.TOOLBOX_POSTGRES_DATABASE ?? "project_template",
+          TOOLBOX_POSTGRES_HOST:
+            process.env.TOOLBOX_POSTGRES_HOST ?? "127.0.0.1",
+          TOOLBOX_POSTGRES_PASSWORD:
+            process.env.TOOLBOX_POSTGRES_PASSWORD ?? "project_template",
+          TOOLBOX_POSTGRES_PORT: process.env.TOOLBOX_POSTGRES_PORT ?? "15432",
+          TOOLBOX_POSTGRES_USER:
+            process.env.TOOLBOX_POSTGRES_USER ?? "project_template",
+        },
+      });
+  const toolboxUrl =
+    localToolbox?.url ?? process.env.TOOLBOX_URL ?? "http://localhost:15000";
 
-  const host = createMcpHost(loadMcpHostConfig({ TOOLBOX_URL: toolboxUrl }));
-  assert.deepEqual(
-    (await host.listTools("toolbox")).map((tool) => tool.name).sort(),
-    expectedToolNames,
-  );
+  try {
+    assert.deepEqual(
+      await waitForToolbox(toolboxUrl, localToolbox?.getLogs),
+      expectedToolNames,
+    );
 
-  const dailySales = readRows(
-    await host.callTool(
-      "toolbox",
-      "summarize-ecommerce-sales-by-day",
-      timeWindow,
-    ),
-  );
-  assert.equal(dailySales.length, 30);
-  assert.equal(dailySales[0]?.salesDate, "2026-06-01T00:00:00Z");
-  assert.equal(dailySales[0]?.netSales, 3557.7);
+    const hostConfig = loadMcpHostConfig({
+      AGENT_CAPABILITY_PROFILE: "ecommerce-sales",
+      DATABASE_URL: databaseUrl,
+      TOOLBOX_URL: toolboxUrl,
+    });
+    const host = createMcpHost(hostConfig);
+    assert.deepEqual(
+      (await host.listTools("toolbox")).map((tool) => tool.name).sort(),
+      expectedToolNames,
+    );
 
-  const channelSales = readRows(
-    await host.callTool(
-      "toolbox",
-      "summarize-ecommerce-sales-by-channel",
-      timeWindow,
-    ),
-  );
-  assert.deepEqual(
-    channelSales.map((row) => row.channel),
-    ["MARKETPLACE", "MINI_PROGRAM", "LIVE_STREAM", "WEB"],
-  );
-  assert.equal(channelSales[0]?.paidOrderCount, 60);
-  assert.equal(channelSales[0]?.netSales, 30262.8);
+    const dailySales = readRows(
+      await host.callTool(
+        "toolbox",
+        "summarize-ecommerce-sales-by-day",
+        timeWindow,
+      ),
+    );
+    assert.equal(dailySales.length, 30);
+    assert.equal(dailySales[0]?.salesDate, "2026-06-01T00:00:00Z");
+    assert.equal(dailySales[0]?.netSales, 3557.7);
 
-  const regionSales = readRows(
-    await host.callTool("toolbox", "summarize_sales_by_region", timeWindow),
-  );
-  assert.equal(regionSales.length, 6);
-  assert.ok(regionSales.every((row) => typeof row.region === "string"));
-  assert.ok(regionSales.every((row) => typeof row.netSales === "number"));
+    const utcBoundary = readRows(
+      await host.callTool("toolbox", "summarize-ecommerce-sales-by-day", {
+        from: "2026-06-01T00:00:00Z",
+        to: "2026-06-02T00:00:00Z",
+      }),
+    );
+    assert.equal(utcBoundary.length, 1);
+    assert.equal(utcBoundary[0]?.salesDate, "2026-06-01T00:00:00Z");
 
-  const segmentSales = readRows(
-    await host.callTool(
-      "toolbox",
-      "summarize_sales_by_customer_segment",
-      timeWindow,
-    ),
-  );
-  assert.deepEqual(segmentSales.map((row) => row.customerSegment).sort(), [
-    "ACTIVE",
-    "AT_RISK",
-    "NEW",
-    "VIP",
-  ]);
-  assert.ok(
-    segmentSales.every((row) => typeof row.averageOrderValue === "number"),
-  );
+    const emptySales = readRows(
+      await host.callTool("toolbox", "summarize-ecommerce-sales-by-day", {
+        from: "2027-01-01T00:00:00Z",
+        to: "2027-01-02T00:00:00Z",
+      }),
+    );
+    assert.deepEqual(emptySales, []);
 
-  const topProducts = readRows(
-    await host.callTool("toolbox", "list-ecommerce-top-products", {
-      ...timeWindow,
-      limit: 5,
-    }),
-  );
-  assert.equal(topProducts.length, 5);
-  assert.equal(topProducts[0]?.sku, "BEAUTY-004");
-  assert.equal(topProducts[0]?.netMerchandiseSales, 11607);
+    const channelSales = readRows(
+      await host.callTool(
+        "toolbox",
+        "summarize-ecommerce-sales-by-channel",
+        timeWindow,
+      ),
+    );
+    assert.deepEqual(
+      channelSales.map((row) => row.channel),
+      ["MARKETPLACE", "MINI_PROGRAM", "LIVE_STREAM", "WEB"],
+    );
+    assert.equal(channelSales[0]?.paidOrderCount, 60);
+    assert.equal(channelSales[0]?.netSales, 30262.8);
 
-  const categorySales = readRows(
-    await host.callTool(
-      "toolbox",
-      "summarize_merchandise_by_category",
-      timeWindow,
-    ),
-  );
-  assert.equal(categorySales.length, 6);
-  assert.ok(categorySales.every((row) => typeof row.category === "string"));
-  assert.ok(
-    categorySales.every(
-      (row) =>
-        typeof row.grossMerchandiseSales === "number" &&
-        typeof row.netMerchandiseSales === "number",
-    ),
-  );
+    const regionSales = readRows(
+      await host.callTool("toolbox", "summarize_sales_by_region", timeWindow),
+    );
+    assert.equal(regionSales.length, 6);
+    assert.ok(regionSales.every((row) => typeof row.region === "string"));
+    assert.ok(regionSales.every((row) => typeof row.netSales === "number"));
 
-  const orders = readRows(
-    await host.callTool("toolbox", "list-ecommerce-orders-in-window", {
-      ...timeWindow,
-      limit: 3,
-    }),
-  );
-  assert.equal(orders.length, 3);
-  assert.equal(orders[0]?.orderNumber, "EC20260630010");
+    const segmentSales = readRows(
+      await host.callTool(
+        "toolbox",
+        "summarize_sales_by_customer_segment",
+        timeWindow,
+      ),
+    );
+    assert.deepEqual(segmentSales.map((row) => row.customerSegment).sort(), [
+      "ACTIVE",
+      "AT_RISK",
+      "NEW",
+      "VIP",
+    ]);
+    assert.ok(
+      segmentSales.every((row) => typeof row.averageOrderValue === "number"),
+    );
 
-  const orderDetail = readRows(
-    await host.callTool("toolbox", "get-ecommerce-order-detail", {
-      orderNumber: "EC20260601001",
-    }),
-  );
-  assert.equal(orderDetail[0]?.orderNumber, "EC20260601001");
-  assert.deepEqual(orderDetail[0]?.items, [
-    {
-      category: "居家生活",
-      discountTotal: 14.9,
-      lineTotal: 134.1,
-      productName: "香薰扩香礼盒",
-      quantity: 1,
-      sku: "HOME-003",
-      unitPrice: 149,
-    },
-  ]);
+    const topProducts = readRows(
+      await host.callTool("toolbox", "list-ecommerce-top-products", {
+        ...timeWindow,
+        limit: 5,
+      }),
+    );
+    assert.equal(topProducts.length, 5);
+    assert.equal(topProducts[0]?.sku, "BEAUTY-004");
+    assert.equal(topProducts[0]?.netMerchandiseSales, 11607);
 
-  const fulfillmentExceptions = readRows(
-    await host.callTool("toolbox", "list-ecommerce-fulfillment-exceptions", {
-      ...timeWindow,
-      limit: 3,
-    }),
-  );
-  assert.equal(fulfillmentExceptions.length, 3);
-  assert.equal(fulfillmentExceptions[0]?.orderNumber, "EC20260601004");
-  assert.equal(fulfillmentExceptions[0]?.hoursWaiting, 715.62);
+    const categorySales = readRows(
+      await host.callTool(
+        "toolbox",
+        "summarize_merchandise_by_category",
+        timeWindow,
+      ),
+    );
+    assert.equal(categorySales.length, 6);
+    assert.ok(categorySales.every((row) => typeof row.category === "string"));
+    assert.ok(
+      categorySales.every(
+        (row) =>
+          typeof row.grossMerchandiseSales === "number" &&
+          typeof row.netMerchandiseSales === "number",
+      ),
+    );
 
-  console.log(
-    "Ecommerce MCP verification passed: 18 tools listed and 9 business tools called through MCP Host.",
-  );
+    const orders = readRows(
+      await host.callTool("toolbox", "list-ecommerce-orders-in-window", {
+        ...timeWindow,
+        limit: 3,
+      }),
+    );
+    assert.equal(orders.length, 3);
+    assert.equal(orders[0]?.orderNumber, "EC20260630010");
+
+    const orderDetail = readRows(
+      await host.callTool("toolbox", "get-ecommerce-order-detail", {
+        orderNumber: "EC20260601001",
+      }),
+    );
+    assert.equal(orderDetail[0]?.orderNumber, "EC20260601001");
+    assert.deepEqual(orderDetail[0]?.items, [
+      {
+        category: "居家生活",
+        discountTotal: 14.9,
+        lineTotal: 134.1,
+        productName: "香薰扩香礼盒",
+        quantity: 1,
+        sku: "HOME-003",
+        unitPrice: 149,
+      },
+    ]);
+
+    const partialRefund = readRows(
+      await host.callTool("toolbox", "get-ecommerce-order-detail", {
+        orderNumber: "EC20260511008",
+      }),
+    );
+    assert.equal(partialRefund[0]?.paidTotal, 497);
+    assert.equal(partialRefund[0]?.refundedTotal, 198.8);
+
+    const fulfillmentExceptions = readRows(
+      await host.callTool("toolbox", "list-ecommerce-fulfillment-exceptions", {
+        ...timeWindow,
+        limit: 3,
+      }),
+    );
+    assert.equal(fulfillmentExceptions.length, 3);
+    assert.equal(fulfillmentExceptions[0]?.orderNumber, "EC20260601004");
+    assert.equal(fulfillmentExceptions[0]?.hoursWaiting, 715.62);
+
+    assert.throws(() =>
+      McpToolboxTimeWindowSchema.parse({
+        from: "2026-06-02T00:00:00Z",
+        to: "2026-06-01T00:00:00Z",
+      }),
+    );
+    assert.ok(
+      !readAgentCapabilityTools(hostConfig).includes(
+        "get-ecommerce-order-detail",
+      ),
+    );
+
+    console.log(
+      `Ecommerce MCP ${dockerMode ? "Docker" : "local"} verification passed: 18 tools listed, 9 business tools called, and partial-refund, empty-result, UTC-boundary, invalid-window, and capability-isolation cases verified.`,
+    );
+  } finally {
+    await localToolbox?.stop();
+  }
 }
 
 await main();
