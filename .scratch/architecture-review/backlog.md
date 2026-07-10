@@ -25,6 +25,13 @@
 | deferred  | 收拢 Queue runtime knowledge               | Worth exploring | 当前只有两个装配点；继续抽象会形成 shallow module                                     |
 | deferred  | 集中 Health display locality               | Speculative     | 等第二个页面或测试重复使用 health panel 映射                                          |
 | completed | 收拢 Toolbox Tool 分类与准入 matrix        | Strong          | 平台运维、认证业务问数和未来 compiler 的 interface 已集中到智能问数标准               |
+| completed | 收紧 MCP Host 授权边界                     | Strong          | Host fail-closed，OIDC token 只从可信 context/config 注入                             |
+| completed | 建立 Agent capability profile seam         | Strong          | 部署级 profile 同源投影到 Claude allowedTools 与 Eve dynamic tools                    |
+| completed | 深化业务语义结果契约                       | Strong          | 语义目录由运行时 schema 校验，Host 返回 Certified query result                        |
+| completed | 建立原生 MCP 本地验收 seam                 | Strong          | 默认本机 migration/seed + 临时官方 Toolbox；Docker 只保留显式入口                     |
+| completed | 补齐列表分页与空结果 interface             | Worth exploring | 稳定 LIMIT/OFFSET + totalCount，Host 返回精确 page 与可操作空结果                     |
+| completed | 集中 Toolbox 可观测性启动策略              | Worth exploring | 临时启动器统一 JSON、SQLCommenter、OTLP env 与 service name                           |
+| completed | 统一本地验证文档边界                       | Strong          | 根规则与 Toolbox 文档不再把 Docker 描述为默认路径                                     |
 
 ## 执行规则
 
@@ -39,7 +46,7 @@
 - 日期：2026-07-11
 - locality：`INTELLIGENT_QUERY.md`、Toolbox 协作规则和 ADR 共同声明 Tool 分类、执行层选择与准入 interface，不再要求调用方跨文档做口头判断。
 - leverage：后续认证业务问数 Tool 只需穿过一份 matrix 完成语义目录、Skill、golden cases 与可信身份要求；平台运维 Tool 不再错误承担业务语义义务。
-- seam：Toolset 被明确为生成与上下文分组；真实授权仍在 Host `allowedTools` 与数据库权限 seam。per-Agent capability profile 暂缓，直到身份模型和部署策略可决。
+- seam：Toolset 被明确为生成与上下文分组；真实授权仍在 Host `allowedTools` 与数据库权限 seam。部署级 Agent capability profile 已实现为模型可见性收窄，不冒充授权。
 - 聚焦验证：`pnpm toolbox:check`、`git diff --check`
 
 ### 收拢 Agent job intake module
@@ -154,6 +161,18 @@
 - locality：Agent job accepted metadata schema 集中到 `packages/shared`，Web/API 不再分别定义返回 shape。
 - leverage：Web trust boundary 使用 shared schema parse 后端 JSON，API intake 使用同一 schema 生成 acceptance metadata。
 - 聚焦验证：`vitest` 覆盖 shared schema、Web client、API intake；`tsc`、`eslint`、shared build、API build 和 Web build 通过。
+
+## 本轮复审
+
+### 2026-07-11 MCP Toolbox 最终复审
+
+- security seam：Host 缺少 allowlist 时拒绝启动；生产 OIDC、Tool scope 与可信 Bearer token 已有本地真实验收。
+- capability seam：七个部署级 profile 均受 Host allowlist 上限约束；Claude 和 Eve 不再硬编码全量可见工具。
+- semantic depth：九个认证业务查询有可执行 query contract；结果携带目录版本、指标/维度、参数、字段、限制和诚实的数据新鲜度状态。
+- verification locality：默认门禁只使用本机 PostgreSQL、Node 与临时官方 Toolbox；Docker 代码仅能通过显式 `:docker` 命令进入。
+- pagination correctness：原生 Tool 严格返回 `limit` 行，通过窗口 `totalCount` 支持 Host 精确计算分页，不依赖额外探测行。
+- observability：JSON 日志、SQLCommenter 和可选 OTLP 由一个本地进程 seam 配置；认证和业务验收共用。
+- 复审结论：本轮 Strong / Worth exploring 候选已清零；原有 Queue runtime 与 Health display 暂缓条件不受本次范围影响。
 
 ## 暂缓
 
