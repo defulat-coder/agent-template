@@ -218,6 +218,9 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
+      '@toolbox-sdk/server':
+        specifier: ^1.6.0
+        version: 1.6.0
       vitest:
         specifier: ^4.1.9
         version: 4.1.9(@types/node@26.0.1)(vite@8.1.0(@types/node@26.0.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4))
@@ -1601,6 +1604,35 @@ packages:
 
   '@tailwindcss/postcss@4.3.1':
     resolution: {integrity: sha512-dNJuNbdEJT/SWRuXTYP1WSamelsz3ztkUsdtWQPjrexysrTpaEPM40P/71knXiXLYEojqPOEGitVLLpPMS5T6A==}
+
+  '@toolbox-sdk/server-darwin-arm64@1.6.0':
+    resolution: {integrity: sha512-eax+jh/QW6P5Ip7VKk07ACIVU2hziSVm+OlAfceHJ1WhL3AV+fkeLZkhCtOCuLgO2WoiSsqkx8qBpazahIAlBw==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@toolbox-sdk/server-darwin-x64@1.6.0':
+    resolution: {integrity: sha512-as5VSuxIY+67qHrdV2WD7Vr43/NhbLp7ERGaq8brkTy3RqixezS+od4+LJAl1timrpzDZg33zeKuo4Izo3E3Iw==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@toolbox-sdk/server-linux-x64@1.6.0':
+    resolution: {integrity: sha512-UFsYdItcWJVo12V6bkWT9ynVjFvz9DhFu+8CfOPQ41ypNGYaqvSySdPtcrjAaX9FgkufngfsgVHpMse9kqSTFw==}
+    cpu: [x64]
+    os: [linux]
+
+  '@toolbox-sdk/server-win32-arm64@1.6.0':
+    resolution: {integrity: sha512-O5igb3GeDDhlGcxmsFeMeM8YHQrmxGATE7yb64/azl0hoH7SYS5ilUrCJYb8VWbgc8rLhlOOn9yrgIDAeqxHWA==}
+    cpu: [arm64]
+    os: [win32]
+
+  '@toolbox-sdk/server-win32-x64@1.6.0':
+    resolution: {integrity: sha512-M3oVWp9drv7ns9N9Xk6IjKhzx3pDw85EQ85U8BmyLd9rEBa5zAA6xs2bY82nyjZ49kAtGeLpEwucBuH7G7xgbg==}
+    cpu: [x64]
+    os: [win32]
+
+  '@toolbox-sdk/server@1.6.0':
+    resolution: {integrity: sha512-mzh+VrOLNwz3yEP61lm0n+FG4htX/tDStXxioAEUn/GIsP0BYTJU3q+/APPRXQYAesGvF5e1OJeUwyKt3WYABg==}
+    hasBin: true
 
   '@turbo/darwin-64@2.10.0':
     resolution: {integrity: sha512-EwvHThXzpY0KGd1/NAmuewI5D+aVa3Rl/OlxE36yfjUKb/+ySrfJrSlEFt8aD1OXwnnaHnQnPKHFndor0Zxlsg==}
@@ -4705,6 +4737,29 @@ snapshots:
       '@tailwindcss/oxide': 4.3.1
       postcss: 8.5.15
       tailwindcss: 4.3.1
+
+  '@toolbox-sdk/server-darwin-arm64@1.6.0':
+    optional: true
+
+  '@toolbox-sdk/server-darwin-x64@1.6.0':
+    optional: true
+
+  '@toolbox-sdk/server-linux-x64@1.6.0':
+    optional: true
+
+  '@toolbox-sdk/server-win32-arm64@1.6.0':
+    optional: true
+
+  '@toolbox-sdk/server-win32-x64@1.6.0':
+    optional: true
+
+  '@toolbox-sdk/server@1.6.0':
+    optionalDependencies:
+      '@toolbox-sdk/server-darwin-arm64': 1.6.0
+      '@toolbox-sdk/server-darwin-x64': 1.6.0
+      '@toolbox-sdk/server-linux-x64': 1.6.0
+      '@toolbox-sdk/server-win32-arm64': 1.6.0
+      '@toolbox-sdk/server-win32-x64': 1.6.0
 
   '@turbo/darwin-64@2.10.0':
     optional: true

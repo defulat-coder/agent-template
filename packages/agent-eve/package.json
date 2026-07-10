@@ -12,7 +12,8 @@
     "eve:info": "eve info --json",
     "eve:start": "eve start --host 0.0.0.0 --port 13010",
     "lint": "eslint src",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "skills:generate:toolbox": "tsx src/generate-toolbox-business-skills.ts",
+    "typecheck": "node ../../scripts/tsc7.mjs -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
@@ -24,6 +25,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@toolbox-sdk/server": "^1.6.0",
     "vitest": "^4.1.9"
   }
 }

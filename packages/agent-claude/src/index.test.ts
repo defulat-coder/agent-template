@@ -87,6 +87,8 @@ describe("Claude Agent runtime", () => {
           maxTurns: defaultClaudeAgentMaxTurns,
           permissionMode: "dontAsk",
           persistSession: false,
+          settingSources: ["project"],
+          skills: "all",
           tools: [],
         },
       },
@@ -306,6 +308,8 @@ describe("Claude Agent runtime", () => {
           ],
           cwd: expect.any(String),
           includePartialMessages: true,
+          settingSources: ["project"],
+          skills: "all",
           mcpServers: {
             agent_template_mcp_host: {
               name: "agent_template_mcp_host",
@@ -447,6 +451,8 @@ describe("Claude Agent runtime", () => {
               "mcp__agent_template_mcp_host__summarize-ecommerce-sales-by-day",
               "mcp__agent_template_mcp_host__summarize-tool-invocations",
             ],
+            settingSources: ["project"],
+            skills: "all",
             mcpServers: {
               agent_template_mcp_host: {
                 name: "agent_template_mcp_host",

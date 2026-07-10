@@ -144,6 +144,8 @@ export async function runClaudeAgent(
       mcpServers: createHostManagedClaudeMcpServers(sdk, config),
       permissionMode: "dontAsk",
       persistSession: false,
+      settingSources: ["project"],
+      skills: "all",
       tools: [],
       includePartialMessages: true,
       ...(!config.baseUrl ? { model: config.model } : {}),

@@ -520,3 +520,26 @@ tools:
   - list-ecommerce-orders-in-window
   - get-ecommerce-order-detail
   - list-ecommerce-fulfillment-exceptions
+---
+kind: toolset
+name: ecommerce_sales_analytics
+tools:
+  - summarize-ecommerce-sales-by-day
+  - summarize-ecommerce-sales-by-channel
+---
+kind: toolset
+name: ecommerce_product_analytics
+tools:
+  - list-ecommerce-top-products
+---
+kind: toolset
+name: ecommerce_order_operations
+tools:
+  - list-ecommerce-orders-in-window
+  - get-ecommerce-order-detail
+---
+kind: toolset
+name: ecommerce_fulfillment_operations
+tools:
+  - list-ecommerce-fulfillment-exceptions
+  - get-ecommerce-order-detail

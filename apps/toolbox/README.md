@@ -23,7 +23,26 @@
 | `get-ecommerce-order-detail`            | 单订单与订单项核查       | 精确订单号                               |
 | `list-ecommerce-fulfillment-exceptions` | 已付款未履约订单         | 时间窗 + 最大 100 行                     |
 
-## 电商 MCP Docker 集成验证
+## 电商业务 Agent Skills
+
+Toolbox 官方的 `skills-generate` 会把自定义 Toolset 转换为 Agent Skill。项目在此基础上生成四个按业务任务拆分的 Skill，并同时接入 Eve 和 Claude Agent：
+
+| Skill                              | Toolbox Toolset                    | 业务用途                 |
+| ---------------------------------- | ---------------------------------- | ------------------------ |
+| `ecommerce-sales-analysis`         | `ecommerce_sales_analytics`        | 销售趋势、退款、渠道分析 |
+| `ecommerce-product-analysis`       | `ecommerce_product_analytics`      | 商品排行与选品分析       |
+| `ecommerce-order-operations`       | `ecommerce_order_operations`       | 订单查询与单据排障       |
+| `ecommerce-fulfillment-operations` | `ecommerce_fulfillment_operations` | 履约积压与异常订单       |
+
+本地重新生成：
+
+```bash
+pnpm --filter @agent-template/agent-eve skills:generate:toolbox
+```
+
+生成器使用锁定的 `@toolbox-sdk/server` 读取 [tools.yaml](./tools.yaml)，再把适配后的 `SKILL.md` 写入 `packages/agent-eve/agent/skills/` 和根目录 `.claude/skills/`。Eve 使用下划线形式的 authored tool 名，Claude 使用 Toolbox 原始连字符工具名。Skill 只负责按需加载业务流程，实际执行仍走 MCP Host allowlist；官方生成的数据库直连脚本不会进入 Agent 运行目录。
+
+## 电商 MCP Docker 集成验证（仅显式要求时）
 
 ```bash
 pnpm --filter @agent-template/mcp-host verify:ecommerce-toolbox:docker
@@ -97,12 +116,14 @@ docker compose exec toolbox /toolbox --config /app/tools.yaml invoke list-agent-
 
 实际多租户项目不得直接复用当前模板的跨组织查询。应先将稳定的 `tenantId` / `organizationId` 提升为一等列，使用受限数据库角色和 RLS，再为每个 Tool 强制注入可信身份范围；不要把租户范围交给模型提供的 `templateParameters`。
 
-修改工具后，依次运行：
+修改工具或 Skill 后，默认先执行纯本地验证：
 
 ```bash
-docker compose config
-docker compose up -d --force-recreate toolbox
+pnpm --filter @agent-template/agent-eve skills:generate:toolbox
 pnpm --filter @agent-template/shared test
 pnpm --filter @agent-template/agent-claude test
 pnpm --filter @agent-template/agent-eve test
+pnpm --filter @agent-template/agent-eve eve:info
 ```
+
+只有明确要求容器集成验证时，才运行前述 Docker 门禁。
