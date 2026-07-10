@@ -19,8 +19,8 @@ const seedEvents: SeedEvent[] = [
       organization: { id: "org_acme_ops", name: "Acme 运营中心" },
       user: { id: "user_lina", name: "林娜", role: "运营负责人" },
       prompt: "汇总过去 24 小时失败的 Agent run，并给出处理建议。",
-      priority: "high"
-    }
+      priority: "high",
+    },
   },
   {
     id: "evt-run-support-001-runtime",
@@ -30,8 +30,8 @@ const seedEvents: SeedEvent[] = [
       runId: "run_support_001",
       runtime: "claude",
       model: "kimi-for-coding",
-      reason: "需要通过 Toolbox 读取最近 Agent run 记录。"
-    }
+      reason: "需要通过 Toolbox 读取最近 Agent run 记录。",
+    },
   },
   {
     id: "evt-run-support-001-toolset",
@@ -41,8 +41,18 @@ const seedEvents: SeedEvent[] = [
       runId: "run_support_001",
       toolProvider: "toolbox",
       toolset: "agent_template_read_model",
-      tools: ["list-agent-runs", "list-agent-run-timeline", "list-template-events", "get-template-event"]
-    }
+      tools: [
+        "list-template-events",
+        "get-template-event",
+        "list-template-events-in-window",
+        "summarize-template-events-by-type",
+        "list-agent-runs",
+        "get-agent-run-summary",
+        "list-agent-run-timeline",
+        "list-failed-agent-runs-in-window",
+        "summarize-tool-invocations",
+      ],
+    },
   },
   {
     id: "evt-run-support-001-tool",
@@ -52,8 +62,8 @@ const seedEvents: SeedEvent[] = [
       runId: "run_support_001",
       toolName: "list-agent-runs",
       rowsReturned: 3,
-      latencyMs: 42
-    }
+      latencyMs: 42,
+    },
   },
   {
     id: "evt-run-support-001-completed",
@@ -62,9 +72,10 @@ const seedEvents: SeedEvent[] = [
     payload: {
       runId: "run_support_001",
       status: "completed",
-      outputSummary: "发现 1 个 Eve runtime 配置缺失导致的失败 run，建议补齐 EVE_AGENT_HOST 后重试。",
-      latencyMs: 18000
-    }
+      outputSummary:
+        "发现 1 个 Eve runtime 配置缺失导致的失败 run，建议补齐 EVE_AGENT_HOST 后重试。",
+      latencyMs: 18000,
+    },
   },
   {
     id: "evt-job-invoice-001-accepted",
@@ -74,10 +85,13 @@ const seedEvents: SeedEvent[] = [
       jobId: "job_invoice_001",
       runId: "run_invoice_001",
       queue: "agent-jobs",
-      organization: { id: "org_northwind_finance", name: "Northwind 财务共享中心" },
+      organization: {
+        id: "org_northwind_finance",
+        name: "Northwind 财务共享中心",
+      },
       prompt: "检查本月对账异常，并生成需要人工复核的清单。",
-      requestedBy: "user_chen"
-    }
+      requestedBy: "user_chen",
+    },
   },
   {
     id: "evt-run-invoice-001-started",
@@ -87,8 +101,8 @@ const seedEvents: SeedEvent[] = [
       runId: "run_invoice_001",
       runtime: "eve",
       model: "kimi-for-coding",
-      source: "queued-job"
-    }
+      source: "queued-job",
+    },
   },
   {
     id: "evt-run-invoice-001-failed",
@@ -98,8 +112,19 @@ const seedEvents: SeedEvent[] = [
       runId: "run_invoice_001",
       status: "failed",
       reason: "EVE_AGENT_HOST is not configured",
-      retryable: true
-    }
+      retryable: true,
+    },
+  },
+  {
+    id: "evt-run-invoice-001-recovered",
+    type: "agent.run.completed",
+    createdAt: new Date("2026-07-04T10:16:02.000Z"),
+    payload: {
+      runId: "run_invoice_001",
+      status: "completed",
+      outputSummary: "重试成功，已生成需要人工复核的对账异常清单。",
+      retryCount: 1,
+    },
   },
   {
     id: "evt-run-knowledge-001-requested",
@@ -111,8 +136,8 @@ const seedEvents: SeedEvent[] = [
       organization: { id: "org_zenith_cs", name: "Zenith 客服中心" },
       user: { id: "user_wang", name: "王敏", role: "客服主管" },
       prompt: "根据最近的客户问题，整理一份知识库更新建议。",
-      priority: "normal"
-    }
+      priority: "normal",
+    },
   },
   {
     id: "evt-run-knowledge-001-tool",
@@ -122,8 +147,8 @@ const seedEvents: SeedEvent[] = [
       runId: "run_knowledge_001",
       toolName: "list-agent-run-timeline",
       rowsReturned: 5,
-      latencyMs: 38
-    }
+      latencyMs: 38,
+    },
   },
   {
     id: "evt-run-knowledge-001-artifact",
@@ -133,8 +158,8 @@ const seedEvents: SeedEvent[] = [
       runId: "run_knowledge_001",
       artifactId: "artifact_kb_update_001",
       kind: "markdown_report",
-      title: "知识库更新建议"
-    }
+      title: "知识库更新建议",
+    },
   },
   {
     id: "evt-run-knowledge-001-completed",
@@ -144,9 +169,9 @@ const seedEvents: SeedEvent[] = [
       runId: "run_knowledge_001",
       status: "completed",
       outputSummary: "生成 4 条知识库更新建议，并标记 2 条需要人工复核。",
-      latencyMs: 22000
-    }
-  }
+      latencyMs: 22000,
+    },
+  },
 ];
 
 for (const event of seedEvents) {
@@ -156,8 +181,8 @@ for (const event of seedEvents) {
     update: {
       type: event.type,
       payload: event.payload,
-      createdAt: event.createdAt
-    }
+      createdAt: event.createdAt,
+    },
   });
 }
 

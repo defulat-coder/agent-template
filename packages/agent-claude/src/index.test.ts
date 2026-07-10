@@ -33,7 +33,12 @@ describe("Claude Agent runtime", () => {
         {
           loadSdk: async () => ({
             createSdkMcpServer(options) {
-              return { ...options, instance: {} as never, name: String(options.name), type: "sdk" };
+              return {
+                ...options,
+                instance: {} as never,
+                name: String(options.name),
+                type: "sdk",
+              };
             },
             query(params) {
               calls.push(params);
@@ -110,7 +115,12 @@ describe("Claude Agent runtime", () => {
         {
           loadSdk: async () => ({
             createSdkMcpServer(options) {
-              return { ...options, instance: {} as never, name: String(options.name), type: "sdk" };
+              return {
+                ...options,
+                instance: {} as never,
+                name: String(options.name),
+                type: "sdk",
+              };
             },
             query() {
               return (async function* () {
@@ -206,7 +216,12 @@ describe("Claude Agent runtime", () => {
         {
           loadSdk: async () => ({
             createSdkMcpServer(options) {
-              return { ...options, instance: {} as never, name: String(options.name), type: "sdk" };
+              return {
+                ...options,
+                instance: {} as never,
+                name: String(options.name),
+                type: "sdk",
+              };
             },
             query(params) {
               calls.push(params);
@@ -273,10 +288,15 @@ describe("Claude Agent runtime", () => {
       {
         options: {
           allowedTools: [
+            "mcp__agent_template_mcp_host__get-agent-run-summary",
             "mcp__agent_template_mcp_host__get-template-event",
-            "mcp__agent_template_mcp_host__list-agent-runs",
             "mcp__agent_template_mcp_host__list-agent-run-timeline",
+            "mcp__agent_template_mcp_host__list-agent-runs",
+            "mcp__agent_template_mcp_host__list-failed-agent-runs-in-window",
             "mcp__agent_template_mcp_host__list-template-events",
+            "mcp__agent_template_mcp_host__list-template-events-in-window",
+            "mcp__agent_template_mcp_host__summarize-template-events-by-type",
+            "mcp__agent_template_mcp_host__summarize-tool-invocations",
           ],
           cwd: expect.any(String),
           includePartialMessages: true,
@@ -286,8 +306,19 @@ describe("Claude Agent runtime", () => {
               type: "sdk",
               tools: [
                 expect.objectContaining({ name: "list-agent-runs" }),
+                expect.objectContaining({ name: "get-agent-run-summary" }),
                 expect.objectContaining({ name: "list-agent-run-timeline" }),
                 expect.objectContaining({ name: "list-template-events" }),
+                expect.objectContaining({
+                  name: "list-template-events-in-window",
+                }),
+                expect.objectContaining({
+                  name: "summarize-template-events-by-type",
+                }),
+                expect.objectContaining({
+                  name: "list-failed-agent-runs-in-window",
+                }),
+                expect.objectContaining({ name: "summarize-tool-invocations" }),
                 expect.objectContaining({ name: "get-template-event" }),
               ],
               version: "0.1.0",
@@ -333,7 +364,12 @@ describe("Claude Agent runtime", () => {
           {
             loadSdk: async () => ({
               createSdkMcpServer(options) {
-                return { ...options, instance: {} as never, name: String(options.name), type: "sdk" };
+                return {
+                  ...options,
+                  instance: {} as never,
+                  name: String(options.name),
+                  type: "sdk",
+                };
               },
               query(params) {
                 calls.push(params);
@@ -371,10 +407,15 @@ describe("Claude Agent runtime", () => {
         {
           options: {
             allowedTools: [
+              "mcp__agent_template_mcp_host__get-agent-run-summary",
               "mcp__agent_template_mcp_host__get-template-event",
-              "mcp__agent_template_mcp_host__list-agent-runs",
               "mcp__agent_template_mcp_host__list-agent-run-timeline",
+              "mcp__agent_template_mcp_host__list-agent-runs",
+              "mcp__agent_template_mcp_host__list-failed-agent-runs-in-window",
               "mcp__agent_template_mcp_host__list-template-events",
+              "mcp__agent_template_mcp_host__list-template-events-in-window",
+              "mcp__agent_template_mcp_host__summarize-template-events-by-type",
+              "mcp__agent_template_mcp_host__summarize-tool-invocations",
             ],
             mcpServers: {
               agent_template_mcp_host: {

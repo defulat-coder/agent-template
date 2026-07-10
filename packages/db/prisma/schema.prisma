@@ -12,4 +12,7 @@ model TemplateEvent {
   type      String
   payload   Json
   createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([type, createdAt])
 }

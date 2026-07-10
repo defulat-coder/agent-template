@@ -2,9 +2,24 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { z } from "zod";
-import type { McpServerConfig, SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import { createMcpHost, loadMcpHostConfig, type McpHostConfig, type McpHostToolCallResult } from "@agent-template/mcp-host";
-import type { AgentRunEvent } from "@agent-template/shared";
+import type {
+  McpServerConfig,
+  SDKMessage,
+} from "@anthropic-ai/claude-agent-sdk";
+import {
+  createMcpHost,
+  loadMcpHostConfig,
+  type McpHostConfig,
+  type McpHostToolCallResult,
+} from "@agent-template/mcp-host";
+import {
+  McpToolboxLimitSchema,
+  McpToolboxRunSummaryInputSchema,
+  McpToolboxRunTimelineInputSchema,
+  McpToolboxTimeWindowSchema,
+  McpToolboxTimeWindowWithLimitSchema,
+  type AgentRunEvent,
+} from "@agent-template/shared";
 
 export const defaultClaudeAgentModel = "kimi-for-coding";
 export const defaultAnthropicBaseUrl = "https://api.kimi.com/coding/";
@@ -154,7 +169,10 @@ export async function runClaudeAgent(
       }
     }
 
-    if (message.type === "result" && partialText.length > lastPartialTextEventLength) {
+    if (
+      message.type === "result" &&
+      partialText.length > lastPartialTextEventLength
+    ) {
       progressEvents.push({ kind: "text", text: partialText });
       partialText = "";
       lastPartialTextEventLength = 0;
@@ -217,11 +235,18 @@ export async function runClaudeAgent(
 }
 
 function shouldEmitPartialTextEvent(text: string, lastEventLength: number) {
-  return lastEventLength === 0 || text.length - lastEventLength >= partialTextEventMinDelta;
+  return (
+    lastEventLength === 0 ||
+    text.length - lastEventLength >= partialTextEventMinDelta
+  );
 }
 
 function formatClaudeAgentProgressEvent(message: SDKMessage): AgentRunEvent[] {
-  if (message.type === "result" || message.type === "system" || message.type === "stream_event") {
+  if (
+    message.type === "result" ||
+    message.type === "system" ||
+    message.type === "stream_event"
+  ) {
     return [];
   }
 
@@ -245,7 +270,10 @@ function readClaudePartialTextDelta(message: SDKMessage): string | undefined {
 
   const { event } = message;
 
-  if (event.type !== "content_block_delta" || event.delta.type !== "text_delta") {
+  if (
+    event.type !== "content_block_delta" ||
+    event.delta.type !== "text_delta"
+  ) {
     return undefined;
   }
 
@@ -253,7 +281,11 @@ function readClaudePartialTextDelta(message: SDKMessage): string | undefined {
 }
 
 function isClaudePartialTextStart(message: SDKMessage) {
-  return message.type === "stream_event" && message.event.type === "content_block_start" && message.event.content_block.type === "text";
+  return (
+    message.type === "stream_event" &&
+    message.event.type === "content_block_start" &&
+    message.event.content_block.type === "text"
+  );
 }
 
 function formatClaudeAssistantMessage(
@@ -349,15 +381,23 @@ function readClaudeProjectDir() {
 function readHostManagedClaudeTools(config: ClaudeAgentConfig) {
   return readClaudeMcpHostConfig(config).toolboxUrl
     ? [
+        "mcp__agent_template_mcp_host__get-agent-run-summary",
         "mcp__agent_template_mcp_host__get-template-event",
-        "mcp__agent_template_mcp_host__list-agent-runs",
         "mcp__agent_template_mcp_host__list-agent-run-timeline",
+        "mcp__agent_template_mcp_host__list-agent-runs",
+        "mcp__agent_template_mcp_host__list-failed-agent-runs-in-window",
         "mcp__agent_template_mcp_host__list-template-events",
+        "mcp__agent_template_mcp_host__list-template-events-in-window",
+        "mcp__agent_template_mcp_host__summarize-template-events-by-type",
+        "mcp__agent_template_mcp_host__summarize-tool-invocations",
       ]
     : [];
 }
 
-function createHostManagedClaudeMcpServers(sdk: ClaudeAgentSdk, config: ClaudeAgentConfig): Record<string, McpServerConfig> {
+function createHostManagedClaudeMcpServers(
+  sdk: ClaudeAgentSdk,
+  config: ClaudeAgentConfig,
+): Record<string, McpServerConfig> {
   const mcpHostConfig = readClaudeMcpHostConfig(config);
 
   if (!mcpHostConfig.toolboxUrl) {
@@ -370,25 +410,87 @@ function createHostManagedClaudeMcpServers(sdk: ClaudeAgentSdk, config: ClaudeAg
     agent_template_mcp_host: sdk.createSdkMcpServer({
       name: "agent_template_mcp_host",
       version: "0.1.0",
-      instructions: "Use these Host-managed MCP tools for Agent Template read-model data. The runtime must not connect to Toolbox directly.",
+      instructions:
+        "Use these Host-managed MCP tools for Agent Template read-model data. The runtime must not connect to Toolbox directly.",
       tools: [
         sdk.tool(
           "list-agent-runs",
-          "List recent Agent runs from the Host-managed Toolbox MCP server.",
-          { limit: z.number().int().positive().max(100).optional() },
+          "List Agent runs from the last 30 days through the Host-managed Toolbox MCP server.",
+          { limit: McpToolboxLimitSchema.optional() },
           async (args) => host.callTool("toolbox", "list-agent-runs", args),
         ),
         sdk.tool(
+          "get-agent-run-summary",
+          "Get the lifecycle summary for one concrete Agent run from the Host-managed Toolbox MCP server.",
+          McpToolboxRunSummaryInputSchema.shape,
+          async (args) =>
+            host.callTool(
+              "toolbox",
+              "get-agent-run-summary",
+              McpToolboxRunSummaryInputSchema.parse(args),
+            ),
+        ),
+        sdk.tool(
           "list-agent-run-timeline",
-          "List the event timeline for one Agent run from the Host-managed Toolbox MCP server.",
-          { runId: z.string().min(1) },
-          async (args) => host.callTool("toolbox", "list-agent-run-timeline", args),
+          "List a bounded event timeline for one concrete Agent run from the Host-managed Toolbox MCP server.",
+          McpToolboxRunTimelineInputSchema.shape,
+          async (args) =>
+            host.callTool(
+              "toolbox",
+              "list-agent-run-timeline",
+              McpToolboxRunTimelineInputSchema.parse(args),
+            ),
         ),
         sdk.tool(
           "list-template-events",
-          "List template business events from the Host-managed Toolbox MCP server.",
-          { limit: z.number().int().positive().max(100).optional() },
-          async (args) => host.callTool("toolbox", "list-template-events", args),
+          "List template business events from the last 30 days through the Host-managed Toolbox MCP server.",
+          { limit: McpToolboxLimitSchema.optional() },
+          async (args) =>
+            host.callTool("toolbox", "list-template-events", args),
+        ),
+        sdk.tool(
+          "list-template-events-in-window",
+          "List bounded template events in an explicit UTC time window through the Host-managed Toolbox MCP server.",
+          McpToolboxTimeWindowWithLimitSchema.shape,
+          async (args) =>
+            host.callTool(
+              "toolbox",
+              "list-template-events-in-window",
+              McpToolboxTimeWindowWithLimitSchema.parse(args),
+            ),
+        ),
+        sdk.tool(
+          "summarize-template-events-by-type",
+          "Summarize template event counts by type in an explicit UTC time window through the Host-managed Toolbox MCP server.",
+          McpToolboxTimeWindowSchema.shape,
+          async (args) =>
+            host.callTool(
+              "toolbox",
+              "summarize-template-events-by-type",
+              McpToolboxTimeWindowSchema.parse(args),
+            ),
+        ),
+        sdk.tool(
+          "list-failed-agent-runs-in-window",
+          "List bounded Agent failures in an explicit UTC time window through the Host-managed Toolbox MCP server.",
+          McpToolboxTimeWindowWithLimitSchema.shape,
+          async (args) =>
+            host.callTool(
+              "toolbox",
+              "list-failed-agent-runs-in-window",
+              McpToolboxTimeWindowWithLimitSchema.parse(args),
+            ),
+        ),
+        sdk.tool(
+          "summarize-tool-invocations",
+          "Summarize MCP Toolbox invocation volume and latency in an explicit UTC time window.",
+          McpToolboxTimeWindowWithLimitSchema.shape,
+          async (args) =>
+            host.callTool(
+              "toolbox",
+              "summarize-tool-invocations",
+              McpToolboxTimeWindowWithLimitSchema.parse(args),
+            ),
         ),
         sdk.tool(
           "get-template-event",
