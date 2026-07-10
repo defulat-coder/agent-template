@@ -11,6 +11,9 @@ importers:
       '@eslint/js':
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.5.0(jiti@2.7.0))
+      '@toolbox-sdk/server':
+        specifier: ^1.6.0
+        version: 1.6.0
       '@types/node':
         specifier: ^26.0.1
         version: 26.0.1
@@ -221,9 +224,6 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
-      '@toolbox-sdk/server':
-        specifier: ^1.6.0
-        version: 1.6.0
       vitest:
         specifier: ^4.1.9
         version: 4.1.9(@types/node@26.0.1)(vite@8.1.0(@types/node@26.0.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4))

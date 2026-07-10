@@ -11,6 +11,26 @@ import {
 } from "./index.js";
 
 describe("Eve Agent runtime", () => {
+  it("installs the Toolbox business skills in the authored surface", () => {
+    const skillNames = [
+      "ecommerce-sales-analysis",
+      "ecommerce-product-analysis",
+      "ecommerce-order-operations",
+      "ecommerce-fulfillment-operations",
+    ];
+
+    for (const skillName of skillNames) {
+      const skill = readFileSync(
+        new URL(`../agent/skills/${skillName}/SKILL.md`, import.meta.url),
+        "utf8",
+      );
+
+      expect(skill).toContain(`name: ${skillName}`);
+      expect(skill).toContain("Host-managed typed tools");
+      expect(skill).not.toMatch(/^### [a-z0-9]+-[a-z0-9-]+$/m);
+    }
+  });
+
   it("points at the package-local authored surface", () => {
     const state = getEveAgentRuntimeStateFromEnv({});
 

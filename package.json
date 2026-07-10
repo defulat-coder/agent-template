@@ -14,10 +14,13 @@
     "db:generate": "pnpm --filter @agent-template/db db:generate",
     "db:migrate": "pnpm --filter @agent-template/db db:migrate",
     "db:seed": "pnpm --filter @agent-template/db db:seed",
+    "skills:generate:toolbox": "tsx scripts/generate-toolbox-business-skills.ts",
+    "skills:check:toolbox": "tsx scripts/generate-toolbox-business-skills.ts --check",
     "format": "prettier --write ."
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@toolbox-sdk/server": "^1.6.0",
     "@typescript/native": "npm:typescript@^7.0.2",
     "@types/node": "^26.0.1",
     "eslint": "^10.5.0",

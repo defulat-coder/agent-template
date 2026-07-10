@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -12,6 +12,29 @@ import {
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 
 describe("Claude Agent runtime", () => {
+  it("installs project Toolbox business skills", () => {
+    const skillNames = [
+      "ecommerce-sales-analysis",
+      "ecommerce-product-analysis",
+      "ecommerce-order-operations",
+      "ecommerce-fulfillment-operations",
+    ];
+
+    for (const skillName of skillNames) {
+      const skill = readFileSync(
+        new URL(
+          `../../../.claude/skills/${skillName}/SKILL.md`,
+          import.meta.url,
+        ),
+        "utf8",
+      );
+
+      expect(skill).toContain(`name: ${skillName}`);
+      expect(skill).toContain("Host-managed typed tools");
+      expect(skill).toMatch(/^### [a-z0-9]+-[a-z0-9-]+$/m);
+    }
+  });
+
   it("does not require an Anthropic API key", () => {
     const state = getClaudeAgentRuntimeStateFromEnv({});
 

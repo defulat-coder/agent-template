@@ -37,10 +37,12 @@ Toolbox 官方的 `skills-generate` 会把自定义 Toolset 转换为 Agent Skil
 本地重新生成：
 
 ```bash
-pnpm --filter @agent-template/agent-eve skills:generate:toolbox
+pnpm skills:generate:toolbox
 ```
 
 生成器使用锁定的 `@toolbox-sdk/server` 读取 [tools.yaml](./tools.yaml)，再把适配后的 `SKILL.md` 写入 `packages/agent-eve/agent/skills/` 和根目录 `.claude/skills/`。Eve 使用下划线形式的 authored tool 名，Claude 使用 Toolbox 原始连字符工具名。Skill 只负责按需加载业务流程，实际执行仍走 MCP Host allowlist；官方生成的数据库直连脚本不会进入 Agent 运行目录。
+
+这四个业务 Toolset 用于官方 Skill 生成和业务能力分组，不是运行时授权机制。当前 raw MCP client 不按 `TOOLBOX_TOOLSET` 隔离工具；生产可执行范围始终以 `mcp-host.config.json` 的 `allowedTools` 为准。
 
 ## 电商 MCP Docker 集成验证（仅显式要求时）
 
@@ -119,7 +121,7 @@ docker compose exec toolbox /toolbox --config /app/tools.yaml invoke list-agent-
 修改工具或 Skill 后，默认先执行纯本地验证：
 
 ```bash
-pnpm --filter @agent-template/agent-eve skills:generate:toolbox
+pnpm skills:check:toolbox
 pnpm --filter @agent-template/shared test
 pnpm --filter @agent-template/agent-claude test
 pnpm --filter @agent-template/agent-eve test
