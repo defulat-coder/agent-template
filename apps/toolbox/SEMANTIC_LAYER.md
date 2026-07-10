@@ -8,6 +8,8 @@
 
 智能问数的业务术语、值映射、歧义规则和 golden cases 位于 [semantic/](./semantic/)，生产落地方式见 [INTELLIGENT_QUERY.md](./INTELLIGENT_QUERY.md)。
 
+后续新增业务 Tool 的分层选择和强制准入要求以 [INTELLIGENT_QUERY.md](./INTELLIGENT_QUERY.md) 为准；本文件只说明当前 PostgreSQL Tool 的业务契约，不能代替外部语义层或 AlloyDB AI NL 的治理配置。
+
 AlloyDB AI NL 或 Looker 只能在项目切换到对应数据源并完成安全、费用和部署评估后单独引入，不得把它们的专属配置写进当前 PostgreSQL 模板。
 
 ## 电商指标口径
@@ -62,6 +64,8 @@ Google 官方 Style Guide 建议 Tool 使用 `snake_case` 的 `<action>_<resourc
 - 列表查询必须有硬性 `LIMIT`、稳定排序和最大值；聚合查询必须有时间或业务边界。
 - 更新相应业务 Toolset、MCP Host `allowedTools`、Eve/Claude adapter 和生成的 Skill。
 - 更新业务语义目录、golden cases 和所属领域的数据负责人；未定义的术语先澄清，不让模型猜测字段或取值。
+- 明确 Tool 的业务时区、`[from, to)` 边界与数据库字段时间类型；UTC 参数不能依赖 PostgreSQL session 的隐式时区转换。
+- 分类确认：平台只读运维 Tool、认证业务问数 Tool、semantic query compiler 或外部语义层 Tool 的准入要求不同，详见 [智能问数落地](./INTELLIGENT_QUERY.md#tool-分类与准入矩阵)。
 - 运行 `pnpm toolbox:check`，不使用 Docker。
 
 ## 官方参考

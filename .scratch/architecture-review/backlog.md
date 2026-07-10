@@ -4,26 +4,27 @@
 
 ## 候选
 
-| 状态 | 议题 | 强度 | 下一步 |
-| --- | --- | --- | --- |
-| completed | 收拢 Agent job intake module | Strong | API route 已穿过 `AgentJobIntake` interface，BullMQ lifecycle 留在 implementation 内 |
-| completed | 压窄 Worker process seam | Worth exploring | BullMQ event name 已留在 adapter 内，process 测试穿过回调 interface |
-| completed | 修正 Worker payload validation seam | Worth exploring | `handleAgentJob` interface 已接收 `unknown`，validation 留在 implementation 内 |
-| completed | 集中 Agent runtime env config seam | Strong | Agent runtime env 由 `packages/agent` 统一维护，API/Worker env module 只组合该 seam |
-| completed | Deepen Agent runtime execution module | Strong | `runAgent` 已成为 Chat SSE 和 Worker 共同调用的 Agent run execution seam |
-| completed | 引入 Agent run，收窄 Agent job | Strong | `Agent job` 只表示 queued request；Chat SSE 和 Worker 共用 `Agent run` interface |
-| completed | 拆清 Web Agent client 命名 | Worth exploring | `agent-job-client` 已改为 `agent-client`，同时覆盖 Chat SSE 和 queued job intake |
-| completed | 减少 Worker runtime 与 Agent runtime 重名 | Worth exploring | Worker 侧改称 `AgentWorkerProcess`；`runtime` 留给 Agent implementation selector |
-| completed | 收拢 Eve Agent runtime model 来源 | Strong | `src/config.ts` 同时驱动 runtime state 和 `agent/agent.ts` |
-| completed | 接入真实 runtime execution adapter | Strong | `runAgent` dispatch 到 Claude/Eve runtime package；未配置返回 skipped |
-| completed | 删除 Worker job-handler pass-through | Worth exploring | Worker process 直接委派 `runAgent` |
-| completed | 建立 Agent run event producer seam | Speculative | runtime adapter 返回原始 events；streaming/store 暂不新增 |
-| completed | 收拢 Agent run event producer seam | Strong | Claude/Eve adapter 输出 shared `AgentRunEvent`，raw SDK events 留在 implementation 内 |
-| completed | 删除 legacy Agent run event normalizer | Strong | shared 只保留 `AgentRunEvent` schema/type；raw protocol mapping 留在 runtime adapter |
-| completed | Define shared Agent run event protocol | Worth exploring | Agent run event protocol 和 normalizer 已移入 `packages/shared` |
-| completed | Narrow Agent job HTTP contract duplication | Speculative | Agent job accepted metadata schema 已移入 `packages/shared`，Web/API 共用 |
-| deferred | 收拢 Queue runtime knowledge | Worth exploring | 当前只有两个装配点；继续抽象会形成 shallow module |
-| deferred | 集中 Health display locality | Speculative | 等第二个页面或测试重复使用 health panel 映射 |
+| 状态      | 议题                                       | 强度            | 下一步                                                                                |
+| --------- | ------------------------------------------ | --------------- | ------------------------------------------------------------------------------------- |
+| completed | 收拢 Agent job intake module               | Strong          | API route 已穿过 `AgentJobIntake` interface，BullMQ lifecycle 留在 implementation 内  |
+| completed | 压窄 Worker process seam                   | Worth exploring | BullMQ event name 已留在 adapter 内，process 测试穿过回调 interface                   |
+| completed | 修正 Worker payload validation seam        | Worth exploring | `handleAgentJob` interface 已接收 `unknown`，validation 留在 implementation 内        |
+| completed | 集中 Agent runtime env config seam         | Strong          | Agent runtime env 由 `packages/agent` 统一维护，API/Worker env module 只组合该 seam   |
+| completed | Deepen Agent runtime execution module      | Strong          | `runAgent` 已成为 Chat SSE 和 Worker 共同调用的 Agent run execution seam              |
+| completed | 引入 Agent run，收窄 Agent job             | Strong          | `Agent job` 只表示 queued request；Chat SSE 和 Worker 共用 `Agent run` interface      |
+| completed | 拆清 Web Agent client 命名                 | Worth exploring | `agent-job-client` 已改为 `agent-client`，同时覆盖 Chat SSE 和 queued job intake      |
+| completed | 减少 Worker runtime 与 Agent runtime 重名  | Worth exploring | Worker 侧改称 `AgentWorkerProcess`；`runtime` 留给 Agent implementation selector      |
+| completed | 收拢 Eve Agent runtime model 来源          | Strong          | `src/config.ts` 同时驱动 runtime state 和 `agent/agent.ts`                            |
+| completed | 接入真实 runtime execution adapter         | Strong          | `runAgent` dispatch 到 Claude/Eve runtime package；未配置返回 skipped                 |
+| completed | 删除 Worker job-handler pass-through       | Worth exploring | Worker process 直接委派 `runAgent`                                                    |
+| completed | 建立 Agent run event producer seam         | Speculative     | runtime adapter 返回原始 events；streaming/store 暂不新增                             |
+| completed | 收拢 Agent run event producer seam         | Strong          | Claude/Eve adapter 输出 shared `AgentRunEvent`，raw SDK events 留在 implementation 内 |
+| completed | 删除 legacy Agent run event normalizer     | Strong          | shared 只保留 `AgentRunEvent` schema/type；raw protocol mapping 留在 runtime adapter  |
+| completed | Define shared Agent run event protocol     | Worth exploring | Agent run event protocol 和 normalizer 已移入 `packages/shared`                       |
+| completed | Narrow Agent job HTTP contract duplication | Speculative     | Agent job accepted metadata schema 已移入 `packages/shared`，Web/API 共用             |
+| deferred  | 收拢 Queue runtime knowledge               | Worth exploring | 当前只有两个装配点；继续抽象会形成 shallow module                                     |
+| deferred  | 集中 Health display locality               | Speculative     | 等第二个页面或测试重复使用 health panel 映射                                          |
+| completed | 收拢 Toolbox Tool 分类与准入 matrix        | Strong          | 平台运维、认证业务问数和未来 compiler 的 interface 已集中到智能问数标准               |
 
 ## 执行规则
 
@@ -32,6 +33,14 @@
 - 每轮完成后用中文 Conventional Commit 提交。
 
 ## 已完成
+
+### 收拢 Toolbox Tool 分类与准入 matrix
+
+- 日期：2026-07-11
+- locality：`INTELLIGENT_QUERY.md`、Toolbox 协作规则和 ADR 共同声明 Tool 分类、执行层选择与准入 interface，不再要求调用方跨文档做口头判断。
+- leverage：后续认证业务问数 Tool 只需穿过一份 matrix 完成语义目录、Skill、golden cases 与可信身份要求；平台运维 Tool 不再错误承担业务语义义务。
+- seam：Toolset 被明确为生成与上下文分组；真实授权仍在 Host `allowedTools` 与数据库权限 seam。per-Agent capability profile 暂缓，直到身份模型和部署策略可决。
+- 聚焦验证：`pnpm toolbox:check`、`git diff --check`
 
 ### 收拢 Agent job intake module
 

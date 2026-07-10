@@ -4,6 +4,8 @@
 
 当前的 [ecommerce.yaml](./ecommerce.yaml) 是合成电商 fixture 的完整示例。真实业务应按领域分别建立目录，例如 `sales.yaml`、`supply-chain.yaml` 或 `customer-success.yaml`，并由该领域的数据负责人评审。
 
+[智能问数落地](../INTELLIGENT_QUERY.md) 定义执行层的选择标准：认证业务查询目录是默认路径；semantic query compiler、独立语义层和 AlloyDB AI NL 都是需要额外准入条件与架构决策的升级路径。不要因业务问题变多而直接开放自由 SQL。
+
 ## 目录应包含
 
 - 业务实体及其关系；只说明问数所需的粒度和关系。
@@ -12,6 +14,8 @@
 - 歧义规则：例如“营收”“订单数”不能直接猜测口径，必须追问。
 - 问题模式：将常见问题路由到经过认证的 Toolbox Tool，而不是让模型生成任意 SQL。
 - 治理：数据所有者、敏感字段、可信身份过滤、数据新鲜度和答案溯源要求。
+
+新增业务目录前，先确认该能力属于认证业务问数 Tool、未来 compiler 或外部语义层；不同类别的完整准入矩阵见 [智能问数落地](../INTELLIGENT_QUERY.md#tool-分类与准入矩阵)。
 
 `tools.yaml` 仍是可执行 Tool 的唯一事实源。语义目录只允许引用已经存在的 Tool 与返回字段；`pnpm toolbox:check:semantic` 会校验这一点并同步生成 Claude 与 Eve Skill 的语义参考。
 

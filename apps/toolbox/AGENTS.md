@@ -19,6 +19,16 @@
 - 生产 Agent 默认只使用自定义 toolset，不使用 prebuilt generic tools。
 - 数据库连接信息通过环境变量注入，不能把密码写死在 `tools.yaml`。
 
+## 智能问数后续设计标准
+
+- [INTELLIGENT_QUERY.md](./INTELLIGENT_QUERY.md) 是智能问数的规范性分层标准；每个新增业务能力先选择“认证查询目录、semantic query compiler、独立语义层或 AlloyDB AI NL”之一，再开始改 `tools.yaml`。
+- PostgreSQL 的默认路径是认证业务查询目录。只有业务域持续出现经验证的三维以上受控组合时，才能提议 semantic query compiler；必须先记录 ADR。不得在 PostgreSQL 上以 prompt 或自由 SQL 模拟 AlloyDB AI NL。
+- 认证业务问数 Tool 的准入物是：语义目录的指标/维度/值映射/歧义规则、问题模式、golden cases、数据负责人、可信身份访问范围和数据新鲜度。缺失任一项时先补目录，不新增 Tool。
+- 平台只读运维 Tool 不要求业务语义目录或业务 Skill，但仍必须有结果型描述、MCP annotations、有界参数、Host allowlist 和 native 执行验证；不要把它误归为智能问数能力。
+- Toolset 只用于 Skill 生成和模型上下文分组，不能当作运行时最小权限。实际授权以 Host `allowedTools`、可信身份注入和数据库 RLS/等效控制为准；需要 capability 隔离时，先设计 Host capability profile seam。
+- 分析 Tool 必须声明业务时区、`[from, to)` 时间边界与数据库时间类型；UTC 输入承诺不能依赖 PostgreSQL session 的隐式时区转换。
+- 新增认证业务问数 Tool 必须同步 `tools.yaml`、Toolset、Host allowlist、Claude/Eve adapter、原始/实际 Skill、语义目录和 golden cases；完成语义门禁、Skill 生成校验与本地 native Tool 执行验收后才能合入。
+
 ## 不应该做
 
 - 不在这里实现 API route、Worker process 或 Agent runtime selector。
