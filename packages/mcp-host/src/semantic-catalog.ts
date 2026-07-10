@@ -138,12 +138,13 @@ export function annotateCertifiedQueryResult(
       : undefined;
   const offset =
     typeof input.arguments.offset === "number" ? input.arguments.offset : 0;
-  const hasMore = limit ? result.content.length > limit : false;
-  const visibleResult =
-    limit && hasMore
-      ? { ...result, content: result.content.slice(0, limit) }
-      : result;
-  const returnedCount = visibleResult.content.length;
+  const returnedCount = result.content.length;
+  const totalCount = readTotalCount(result.content);
+  const hasMore = limit
+    ? totalCount === undefined
+      ? returnedCount === limit
+      : offset + returnedCount < totalCount
+    : false;
   const page = limit
     ? {
         hasMore,
@@ -151,6 +152,7 @@ export function annotateCertifiedQueryResult(
         ...(hasMore ? { nextOffset: offset + returnedCount } : {}),
         offset,
         returnedCount,
+        ...(totalCount === undefined ? {} : { totalCount }),
       }
     : { returnedCount };
   const emptyResult =
@@ -163,9 +165,9 @@ export function annotateCertifiedQueryResult(
       : undefined;
 
   return {
-    ...visibleResult,
+    ...result,
     structuredContent: {
-      ...(visibleResult.structuredContent ?? {}),
+      ...(result.structuredContent ?? {}),
       certifiedQuery: {
         catalog: {
           name: input.contract.catalogName,
@@ -191,6 +193,33 @@ export function annotateCertifiedQueryResult(
       },
     },
   };
+}
+
+function readTotalCount(content: unknown[]) {
+  const first = content[0];
+  if (
+    typeof first !== "object" ||
+    first === null ||
+    !("text" in first) ||
+    typeof first.text !== "string"
+  ) {
+    return undefined;
+  }
+
+  try {
+    const row = JSON.parse(first.text) as unknown;
+    if (
+      typeof row === "object" &&
+      row !== null &&
+      "totalCount" in row &&
+      typeof row.totalCount === "number"
+    ) {
+      return row.totalCount;
+    }
+  } catch {
+    return undefined;
+  }
+  return undefined;
 }
 
 function createEmptyResultSuggestions(args: Record<string, unknown>) {

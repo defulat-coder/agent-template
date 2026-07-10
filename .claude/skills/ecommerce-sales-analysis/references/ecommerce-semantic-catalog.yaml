@@ -330,6 +330,7 @@ queryContracts:
         unitsSold,
         grossMerchandiseSales,
         netMerchandiseSales,
+        totalCount,
       ]
     limitations:
       - 商品销售额不包含运费，退款按订单项金额比例分摊。
@@ -360,6 +361,7 @@ queryContracts:
         fulfilledAt,
         paidTotal,
         refundedTotal,
+        totalCount,
       ]
     limitations:
       - 时间按 placedAt 解释，结果按 placedAt 与订单 id 稳定排序并使用 limit/offset 分页；仅包含合成客户业务属性。
@@ -402,6 +404,7 @@ queryContracts:
         paidAt,
         paidTotal,
         hoursWaiting,
+        totalCount,
       ]
     limitations:
       - 仅包含 status = PAID 且 fulfilledAt 为空的订单。

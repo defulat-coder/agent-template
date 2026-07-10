@@ -273,20 +273,17 @@ async function main() {
     const orders = readRows(orderPageResult);
     assert.equal(orders.length, 3);
     assert.equal(orders[0]?.orderNumber, "EC20260630010");
-    assert.deepEqual(
-      (
-        orderPageResult.structuredContent?.certifiedQuery as {
-          page?: unknown;
-        }
-      )?.page,
-      {
-        hasMore: true,
-        limit: 3,
-        nextOffset: 3,
-        offset: 0,
-        returnedCount: 3,
-      },
-    );
+    const orderPage = (
+      orderPageResult.structuredContent?.certifiedQuery as {
+        page?: Record<string, unknown>;
+      }
+    )?.page;
+    assert.equal(orderPage?.hasMore, true);
+    assert.equal(orderPage?.limit, 3);
+    assert.equal(orderPage?.nextOffset, 3);
+    assert.equal(orderPage?.offset, 0);
+    assert.equal(orderPage?.returnedCount, 3);
+    assert.ok(Number(orderPage?.totalCount) > 3);
     const secondOrderPage = readRows(
       await host.callTool("toolbox", "list-ecommerce-orders-in-window", {
         ...timeWindow,

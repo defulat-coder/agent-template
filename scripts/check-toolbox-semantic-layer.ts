@@ -275,9 +275,9 @@ function validateTool(tool: ToolboxEntry) {
   }
 
   if (pageableBusinessTools.has(name)) {
-    if (!/\bLIMIT\s*\(\$\d+\s*\+\s*1\)/i.test(statement)) {
+    if (!/COUNT\(\*\)\s+OVER\s*\(\)/i.test(statement)) {
       errors.push(
-        `${name}: pageable business tools must fetch limit + 1 rows for exact hasMore`,
+        `${name}: pageable business tools must return totalCount for exact hasMore`,
       );
     }
     if (!/\bOFFSET\s+\$\d+/i.test(statement)) {

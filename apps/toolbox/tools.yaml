@@ -197,12 +197,13 @@ statement: |
     product.category,
     SUM(item.quantity)::int AS "unitsSold",
     COALESCE(SUM(item."lineTotal"), 0) AS "grossMerchandiseSales",
-    COALESCE(SUM(item."netMerchandiseSales"), 0) AS "netMerchandiseSales"
+    COALESCE(SUM(item."netMerchandiseSales"), 0) AS "netMerchandiseSales",
+    COUNT(*) OVER()::int AS "totalCount"
   FROM settled_items AS item
   JOIN "EcommerceProduct" AS product ON product.id = item."productId"
   GROUP BY product.id, product.sku, product.name, product.category
   ORDER BY "netMerchandiseSales" DESC, "unitsSold" DESC, product.sku ASC
-  LIMIT ($3 + 1)
+  LIMIT $3
   OFFSET $4;
 parameters:
   - name: from
@@ -292,13 +293,14 @@ statement: |
     orders."paidAt",
     orders."fulfilledAt",
     orders."paidTotal",
-    orders."refundedTotal"
+    orders."refundedTotal",
+    COUNT(*) OVER()::int AS "totalCount"
   FROM "EcommerceOrder" AS orders
   JOIN "EcommerceCustomer" AS customer ON customer.id = orders."customerId"
   WHERE orders."placedAt" >= $1::timestamptz
     AND orders."placedAt" < $2::timestamptz
   ORDER BY orders."placedAt" DESC, orders.id DESC
-  LIMIT ($3 + 1)
+  LIMIT $3
   OFFSET $4;
 parameters:
   - name: from
@@ -395,7 +397,8 @@ statement: |
     orders.channel::text AS channel,
     orders."paidAt",
     orders."paidTotal",
-    ROUND(EXTRACT(EPOCH FROM ($2::timestamptz - orders."paidAt")) / 3600, 2) AS "hoursWaiting"
+    ROUND(EXTRACT(EPOCH FROM ($2::timestamptz - orders."paidAt")) / 3600, 2) AS "hoursWaiting",
+    COUNT(*) OVER()::int AS "totalCount"
   FROM "EcommerceOrder" AS orders
   JOIN "EcommerceCustomer" AS customer ON customer.id = orders."customerId"
   WHERE orders.status = 'PAID'
@@ -403,7 +406,7 @@ statement: |
     AND orders."paidAt" < $2::timestamptz
     AND orders."fulfilledAt" IS NULL
   ORDER BY orders."paidAt" ASC, orders.id ASC
-  LIMIT ($3 + 1)
+  LIMIT $3
   OFFSET $4;
 parameters:
   - name: from

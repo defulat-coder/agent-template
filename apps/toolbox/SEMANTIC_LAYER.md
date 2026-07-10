@@ -63,7 +63,7 @@ Google 官方 Style Guide 建议 Tool 使用 `snake_case` 的 `<action>_<resourc
 - 以业务结果而不是底层 CRUD 为单元，读写 Tool 分离。
 - 描述业务口径、返回结果和不可推断的边界；参数含义仅写在参数描述中。
 - 模型可见参数不超过 5 个，优先基础类型；时间格式给出具体示例。
-- 业务列表查询必须有硬性 `LIMIT/OFFSET`、稳定排序和最大值；Host 返回 `returnedCount/hasMore/nextOffset`。聚合查询必须有时间或业务边界。
+- 业务列表查询必须有硬性 `LIMIT/OFFSET`、稳定排序、最大值和窗口 `totalCount`；Host 返回 `returnedCount/totalCount/hasMore/nextOffset`。聚合查询必须有时间或业务边界。
 - 更新相应业务 Toolset、MCP Host `allowedTools`、Eve/Claude adapter 和生成的 Skill。
 - 更新业务语义目录、golden cases 和所属领域的数据负责人；未定义的术语先澄清，不让模型猜测字段或取值。
 - 明确 Tool 的业务时区、`[from, to)` 边界与数据库字段时间类型；UTC 参数不能依赖 PostgreSQL session 的隐式时区转换。
