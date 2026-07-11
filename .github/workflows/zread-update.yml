@@ -27,9 +27,6 @@ jobs:
         env:
           CI: "true"
 
-      - name: Install pinned ZRead CLI
-        run: npm install --global "zread_cli@$(cat scripts/zread/CLI_VERSION)"
-
       - name: Generate ZRead wiki
         run: pnpm docs:zread:update
         env:

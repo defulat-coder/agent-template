@@ -1,3 +1,4 @@
+// Validates and stages the current ZRead Wiki version.
 import {
   cp,
   mkdir,
@@ -25,15 +26,18 @@ export type ZReadWikiSnapshot = {
 export async function stageCurrentZReadWiki(
   sourceWiki: string,
   destinationWiki: string,
+  assertSafeText: (content: string, label: string) => void = () => undefined,
 ): Promise<ZReadWikiSnapshot> {
-  const id = (await readFile(path.join(sourceWiki, "current"), "utf8")).trim();
-  if (!isSafeZReadPathSegment(id)) {
-    throw new Error(`Invalid ZRead current version id: ${id}`);
-  }
+  const current = (
+    await readFile(path.join(sourceWiki, "current"), "utf8")
+  ).trim();
+  const id = parseCurrentVersionId(current);
 
   const sourceVersion = path.join(sourceWiki, "versions", id);
   const manifestPath = path.join(sourceVersion, "wiki.json");
-  const manifest = parseManifest(await readFile(manifestPath, "utf8"), id);
+  const manifestContent = await readFile(manifestPath, "utf8");
+  assertSafeText(manifestContent, "ZRead wiki manifest");
+  const manifest = parseManifest(manifestContent, id);
 
   await mkdir(path.join(destinationWiki, "versions", id), { recursive: true });
   await writeFile(path.join(destinationWiki, "current"), `${id}\n`, "utf8");
@@ -46,6 +50,7 @@ export async function stageCurrentZReadWiki(
     const sourcePage = path.join(sourceVersion, page.file);
     await assertRegularPage(sourceVersion, sourcePage, page.file);
     const content = await readFile(sourcePage, "utf8");
+    assertSafeText(content, `ZRead page ${page.file}`);
     if (/^\s*[-*+]\s+[-*+]\s+/mu.test(content)) {
       throw new Error(`ZRead generated malformed list markers in ${page.file}`);
     }
@@ -61,6 +66,15 @@ export async function stageCurrentZReadWiki(
   }
 
   return manifest;
+}
+
+function parseCurrentVersionId(current: string): string {
+  const parts = current.split("/");
+  const id = parts.length === 2 && parts[0] === "versions" ? parts[1] : current;
+  if (!isSafeZReadPathSegment(id)) {
+    throw new Error(`Invalid ZRead current version id: ${current}`);
+  }
+  return id;
 }
 
 function parseManifest(content: string, expectedId: string): ZReadWikiSnapshot {

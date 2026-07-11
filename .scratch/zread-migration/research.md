@@ -122,7 +122,7 @@ Zread 官方列出的内置供应商包括：智谱 Coding Plan、Z.AI Coding Pl
 
 ### 阶段 A：先做不破坏现状的 spike
 
-1. 在临时 clone 和隔离 HOME 中安装固定版本 `zread_cli@0.2.13`。
+1. 把 `zread_cli@0.2.13` 安装为项目依赖，并在临时 clone 和隔离 HOME 中运行项目本地二进制。
 2. 将现有 Kimi Key 映射为：
    - provider：OpenAI-compatible；
    - BaseURL：`https://api.kimi.com/coding/v1`；
@@ -137,11 +137,12 @@ Zread 官方列出的内置供应商包括：智谱 Coding Plan、Z.AI Coding Pl
 
 ### 阶段 B：替换生成适配层
 
-1. 新建 `scripts/zread/update.ts`，删除对 OpenWiki npm 包和 `runOpenWikiAgent` 的依赖。
+1. 在 `.zread/scripts/update.ts` 维护生成适配器，删除对 OpenWiki npm 包和 `runOpenWikiAgent` 的依赖。
 2. 保留现有隔离 clone、环境变量最小化、路径 allowlist、内容门禁和原子发布机制。
-3. 生成后读取 `.zread/wiki/current`，校验并解析 `versions/<id>/wiki.json`，将其引用的 Markdown 原子发布到稳定的仓内 `wiki/`。
-4. `.zread/` 只作为临时 staging，不提交历史版本和草稿，避免仓库持续膨胀。
-5. 若确实需要历史版本，应先明确保留策略，而不是默认提交全部 `versions/`。
+3. 由 `.zread/config/index.yaml` 组合多个无密钥配置片段，在隔离 HOME 中生成 ZRead 原生单文件配置。
+4. 生成后读取 `.zread/wiki/current`，校验并解析 `versions/<id>/wiki.json`，将其引用的 Markdown 原子发布到仓内 `.zread/wiki/`。
+5. 不提交历史版本和草稿，避免仓库持续膨胀。
+6. 若确实需要历史版本，应先明确保留策略，而不是默认提交全部 `versions/`。
 
 ### 阶段 C：前端和 CI 切换
 

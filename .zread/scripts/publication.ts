@@ -1,3 +1,4 @@
+// Atomically promotes a validated Wiki snapshot into the repository.
 import { randomUUID } from "node:crypto";
 import { cp, rename, rm } from "node:fs/promises";
 

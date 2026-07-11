@@ -59,6 +59,12 @@ importers:
       yaml:
         specifier: ^2.9.0
         version: 2.9.0
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+      zread_cli:
+        specifier: '>=0.2.13 <1.0.0'
+        version: 0.2.13
 
   apps/api:
     dependencies:
@@ -2117,6 +2123,36 @@ packages:
 
   '@workflow/serde@4.1.0':
     resolution: {integrity: sha512-pav4F2BoirECWR7Nf1TKt+2eETcBj7jj4cBefQ8VXQCA6NPkaKeLfj/zMgi+3zYV5ZIBT4GuUiphsj0/b9hPQQ==}
+
+  '@zread/cli-darwin-arm64@0.2.13':
+    resolution: {integrity: sha512-naGqqYdV6TW0hSM111IiEgeOfNtj8JRe26lDgFgLzc7A8Qi87htIUTJdUd+HpTEOsqzETAclEHSxjefuWoZmdA==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@zread/cli-darwin-x64@0.2.13':
+    resolution: {integrity: sha512-jNZr62By2Toymjez1xpBdrrr7vMgtmHZcvoSyMrbtw2SP0d60YJBElb1/2Djc3ehNSPGXUsAVOdcKU0Px1UCsg==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@zread/cli-linux-arm64@0.2.13':
+    resolution: {integrity: sha512-H/s6dJi2v2gk0Ex+wyMH5YsH/n8ygFC5u1ENlaJdnvDRNymEm7wZ5ZVlfdAGzE1XCJPn7km1aLf9WGUKBCOXEA==}
+    cpu: [arm64]
+    os: [linux]
+
+  '@zread/cli-linux-x64@0.2.13':
+    resolution: {integrity: sha512-7Xepf05lQ/zRnZc5fcm3fK7wFLg5JKhnGNadUJhgichZsk/+DHXKdjFHYVT9bvNMrVUyeom168CpSIdxOjcQ2g==}
+    cpu: [x64]
+    os: [linux]
+
+  '@zread/cli-win32-arm64@0.2.13':
+    resolution: {integrity: sha512-q8SQ7bOx+hLYPvwALBFh34eJ/HHPQuedyfRdB+syB64Hx5b5MxrKDelKrxqp8XrYC7IRa7MLUTuADZRHkUm6dg==}
+    cpu: [arm64]
+    os: [win32]
+
+  '@zread/cli-win32-x64@0.2.13':
+    resolution: {integrity: sha512-4u3EpNhF28K5C6+qqLm0aeda+AuHOponocbpDQYHwrj1sC2a7H9BsWDUC+/cCJ4uqSI9Gn5ytoz7ZM4Ca7ZZbw==}
+    cpu: [x64]
+    os: [win32]
 
   abstract-logging@2.0.1:
     resolution: {integrity: sha512-2BjRTZxTPvheOvGbBslFSYOUkr+SjPtOnrLP33f+VIWLzezQpZcqVg7ja3L4dBXmzzgwT+a029jRx5PCi3JuiA==}
@@ -4352,6 +4388,11 @@ packages:
   zod@4.4.3:
     resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
 
+  zread_cli@0.2.13:
+    resolution: {integrity: sha512-IU1eMFpMmH09EwjTs61RyBWfUHqMRLBTjxDEPAMS7SMFfz4GxwJY/B+iHNE6JBdKuf8Z7jNUZU2fukBQA0c48A==}
+    engines: {node: '>=18'}
+    hasBin: true
+
   zwitch@2.0.4:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
 
@@ -5635,6 +5676,24 @@ snapshots:
       tinyrainbow: 3.1.0
 
   '@workflow/serde@4.1.0': {}
+
+  '@zread/cli-darwin-arm64@0.2.13':
+    optional: true
+
+  '@zread/cli-darwin-x64@0.2.13':
+    optional: true
+
+  '@zread/cli-linux-arm64@0.2.13':
+    optional: true
+
+  '@zread/cli-linux-x64@0.2.13':
+    optional: true
+
+  '@zread/cli-win32-arm64@0.2.13':
+    optional: true
+
+  '@zread/cli-win32-x64@0.2.13':
+    optional: true
 
   abstract-logging@2.0.1: {}
 
@@ -8204,5 +8263,14 @@ snapshots:
       zod: 4.4.3
 
   zod@4.4.3: {}
+
+  zread_cli@0.2.13:
+    optionalDependencies:
+      '@zread/cli-darwin-arm64': 0.2.13
+      '@zread/cli-darwin-x64': 0.2.13
+      '@zread/cli-linux-arm64': 0.2.13
+      '@zread/cli-linux-x64': 0.2.13
+      '@zread/cli-win32-arm64': 0.2.13
+      '@zread/cli-win32-x64': 0.2.13
 
   zwitch@2.0.4: {}

@@ -1,3 +1,4 @@
+// ZRead on-disk contract regression tests.
 import assert from "node:assert/strict";
 import {
   access,
@@ -32,6 +33,30 @@ test("stages only the active validated ZRead wiki version", async () => {
     );
     await assert.rejects(
       access(path.join(fixture.destination, "versions", "old-version")),
+    );
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("normalizes the current pointer emitted by ZRead CLI 0.2.13", async () => {
+  const fixture = await createWikiFixture();
+
+  try {
+    await writeFile(
+      path.join(fixture.source, "current"),
+      "versions/2026-07-11_2030_abc123\n",
+    );
+
+    const snapshot = await stageCurrentZReadWiki(
+      fixture.source,
+      fixture.destination,
+    );
+
+    assert.equal(snapshot.id, "2026-07-11_2030_abc123");
+    assert.equal(
+      await readFile(path.join(fixture.destination, "current"), "utf8"),
+      "2026-07-11_2030_abc123\n",
     );
   } finally {
     await rm(fixture.root, { recursive: true, force: true });

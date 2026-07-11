@@ -1,0 +1,4 @@
+files:
+  - language.yaml
+  - generation.yaml
+  - provider.kimi.yaml

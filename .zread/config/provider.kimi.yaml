@@ -1,0 +1,4 @@
+llm:
+  provider: openai
+  model: kimi-for-coding
+  base_url: https://api.kimi.com/coding/v1
