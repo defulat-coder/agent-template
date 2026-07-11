@@ -330,6 +330,12 @@
       "sourceType": "github",
       "skillPath": "skills/productivity/writing-great-skills/SKILL.md",
       "computedHash": "42fe94c64d7b9acda9ce7d6495a3476893a1b18615986528f55f7162a29789d4"
+    },
+    "zread": {
+      "source": "zreadai/zread-skill",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "31629df08022740dfc6ce042231a71c16d1a22ed952f5dd0b6556d4886f0edbd"
     }
   }
 }
