@@ -62,6 +62,7 @@ const expectedToolsets: Record<string, string[]> = {
     "summarize_sales_by_customer_segment",
   ],
 };
+const ecommerceBusinessTools = new Set(Object.values(expectedToolsets).flat());
 const semanticDescriptionRequirements: Record<string, string[]> = {
   "get-ecommerce-order-detail": ["orderNumber", "合成业务属性"],
   "list-ecommerce-fulfillment-exceptions": [
@@ -279,6 +280,22 @@ function validateTool(tool: ToolboxEntry) {
     );
   }
 
+  if (
+    ecommerceBusinessTools.has(name) &&
+    !statement.includes('"ecommerce_fixture"."Ecommerce')
+  ) {
+    errors.push(
+      `${name}: ecommerce fixture queries must use the isolated ecommerce_fixture schema`,
+    );
+  }
+
+  if (
+    statement.includes('"TemplateEvent"') &&
+    !statement.includes('public."TemplateEvent"')
+  ) {
+    errors.push(`${name}: platform queries must qualify the public schema`);
+  }
+
   if (/^list[-_]/.test(name) && !/\bLIMIT\b/i.test(statement)) {
     errors.push(`${name}: list tools must enforce a SQL LIMIT`);
   }
@@ -364,6 +381,12 @@ function validateEcommerceSemanticCatalog(): ToolboxEntry | undefined {
   if (catalog.kind !== "business-semantic-catalog") {
     errors.push(
       "Ecommerce semantic catalog kind must be business-semantic-catalog",
+    );
+  }
+
+  if (catalog.databaseSchema !== "ecommerce_fixture") {
+    errors.push(
+      "Ecommerce semantic catalog databaseSchema must be ecommerce_fixture",
     );
   }
 

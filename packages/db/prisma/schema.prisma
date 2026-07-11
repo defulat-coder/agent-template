@@ -5,6 +5,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  schemas  = ["public"]
 }
 
 model TemplateEvent {
@@ -15,6 +16,7 @@ model TemplateEvent {
 
   @@index([createdAt])
   @@index([type, createdAt])
+  @@schema("public")
 }
 
 enum AgentRunStatus {
@@ -24,6 +26,8 @@ enum AgentRunStatus {
   FAILED    @map("failed")
   SKIPPED   @map("skipped")
   CANCELLED @map("cancelled")
+
+  @@schema("public")
 }
 
 model AgentRun {
@@ -44,6 +48,7 @@ model AgentRun {
   events            AgentRunEvent[]
 
   @@index([status, createdAt])
+  @@schema("public")
 }
 
 model AgentRunEvent {
@@ -57,124 +62,5 @@ model AgentRunEvent {
 
   @@unique([runId, sequence])
   @@index([runId, createdAt])
-}
-
-enum EcommerceCustomerSegment {
-  NEW
-  ACTIVE
-  VIP
-  AT_RISK
-}
-
-enum EcommerceSalesChannel {
-  WEB
-  MINI_PROGRAM
-  MARKETPLACE
-  LIVE_STREAM
-}
-
-enum EcommerceOrderStatus {
-  PENDING
-  PAID
-  FULFILLED
-  CANCELLED
-  REFUNDED
-}
-
-enum EcommercePaymentMethod {
-  ALIPAY
-  WECHAT_PAY
-  BANK_CARD
-  WALLET
-}
-
-enum EcommercePaymentStatus {
-  PENDING
-  SUCCEEDED
-  REFUNDED
-}
-
-model EcommerceCustomer {
-  id           String                   @id
-  customerCode String                   @unique
-  segment      EcommerceCustomerSegment
-  region       String
-  province     String
-  city         String
-  registeredAt DateTime                 @db.Timestamptz(3)
-  orders       EcommerceOrder[]
-
-  @@index([segment])
-  @@index([region])
-}
-
-model EcommerceProduct {
-  id         String              @id
-  sku        String              @unique
-  name       String
-  category   String
-  brand      String
-  unitPrice  Decimal             @db.Decimal(12, 2)
-  isActive   Boolean             @default(true)
-  createdAt  DateTime            @default(now()) @db.Timestamptz(3)
-  orderItems EcommerceOrderItem[]
-
-  @@index([category, isActive])
-}
-
-model EcommerceOrder {
-  id            String                 @id
-  orderNumber   String                 @unique
-  customerId    String
-  customer      EcommerceCustomer      @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  channel       EcommerceSalesChannel
-  status        EcommerceOrderStatus
-  placedAt      DateTime               @db.Timestamptz(3)
-  paidAt        DateTime?              @db.Timestamptz(3)
-  fulfilledAt   DateTime?              @db.Timestamptz(3)
-  subtotal      Decimal                @db.Decimal(12, 2)
-  discountTotal Decimal                @db.Decimal(12, 2)
-  shippingTotal Decimal                @db.Decimal(12, 2)
-  paidTotal     Decimal                @db.Decimal(12, 2)
-  refundedTotal Decimal                @db.Decimal(12, 2)
-  createdAt     DateTime               @default(now()) @db.Timestamptz(3)
-  updatedAt     DateTime               @db.Timestamptz(3)
-  items         EcommerceOrderItem[]
-  payment       EcommercePayment?
-
-  @@index([placedAt])
-  @@index([paidAt])
-  @@index([status, paidAt])
-  @@index([customerId, paidAt])
-}
-
-model EcommerceOrderItem {
-  id            String          @id
-  orderId       String
-  order         EcommerceOrder  @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  productId     String
-  product       EcommerceProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
-  sku           String
-  productName   String
-  category      String
-  unitPrice     Decimal         @db.Decimal(12, 2)
-  quantity      Int
-  discountTotal Decimal         @db.Decimal(12, 2)
-  lineTotal     Decimal         @db.Decimal(12, 2)
-
-  @@index([orderId])
-  @@index([productId, orderId])
-}
-
-model EcommercePayment {
-  id        String                 @id
-  orderId   String                 @unique
-  order     EcommerceOrder         @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  method    EcommercePaymentMethod
-  status    EcommercePaymentStatus
-  amount    Decimal                @db.Decimal(12, 2)
-  paidAt    DateTime?              @db.Timestamptz(3)
-  createdAt DateTime               @default(now()) @db.Timestamptz(3)
-
-  @@index([status, paidAt])
+  @@schema("public")
 }

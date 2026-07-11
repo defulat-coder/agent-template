@@ -162,6 +162,7 @@ export const CertifiedQueryContractSchema = z.object({
 
 export const BusinessSemanticCatalogSchema = z
   .object({
+    databaseSchema: z.string().min(1),
     dimensions: z.array(SemanticDimensionSchema),
     kind: z.literal("business-semantic-catalog"),
     metrics: z.array(SemanticMetricSchema),

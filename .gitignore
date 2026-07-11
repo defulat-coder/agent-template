@@ -12,4 +12,5 @@ coverage
 .idea/
 *.log
 packages/db/generated
+/packages/ecommerce-fixture/generated
 *.tsbuildinfo

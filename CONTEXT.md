@@ -49,7 +49,7 @@ A reusable sample event that records Agent platform activity for demos, local ve
 _Avoid_: Database row, log line
 
 **Ecommerce fixture**:
-A deterministic, synthetic retail dataset for Toolbox functional validation. It contains no real customer or transaction data.
+A deterministic, synthetic retail dataset isolated in PostgreSQL `ecommerce_fixture` and owned by its own package for Toolbox functional validation. It contains no real customer or transaction data and is not platform persistence.
 _Avoid_: Production export, random demo data
 
 **Ecommerce order**:

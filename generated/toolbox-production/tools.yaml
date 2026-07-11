@@ -40,7 +40,7 @@ statement: |
       "customerId",
       "paidTotal",
       "refundedTotal"
-    FROM "EcommerceOrder"
+    FROM "ecommerce_fixture"."EcommerceOrder"
     CROSS JOIN toolbox_window
     WHERE status IN ('PAID', 'FULFILLED', 'REFUNDED')
       AND "paidAt" >= toolbox_window.window_from
@@ -92,7 +92,7 @@ statement: |
     COALESCE(SUM("refundedTotal"), 0) AS "refundAmount",
     COALESCE(SUM("paidTotal" - "refundedTotal"), 0) AS "netSales",
     COALESCE(ROUND(AVG("paidTotal" - "refundedTotal"), 2), 0) AS "averageOrderValue"
-  FROM "EcommerceOrder"
+  FROM "ecommerce_fixture"."EcommerceOrder"
   CROSS JOIN toolbox_window
   WHERE status IN ('PAID', 'FULFILLED', 'REFUNDED')
     AND "paidAt" >= toolbox_window.window_from
@@ -139,8 +139,8 @@ statement: |
       ROUND(AVG(orders."paidTotal" - orders."refundedTotal"), 2),
       0
     ) AS "averageOrderValue"
-  FROM "EcommerceOrder" AS orders
-  JOIN "EcommerceCustomer" AS customer ON customer.id = orders."customerId"
+  FROM "ecommerce_fixture"."EcommerceOrder" AS orders
+  JOIN "ecommerce_fixture"."EcommerceCustomer" AS customer ON customer.id = orders."customerId"
   CROSS JOIN toolbox_window
   WHERE orders.status IN ('PAID', 'FULFILLED', 'REFUNDED')
     AND orders."paidAt" >= toolbox_window.window_from
@@ -186,8 +186,8 @@ statement: |
       ROUND(AVG(orders."paidTotal" - orders."refundedTotal"), 2),
       0
     ) AS "averageOrderValue"
-  FROM "EcommerceOrder" AS orders
-  JOIN "EcommerceCustomer" AS customer ON customer.id = orders."customerId"
+  FROM "ecommerce_fixture"."EcommerceOrder" AS orders
+  JOIN "ecommerce_fixture"."EcommerceCustomer" AS customer ON customer.id = orders."customerId"
   CROSS JOIN toolbox_window
   WHERE orders.status IN ('PAID', 'FULFILLED', 'REFUNDED')
     AND orders."paidAt" >= toolbox_window.window_from
@@ -230,8 +230,8 @@ statement: |
       item."lineTotal" * (
         1 - COALESCE(orders."refundedTotal" / NULLIF(orders."paidTotal", 0), 0)
       ) AS "netMerchandiseSales"
-    FROM "EcommerceOrderItem" AS item
-    JOIN "EcommerceOrder" AS orders ON orders.id = item."orderId"
+    FROM "ecommerce_fixture"."EcommerceOrderItem" AS item
+    JOIN "ecommerce_fixture"."EcommerceOrder" AS orders ON orders.id = item."orderId"
     CROSS JOIN toolbox_window
     WHERE orders.status IN ('PAID', 'FULFILLED', 'REFUNDED')
       AND orders."paidAt" >= toolbox_window.window_from
@@ -246,7 +246,7 @@ statement: |
     COALESCE(SUM(item."netMerchandiseSales"), 0) AS "netMerchandiseSales",
     COUNT(*) OVER()::int AS "totalCount"
   FROM settled_items AS item
-  JOIN "EcommerceProduct" AS product ON product.id = item."productId"
+  JOIN "ecommerce_fixture"."EcommerceProduct" AS product ON product.id = item."productId"
   GROUP BY product.id, product.sku, product.name, product.category
   ORDER BY "netMerchandiseSales" DESC, "unitsSold" DESC, product.sku ASC
   LIMIT $3
@@ -299,8 +299,8 @@ statement: |
       item."lineTotal" * (
         1 - COALESCE(orders."refundedTotal" / NULLIF(orders."paidTotal", 0), 0)
       ) AS "netMerchandiseSales"
-    FROM "EcommerceOrderItem" AS item
-    JOIN "EcommerceOrder" AS orders ON orders.id = item."orderId"
+    FROM "ecommerce_fixture"."EcommerceOrderItem" AS item
+    JOIN "ecommerce_fixture"."EcommerceOrder" AS orders ON orders.id = item."orderId"
     CROSS JOIN toolbox_window
     WHERE orders.status IN ('PAID', 'FULFILLED', 'REFUNDED')
       AND orders."paidAt" >= toolbox_window.window_from
@@ -356,8 +356,8 @@ statement: |
     orders."paidTotal",
     orders."refundedTotal",
     COUNT(*) OVER()::int AS "totalCount"
-  FROM "EcommerceOrder" AS orders
-  JOIN "EcommerceCustomer" AS customer ON customer.id = orders."customerId"
+  FROM "ecommerce_fixture"."EcommerceOrder" AS orders
+  JOIN "ecommerce_fixture"."EcommerceCustomer" AS customer ON customer.id = orders."customerId"
   CROSS JOIN toolbox_window
   WHERE orders."placedAt" >= toolbox_window.window_from
     AND orders."placedAt" < toolbox_window.window_to
@@ -432,9 +432,9 @@ statement: |
       ) FILTER (WHERE item.id IS NOT NULL),
       '[]'::jsonb
     ) AS items
-  FROM "EcommerceOrder" AS orders
-  JOIN "EcommerceCustomer" AS customer ON customer.id = orders."customerId"
-  LEFT JOIN "EcommerceOrderItem" AS item ON item."orderId" = orders.id
+  FROM "ecommerce_fixture"."EcommerceOrder" AS orders
+  JOIN "ecommerce_fixture"."EcommerceCustomer" AS customer ON customer.id = orders."customerId"
+  LEFT JOIN "ecommerce_fixture"."EcommerceOrderItem" AS item ON item."orderId" = orders.id
   WHERE orders."orderNumber" = $1
   GROUP BY orders.id, customer.id
   LIMIT 1;
@@ -472,8 +472,8 @@ statement: |
     orders."paidTotal",
     ROUND(EXTRACT(EPOCH FROM (toolbox_window.window_to - orders."paidAt")) / 3600, 2) AS "hoursWaiting",
     COUNT(*) OVER()::int AS "totalCount"
-  FROM "EcommerceOrder" AS orders
-  JOIN "EcommerceCustomer" AS customer ON customer.id = orders."customerId"
+  FROM "ecommerce_fixture"."EcommerceOrder" AS orders
+  JOIN "ecommerce_fixture"."EcommerceCustomer" AS customer ON customer.id = orders."customerId"
   CROSS JOIN toolbox_window
   WHERE orders.status = 'PAID'
     AND orders."paidAt" >= toolbox_window.window_from
@@ -520,7 +520,7 @@ annotations:
   openWorldHint: false
 statement: |
   SELECT id, type, payload, "createdAt"
-  FROM "TemplateEvent"
+  FROM public."TemplateEvent"
   WHERE "createdAt" >= NOW() - INTERVAL '30 days'
   ORDER BY "createdAt" DESC
   LIMIT $1;
@@ -549,7 +549,7 @@ annotations:
   openWorldHint: false
 statement: |
   SELECT id, type, payload, "createdAt"
-  FROM "TemplateEvent"
+  FROM public."TemplateEvent"
   WHERE id = $1
   LIMIT 1;
 parameters:
@@ -578,7 +578,7 @@ statement: |
     SELECT * FROM public.validate_toolbox_time_window($1::timestamptz, $2::timestamptz)
   )
   SELECT id, type, payload, "createdAt"
-  FROM "TemplateEvent"
+  FROM public."TemplateEvent"
   CROSS JOIN toolbox_window
   WHERE "createdAt" >= toolbox_window.window_from
     AND "createdAt" < toolbox_window.window_to
@@ -624,7 +624,7 @@ statement: |
     COUNT(DISTINCT payload->>'runId')::int AS "runCount",
     MIN("createdAt") AS "firstEventAt",
     MAX("createdAt") AS "lastEventAt"
-  FROM "TemplateEvent"
+  FROM public."TemplateEvent"
   CROSS JOIN toolbox_window
   WHERE "createdAt" >= toolbox_window.window_from
     AND "createdAt" < toolbox_window.window_to
@@ -662,7 +662,7 @@ statement: |
     COUNT(*)::int AS "eventCount",
     (ARRAY_AGG(type ORDER BY "createdAt" DESC, id DESC)
       FILTER (WHERE type IN ('agent.run.completed', 'agent.run.failed')))[1] AS "terminalEvent"
-  FROM "TemplateEvent"
+  FROM public."TemplateEvent"
   WHERE payload->>'runId' IS NOT NULL
     AND "createdAt" >= NOW() - INTERVAL '30 days'
   GROUP BY payload->>'runId'
@@ -700,7 +700,7 @@ statement: |
     COUNT(*)::int AS "eventCount",
     (ARRAY_AGG(type ORDER BY "createdAt" DESC, id DESC)
       FILTER (WHERE type IN ('agent.run.completed', 'agent.run.failed')))[1] AS "terminalEvent"
-  FROM "TemplateEvent"
+  FROM public."TemplateEvent"
   WHERE payload->>'runId' = $1
   GROUP BY payload->>'runId'
   LIMIT 1;
@@ -727,7 +727,7 @@ annotations:
   openWorldHint: false
 statement: |
   SELECT id, type, payload, "createdAt"
-  FROM "TemplateEvent"
+  FROM public."TemplateEvent"
   WHERE payload->>'runId' = $1
   ORDER BY "createdAt" ASC, id ASC
   LIMIT $2;
@@ -771,7 +771,7 @@ statement: |
       ELSE NULL
     END AS retryable,
     "createdAt" AS "failedAt"
-  FROM "TemplateEvent"
+  FROM public."TemplateEvent"
   CROSS JOIN toolbox_window
   WHERE type = 'agent.run.failed'
     AND "createdAt" >= toolbox_window.window_from
@@ -819,7 +819,7 @@ statement: |
         WHEN payload->>'latencyMs' ~ '^[0-9]+$' THEN (payload->>'latencyMs')::numeric
         ELSE NULL
       END AS "latencyMs"
-    FROM "TemplateEvent"
+    FROM public."TemplateEvent"
     CROSS JOIN toolbox_window
     WHERE type = 'toolbox.tool.invoked'
       AND "createdAt" >= toolbox_window.window_from

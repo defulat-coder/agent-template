@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ecommerceFixture } from "./ecommerce-fixture";
+import { ecommerceFixture } from "./data";
 
 describe("ecommerceFixture", () => {
   it("provides a deterministic, production-shaped retail dataset", () => {

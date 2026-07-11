@@ -67,6 +67,7 @@ pnpm db:seed
 - `packages/ui`: 共享 React UI 组件和样式工具。
 - `packages/shared`: 前后端共享 Zod schema、类型和常量。
 - `packages/db`: Prisma schema、Prisma Client 和数据库配置。
+- `packages/ecommerce-fixture`: 独立 `ecommerce_fixture` schema、确定性零售数据、migration 与 seed；只服务 Toolbox 功能验证。
 - `packages/logger`: Pino logger 封装。
 - `packages/agent`: Agent runtime contract、`AGENT_RUNTIME` selector 和公共入口。
 - `packages/agent-claude`: Claude Agent SDK backed runtime。

@@ -51,6 +51,7 @@ node_modules/.bin/toolbox \
 
 Agent runtime 通过部署环境的 `TOOLBOX_AUTH_TOKEN` 提供由该 issuer 签发、audience 与 scope 均匹配的 JWT。生产部署不得使用占位 token，也不得把终端用户提交的任意字符串直接当成可信 token。
 认证连接必须同时显式设置岗位级 `AGENT_CAPABILITY_PROFILE`；共享配置会拒绝缺失 profile 或继续使用 `development-all` 的 Bearer token 连接。
+只读数据库角色必须显式获得所需 schema 的 `USAGE`，并只对认证 Tool 使用的表/列授予 `SELECT`；当前合成配置需要 `public` 与 `ecommerce_fixture`，不能依靠默认 `search_path` 扩大权限。
 
 ## 多租户数据
 

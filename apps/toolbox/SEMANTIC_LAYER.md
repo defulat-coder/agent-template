@@ -4,7 +4,7 @@
 
 本项目使用标准 PostgreSQL source，因此这里的“语义层”是模型可见的 Toolbox Tool 契约：业务指标口径、Tool 名称与描述、参数、MCP annotations 和按任务分组的 Toolset。它不是 AlloyDB AI NL 的自然语言转 SQL 语义配置，也不是 Looker 模型。
 
-`tools.yaml` 是运行时 Tool、Toolset 和 annotations 的可执行事实源。`semantic/ecommerce.yaml` 中的 `queryContracts` 是认证指标、维度、返回字段和限制的可执行事实源；本地门禁与业务 Skill 共同使用 `BusinessSemanticCatalogSchema`，避免文档与执行漂移。
+`tools.yaml` 是运行时 Tool、Toolset 和 annotations 的可执行事实源。平台 SQL 显式限定 `public`，合成业务 SQL 显式限定 `ecommerce_fixture`，不依赖 session `search_path`。`semantic/ecommerce.yaml` 中的 `databaseSchema` 与 `queryContracts` 是数据边界、认证指标、维度、返回字段和限制的可执行事实源；本地门禁与业务 Skill 共同使用 `BusinessSemanticCatalogSchema`，避免文档与执行漂移。
 
 Toolbox 返回数据库查询结果，Agent 必须依据 Skill 中随附的语义目录解释指标、维度、时间窗和限制。当前 PostgreSQL fixture 没有独立刷新水位，因此回答不得把查询时间冒充为数据时间；需要机器可读结果溯源时，应在未来独立设计结果 envelope，而不是在 MCP Client 中隐式改写 Tool 返回值。
 

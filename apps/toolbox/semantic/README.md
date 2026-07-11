@@ -4,6 +4,8 @@
 
 当前的 [ecommerce.yaml](./ecommerce.yaml) 是合成电商 fixture 的完整示例。真实业务应按领域分别建立目录，例如 `sales.yaml`、`supply-chain.yaml` 或 `customer-success.yaml`，并由该领域的数据负责人评审。
 
+目录的 `databaseSchema` 必须与数据所有权一致；当前示例固定为独立 `ecommerce_fixture`，认证 SQL 不依赖 PostgreSQL `search_path`。
+
 [智能问数落地](../INTELLIGENT_QUERY.md) 定义执行层的选择标准：认证业务查询目录是默认路径；semantic query compiler、独立语义层和 AlloyDB AI NL 都是需要额外准入条件与架构决策的升级路径。不要因业务问题变多而直接开放自由 SQL。
 
 ## 目录应包含

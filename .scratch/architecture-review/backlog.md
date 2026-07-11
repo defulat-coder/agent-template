@@ -4,47 +4,48 @@
 
 ## 候选
 
-| 状态      | 议题                                       | 强度            | 下一步                                                                                |
-| --------- | ------------------------------------------ | --------------- | ------------------------------------------------------------------------------------- |
-| completed | 收拢 Agent job intake module               | Strong          | API route 已穿过 `AgentJobIntake` interface，BullMQ lifecycle 留在 implementation 内  |
-| completed | 压窄 Worker process seam                   | Worth exploring | BullMQ event name 已留在 adapter 内，process 测试穿过回调 interface                   |
-| completed | 修正 Worker payload validation seam        | Worth exploring | `handleAgentJob` interface 已接收 `unknown`，validation 留在 implementation 内        |
-| completed | 集中 Agent runtime env config seam         | Strong          | Agent runtime env 由 `packages/agent` 统一维护，API/Worker env module 只组合该 seam   |
-| completed | Deepen Agent runtime execution module      | Strong          | `runAgent` 已成为 Chat SSE 和 Worker 共同调用的 Agent run execution seam              |
-| completed | 引入 Agent run，收窄 Agent job             | Strong          | `Agent job` 只表示 queued request；Chat SSE 和 Worker 共用 `Agent run` interface      |
-| completed | 拆清 Web Agent client 命名                 | Worth exploring | `agent-job-client` 已改为 `agent-client`，同时覆盖 Chat SSE 和 queued job intake      |
-| completed | 减少 Worker runtime 与 Agent runtime 重名  | Worth exploring | Worker 侧改称 `AgentWorkerProcess`；`runtime` 留给 Agent implementation selector      |
-| completed | 收拢 Eve Agent runtime model 来源          | Strong          | `src/config.ts` 同时驱动 runtime state 和 `agent/agent.ts`                            |
-| completed | 接入真实 runtime execution adapter         | Strong          | `runAgent` dispatch 到 Claude/Eve runtime package；未配置返回 skipped                 |
-| completed | 删除 Worker job-handler pass-through       | Worth exploring | Worker process 直接委派 `runAgent`                                                    |
-| completed | 建立 Agent run event producer seam         | Speculative     | runtime adapter 返回原始 events；streaming/store 暂不新增                             |
-| completed | 收拢 Agent run event producer seam         | Strong          | Claude/Eve adapter 输出 shared `AgentRunEvent`，raw SDK events 留在 implementation 内 |
-| completed | 删除 legacy Agent run event normalizer     | Strong          | shared 只保留 `AgentRunEvent` schema/type；raw protocol mapping 留在 runtime adapter  |
-| completed | Define shared Agent run event protocol     | Worth exploring | Agent run event protocol 和 normalizer 已移入 `packages/shared`                       |
-| completed | Narrow Agent job HTTP contract duplication | Speculative     | Agent job accepted metadata schema 已移入 `packages/shared`，Web/API 共用             |
-| deferred  | 收拢 Queue runtime knowledge               | Worth exploring | 当前只有两个装配点；继续抽象会形成 shallow module                                     |
-| deferred  | 集中 Health display locality               | Speculative     | 等第二个页面或测试重复使用 health panel 映射                                          |
-| completed | 收拢 Toolbox Tool 分类与准入 matrix        | Strong          | 平台运维、认证业务问数和未来 compiler 的 interface 已集中到智能问数标准               |
-| superseded | 收紧 MCP Host 授权边界                    | Strong          | MCP Host 已删除；授权由 Toolbox OIDC、Tool scope 与数据库强制                         |
-| completed | 建立 Agent capability profile seam         | Strong          | Profile 同源投影到 Claude SDK policy 与 Eve connection `tools.allow`                  |
-| completed | 深化业务语义查询契约                       | Strong          | 语义目录由共享 schema 校验并随业务 Skill 投影，不隐式改写 Tool 返回值                 |
-| completed | 建立原生 MCP 本地验收 seam                 | Strong          | 默认本机 migration/seed + 临时官方 Toolbox；Docker 只保留显式入口                     |
-| completed | 补齐列表分页与空结果 interface             | Worth exploring | 稳定 LIMIT/OFFSET + totalCount，Skill 规定分页与可操作空结果回答                       |
-| completed | 集中 Toolbox 可观测性启动策略              | Worth exploring | 临时启动器统一 JSON、SQLCommenter、OTLP env 与 service name                           |
-| completed | 统一本地验证文档边界                       | Strong          | 根规则与 Toolbox 文档不再把 Docker 描述为默认路径                                     |
-| completed | 由 Agent runtime 持有 MCP Client            | Strong          | Claude/Eve 各自使用框架原生 Client，共享包只持有配置与 schema                         |
-| completed | 阻止 Toolbox token 进入 Claude subprocess  | Strong          | ambient Toolbox env 在创建 Claude subprocess env 时显式删除并有回归测试               |
-| completed | 恢复 Toolbox 执行级时间窗护栏              | Strong          | PostgreSQL 统一拒绝反向或超过 31 天的窗口，原生 MCP 验收穿过真实 seam                 |
-| completed | 建立持久化 Agent run lifecycle             | Strong          | Chat/Queue 共用状态机与 PostgreSQL record，BullMQ 只投递 `runId`                      |
-| completed | 建立所选 Agent runtime readiness           | Strong          | Claude 校验 MCP capability，Eve 使用官方 health；API 只聚合 shared state              |
-| completed | 收紧 Agent run event/result 协议不变量     | Strong          | Tool event 关联 call/name；terminal result 按 status 强制必需字段                      |
-| completed | 按部署选择动态加载 runtime adapter         | Strong          | 公共 selector 保留同步 config，execution/readiness 只加载所选 adapter                  |
-| completed | 修正 ADR 与模块规则的 Host 漂移            | Strong          | superseded ADR 仅保留历史；当前规则统一指向 runtime-owned MCP 与 Toolbox 授权          |
-| completed | 同步 Toolbox 生成产物                      | Strong          | production 配置、官方原始 Skill 与 runtime Skill 均由同一事实源生成并通过 stale gate |
-| completed | 固定 Toolbox UTC 日桶                      | Strong          | 销售日显式按 UTC 转换，不再依赖 PostgreSQL session timezone                          |
-| completed | 规范化 Toolbox MCP URL                    | Worth exploring | `/mcp/` 与 `/mcp` 归一为一个 MCP path，Claude/Eve 共享 parser 不再重复追加            |
-| completed | 收紧认证连接 capability profile           | Strong          | Bearer token 连接必须显式选择岗位 profile，不允许 `development-all` fail-open         |
-| completed | 收窄本地 Toolbox 容器暴露面               | Worth exploring | 宿主机 MCP 端口只绑定 loopback，容器网络访问保持不变                                  |
+| 状态       | 议题                                       | 强度            | 下一步                                                                                  |
+| ---------- | ------------------------------------------ | --------------- | --------------------------------------------------------------------------------------- |
+| completed  | 收拢 Agent job intake module               | Strong          | API route 已穿过 `AgentJobIntake` interface，BullMQ lifecycle 留在 implementation 内    |
+| completed  | 压窄 Worker process seam                   | Worth exploring | BullMQ event name 已留在 adapter 内，process 测试穿过回调 interface                     |
+| completed  | 修正 Worker payload validation seam        | Worth exploring | `handleAgentJob` interface 已接收 `unknown`，validation 留在 implementation 内          |
+| completed  | 集中 Agent runtime env config seam         | Strong          | Agent runtime env 由 `packages/agent` 统一维护，API/Worker env module 只组合该 seam     |
+| completed  | Deepen Agent runtime execution module      | Strong          | `runAgent` 已成为 Chat SSE 和 Worker 共同调用的 Agent run execution seam                |
+| completed  | 引入 Agent run，收窄 Agent job             | Strong          | `Agent job` 只表示 queued request；Chat SSE 和 Worker 共用 `Agent run` interface        |
+| completed  | 拆清 Web Agent client 命名                 | Worth exploring | `agent-job-client` 已改为 `agent-client`，同时覆盖 Chat SSE 和 queued job intake        |
+| completed  | 减少 Worker runtime 与 Agent runtime 重名  | Worth exploring | Worker 侧改称 `AgentWorkerProcess`；`runtime` 留给 Agent implementation selector        |
+| completed  | 收拢 Eve Agent runtime model 来源          | Strong          | `src/config.ts` 同时驱动 runtime state 和 `agent/agent.ts`                              |
+| completed  | 接入真实 runtime execution adapter         | Strong          | `runAgent` dispatch 到 Claude/Eve runtime package；未配置返回 skipped                   |
+| completed  | 删除 Worker job-handler pass-through       | Worth exploring | Worker process 直接委派 `runAgent`                                                      |
+| completed  | 建立 Agent run event producer seam         | Speculative     | runtime adapter 返回原始 events；streaming/store 暂不新增                               |
+| completed  | 收拢 Agent run event producer seam         | Strong          | Claude/Eve adapter 输出 shared `AgentRunEvent`，raw SDK events 留在 implementation 内   |
+| completed  | 删除 legacy Agent run event normalizer     | Strong          | shared 只保留 `AgentRunEvent` schema/type；raw protocol mapping 留在 runtime adapter    |
+| completed  | Define shared Agent run event protocol     | Worth exploring | Agent run event protocol 和 normalizer 已移入 `packages/shared`                         |
+| completed  | Narrow Agent job HTTP contract duplication | Speculative     | Agent job accepted metadata schema 已移入 `packages/shared`，Web/API 共用               |
+| deferred   | 收拢 Queue runtime knowledge               | Worth exploring | 当前只有两个装配点；继续抽象会形成 shallow module                                       |
+| deferred   | 集中 Health display locality               | Speculative     | 等第二个页面或测试重复使用 health panel 映射                                            |
+| completed  | 收拢 Toolbox Tool 分类与准入 matrix        | Strong          | 平台运维、认证业务问数和未来 compiler 的 interface 已集中到智能问数标准                 |
+| superseded | 收紧 MCP Host 授权边界                     | Strong          | MCP Host 已删除；授权由 Toolbox OIDC、Tool scope 与数据库强制                           |
+| completed  | 建立 Agent capability profile seam         | Strong          | Profile 同源投影到 Claude SDK policy 与 Eve connection `tools.allow`                    |
+| completed  | 深化业务语义查询契约                       | Strong          | 语义目录由共享 schema 校验并随业务 Skill 投影，不隐式改写 Tool 返回值                   |
+| completed  | 建立原生 MCP 本地验收 seam                 | Strong          | 默认本机 migration/seed + 临时官方 Toolbox；Docker 只保留显式入口                       |
+| completed  | 补齐列表分页与空结果 interface             | Worth exploring | 稳定 LIMIT/OFFSET + totalCount，Skill 规定分页与可操作空结果回答                        |
+| completed  | 集中 Toolbox 可观测性启动策略              | Worth exploring | 临时启动器统一 JSON、SQLCommenter、OTLP env 与 service name                             |
+| completed  | 统一本地验证文档边界                       | Strong          | 根规则与 Toolbox 文档不再把 Docker 描述为默认路径                                       |
+| completed  | 由 Agent runtime 持有 MCP Client           | Strong          | Claude/Eve 各自使用框架原生 Client，共享包只持有配置与 schema                           |
+| completed  | 阻止 Toolbox token 进入 Claude subprocess  | Strong          | ambient Toolbox env 在创建 Claude subprocess env 时显式删除并有回归测试                 |
+| completed  | 恢复 Toolbox 执行级时间窗护栏              | Strong          | PostgreSQL 统一拒绝反向或超过 31 天的窗口，原生 MCP 验收穿过真实 seam                   |
+| completed  | 建立持久化 Agent run lifecycle             | Strong          | Chat/Queue 共用状态机与 PostgreSQL record，BullMQ 只投递 `runId`                        |
+| completed  | 建立所选 Agent runtime readiness           | Strong          | Claude 校验 MCP capability，Eve 使用官方 health；API 只聚合 shared state                |
+| completed  | 收紧 Agent run event/result 协议不变量     | Strong          | Tool event 关联 call/name；terminal result 按 status 强制必需字段                       |
+| completed  | 按部署选择动态加载 runtime adapter         | Strong          | 公共 selector 保留同步 config，execution/readiness 只加载所选 adapter                   |
+| completed  | 修正 ADR 与模块规则的 Host 漂移            | Strong          | superseded ADR 仅保留历史；当前规则统一指向 runtime-owned MCP 与 Toolbox 授权           |
+| completed  | 隔离平台数据库与 Ecommerce fixture         | Strong          | 平台留在 `public`；fixture 独立 package/schema/migration/seed，Tool SQL 显式限定 schema |
+| completed  | 同步 Toolbox 生成产物                      | Strong          | production 配置、官方原始 Skill 与 runtime Skill 均由同一事实源生成并通过 stale gate    |
+| completed  | 固定 Toolbox UTC 日桶                      | Strong          | 销售日显式按 UTC 转换，不再依赖 PostgreSQL session timezone                             |
+| completed  | 规范化 Toolbox MCP URL                     | Worth exploring | `/mcp/` 与 `/mcp` 归一为一个 MCP path，Claude/Eve 共享 parser 不再重复追加              |
+| completed  | 收紧认证连接 capability profile            | Strong          | Bearer token 连接必须显式选择岗位 profile，不允许 `development-all` fail-open           |
+| completed  | 收窄本地 Toolbox 容器暴露面                | Worth exploring | 宿主机 MCP 端口只绑定 loopback，容器网络访问保持不变                                    |
 
 ## 执行规则
 
@@ -53,6 +54,14 @@
 - 每轮完成后用中文 Conventional Commit 提交。
 
 ## 已完成
+
+### 隔离平台数据库与 Ecommerce fixture
+
+- 日期：2026-07-11
+- locality：`packages/db` 只拥有平台 `public` model；`packages/ecommerce-fixture` 独立拥有 schema、Client、baseline、seed 与确定性数据生成。
+- deletion test：电商 model 留在平台 Client 会让可复用模板永久携带业务假设；独立 package 删除后平台 Agent run lifecycle 仍完整，因此该 seam 有真实可替换性。
+- leverage：根数据库命令统一编排两个 migration history，Toolbox SQL 显式 schema qualification；同一真实 MCP 验收继续覆盖 18 Tool 与 10 个业务场景。
+- 聚焦验证：两 package lint/typecheck/test/build；幂等 `pnpm db:deploy`/`db:seed`；当前库 boundary 检查与临时空库独立重建；`pnpm toolbox:check` 与 `pnpm toolbox:verify:local`，未使用 Docker。
 
 ### 修正 ADR 与模块规则的 Host 漂移
 

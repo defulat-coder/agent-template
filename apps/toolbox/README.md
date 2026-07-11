@@ -23,7 +23,7 @@
 
 ## 电商业务验证数据（主要路径）
 
-`pnpm db:seed` 会写入完全确定性的合成零售数据：96 个脱敏客户、24 个商品、600 个订单、1,200 个订单项和 540 条支付记录。订单覆盖过去 60 天，并包含 Web、小程序、平台和直播四种渠道，以及已支付、已履约、全额退款、部分退款、取消和待支付状态。所有电商业务时间存为 `timestamptz`，窗口统一按 UTC 解释；它是生产形态的测试数据，不是任何真实客户或交易数据。
+`pnpm db:seed` 会通过 `packages/ecommerce-fixture` 向独立 PostgreSQL `ecommerce_fixture` schema 写入完全确定性的合成零售数据：96 个脱敏客户、24 个商品、600 个订单、1,200 个订单项和 540 条支付记录。订单覆盖过去 60 天，并包含 Web、小程序、平台和直播四种渠道，以及已支付、已履约、全额退款、部分退款、取消和待支付状态。所有电商业务时间存为 `timestamptz`，窗口统一按 UTC 解释；它是生产形态的测试数据，不是平台持久化，也不是任何真实客户或交易数据。
 
 | Tool                                    | 验证场景                 | 保护措施                                |
 | --------------------------------------- | ------------------------ | --------------------------------------- |
@@ -77,6 +77,12 @@ pnpm toolbox:verify:local
 ```
 
 该命令直接使用 `.env`/默认本地连接，对本机数据库执行 migration 和确定性 seed，启动临时官方 Toolbox 二进制，然后用原生 MCP Client 验证 `tools/list`、10 个业务场景、分页、空结果、部分退款、UTC 边界、非法时间窗与能力 Profile。命令结束后临时 Toolbox 自动退出，不使用 Docker。
+
+`pnpm db:verify:boundaries` 可单独验证平台表只在 `public`，五张合成业务表只在 `ecommerce_fixture`。
+
+## 显式容器诊断（仅用户要求时）
+
+以下命令只用于明确选择 Docker 的诊断场景，不属于默认验证路径。
 
 ## 电商 MCP Docker 集成验证（仅显式要求时）
 
@@ -158,6 +164,7 @@ docker compose exec toolbox /toolbox --config /app/tools.yaml invoke list-agent-
 
 ```bash
 pnpm toolbox:check
+pnpm db:verify:boundaries
 pnpm --filter @agent-template/shared test
 pnpm --filter @agent-template/agent-claude test
 pnpm --filter @agent-template/agent-eve test

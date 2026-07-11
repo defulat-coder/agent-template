@@ -2,13 +2,13 @@
 
 ## 职责
 
-`packages/db` 管理 Prisma schema、Prisma 7 配置、PostgreSQL adapter 和 Prisma Client 导出。
+`packages/db` 管理平台 `public` schema、Prisma 7 配置、PostgreSQL adapter 和 Prisma Client 导出。
 
 ## 能力边界
 
 - `prisma/schema.prisma` 是数据模型来源。
 - `prisma.config.ts` 管理 Prisma 7 datasource 配置。
-- `prisma/seed.ts` 写入确定性的 Agent 平台示例数据。
+- `prisma/seed.ts` 只写入确定性的 Agent 平台 `TemplateEvent`；电商验证数据属于 `packages/ecommerce-fixture`。
 - `src/index.ts` 导出 Prisma Client 和 `AgentRunRepository` adapter。
 - 默认数据库连接使用 `localhost:15432`，避免和本机默认 PostgreSQL 冲突。
 - Prisma 目录内的 schema、migration、seed 规则见 `prisma/AGENTS.md`。
@@ -19,6 +19,7 @@
 - 不写业务 service。
 - 不把 Agent run 状态机放进 repository；这里只实现原子读写。
 - 不在 schema 中加入模板无关业务模型。
+- 不导出 Ecommerce fixture model 或让平台应用依赖 fixture package。
 - 不手动编辑 `generated/` 输出。
 
 ## 相关技能
@@ -32,6 +33,7 @@
 ```bash
 pnpm db:generate
 pnpm agent-runs:verify:local
+pnpm db:verify:boundaries
 pnpm db:seed
 pnpm --filter @agent-template/db lint
 pnpm --filter @agent-template/db typecheck
@@ -40,7 +42,7 @@ pnpm --filter @agent-template/db build
 
 本地迁移前确认 PostgreSQL 已监听 `localhost:15432`，然后运行 `pnpm db:migrate`。只有显式选择容器模式时才运行 Docker Compose。
 
-生产或 CI 只应用已提交 migration：`pnpm --filter @agent-template/db prisma migrate deploy --schema prisma/schema.prisma`。
+生产或 CI 通过根命令 `pnpm db:deploy` 按顺序应用平台 migration 与 fixture baseline/migration。
 
 ## 官方参考
 

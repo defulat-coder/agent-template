@@ -100,18 +100,9 @@ async function assertToolCallFails(
 async function main() {
   const dockerMode = process.argv.includes("--docker");
   if (dockerMode) run("docker", ["compose", "up", "-d", "postgres", "toolbox"]);
-  run("pnpm", ["--filter", "@agent-template/db", "db:generate"]);
-  run("pnpm", [
-    "--filter",
-    "@agent-template/db",
-    "exec",
-    "prisma",
-    "migrate",
-    "deploy",
-    "--schema",
-    "prisma/schema.prisma",
-  ]);
-  run("pnpm", ["--filter", "@agent-template/db", "db:seed"]);
+  run("pnpm", ["db:generate"]);
+  run("pnpm", ["db:deploy"]);
+  run("pnpm", ["db:seed"]);
   if (dockerMode) {
     run("docker", ["compose", "up", "-d", "--force-recreate", "toolbox"]);
   }

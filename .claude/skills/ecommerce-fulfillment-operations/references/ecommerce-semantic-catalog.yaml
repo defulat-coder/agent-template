@@ -1,6 +1,7 @@
 kind: business-semantic-catalog
 name: ecommerce-retail-example
 version: 1
+databaseSchema: ecommerce_fixture
 description: >-
   用于合成电商 fixture 的智能问数示例。定义业务术语、指标、维度、取值和受控
   Toolbox 查询路径；不是任何真实业务的数据字典。

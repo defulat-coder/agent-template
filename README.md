@@ -43,6 +43,9 @@ pnpm test
 pnpm db:generate
 pnpm db:migrate
 pnpm db:seed
+pnpm db:verify:boundaries
+pnpm db:verify:fixture:empty
+pnpm db:verify:migrations:empty
 pnpm agent-runs:verify:local
 pnpm agent-runtime:verify:local
 pnpm agent-runtime:check:bundle
@@ -59,6 +62,7 @@ apps/
 packages/
   ui/            shadcn/ui 风格共享组件
   db/            Prisma schema 和 Prisma Client
+  ecommerce-fixture/ 独立 schema 的合成零售验证数据
   logger/        Pino logger 封装
   agent/         Agent runtime 公共边界
   agent-claude/  Claude Agent SDK runtime
@@ -67,7 +71,7 @@ packages/
   shared/        共享 Zod schema 和 TypeScript 类型
 ```
 
-`apps/toolbox/tools.yaml` 定义生产 Agent 可加载的数据库工具。默认 toolset 是 `agent_template_read_model`：保留 `TemplateEvent` 的只读运行观测，同时提供合成电商的日销售、渠道、区域、客户分群、品类、商品排行、订单详情和履约异常查询。`pnpm db:seed` 会写入 96 个脱敏客户、24 个商品和 600 个确定性订单；指标口径和 MCP annotations 见 [Toolbox 业务语义契约](apps/toolbox/SEMANTIC_LAYER.md)，智能问数的术语到字段/取值映射见 [智能问数落地](apps/toolbox/INTELLIGENT_QUERY.md)，完整的参数、索引和 MCP 验证命令见 [apps/toolbox/README.md](apps/toolbox/README.md)。prebuilt generic tools 仅用于开发期探索，不作为生产 Agent 默认能力。
+`apps/toolbox/tools.yaml` 定义生产 Agent 可加载的数据库工具。默认 toolset 是 `agent_template_read_model`：保留 `public.TemplateEvent` 的只读运行观测，同时提供 `ecommerce_fixture` 中合成电商的日销售、渠道、区域、客户分群、品类、商品排行、订单详情和履约异常查询。`pnpm db:seed` 会分别 seed 平台与独立 fixture；`pnpm db:verify:boundaries` 验证业务表没有泄漏回 `public`。指标口径和 MCP annotations 见 [Toolbox 业务语义契约](apps/toolbox/SEMANTIC_LAYER.md)，智能问数的术语到字段/取值映射见 [智能问数落地](apps/toolbox/INTELLIGENT_QUERY.md)，完整的参数、索引和 MCP 验证命令见 [apps/toolbox/README.md](apps/toolbox/README.md)。prebuilt generic tools 仅用于开发期探索，不作为生产 Agent 默认能力。
 
 Claude 与 Eve 分别通过各自框架的原生 MCP Client 直连 Toolbox：Claude 使用 SDK HTTP MCP server，Eve 使用 `agent/connections/toolbox.ts`。两者共用 `TOOLBOX_URL`、`TOOLBOX_AUTH_TOKEN` 和 `AGENT_CAPABILITY_PROFILE`，但不共享 client lifecycle，也不经过 API 代理。
 

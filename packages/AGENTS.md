@@ -6,7 +6,8 @@
 
 - `ui`: React UI 组件和样式工具。
 - `shared`: Zod schema、共享类型和常量。
-- `db`: Prisma schema、Prisma Client 和数据库配置。
+- `db`: 平台 `public` schema、Prisma Client 和 Agent run repository。
+- `ecommerce-fixture`: 独立 schema 的确定性 Toolbox 业务验证数据，不进入平台 runtime。
 - `logger`: Pino logger 统一配置。
 - `agent`: Agent runtime contract、selector 和公共入口。
 - `agent-claude`: Claude Agent SDK backed runtime。
