@@ -13,7 +13,8 @@ export function createZReadHeadingId(title: string): string {
 export function resolveZReadHref(
   currentSlug: readonly string[],
   href: string,
-  indexSlug = "overview",
+  indexSlug: string,
+  knownSlugs: ReadonlySet<string>,
 ): string {
   if (
     href.startsWith("#") ||
@@ -26,7 +27,7 @@ export function resolveZReadHref(
 
   const match = href.match(/^([^?#]*)([?#].*)?$/u);
   const rawPath = match?.[1];
-  if (!rawPath?.toLowerCase().endsWith(".md")) {
+  if (!rawPath) {
     return href;
   }
 
@@ -53,7 +54,13 @@ export function resolveZReadHref(
     return href;
   }
 
-  const documentSlug = normalized.slice(0, -".md".length);
+  const markdownLink = normalized.toLowerCase().endsWith(".md");
+  const documentSlug = markdownLink
+    ? normalized.slice(0, -".md".length)
+    : normalized;
+  if (!knownSlugs.has(documentSlug)) {
+    return href;
+  }
   const route = documentSlug === indexSlug ? "/docs" : `/docs/${documentSlug}`;
   return `${route}${match?.[2] ?? ""}`;
 }

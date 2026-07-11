@@ -7,16 +7,23 @@ export function DocsMarkdown({
   children,
   currentSlug,
   indexSlug,
+  knownSlugs,
 }: {
   children: string;
   currentSlug: readonly string[];
   indexSlug: string;
+  knownSlugs: ReadonlySet<string>;
 }) {
   return (
     <ReactMarkdown
       components={{
         a: ({ children, href = "", ...props }) => {
-          const resolvedHref = resolveZReadHref(currentSlug, href, indexSlug);
+          const resolvedHref = resolveZReadHref(
+            currentSlug,
+            href,
+            indexSlug,
+            knownSlugs,
+          );
           const external = /^[a-z][a-z\d+.-]*:/iu.test(resolvedHref);
           return (
             <a

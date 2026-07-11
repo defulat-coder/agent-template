@@ -12,6 +12,7 @@ import {
   isSafeZReadPathSegment,
   ZReadWikiManifestSchema,
   type ZReadManifestPage,
+  type ZReadWikiManifest,
 } from "@agent-template/shared";
 
 export type ZReadPage = ZReadManifestPage;
@@ -38,12 +39,14 @@ export async function stageCurrentZReadWiki(
   const manifestContent = await readFile(manifestPath, "utf8");
   assertSafeText(manifestContent, "ZRead wiki manifest");
   const manifest = parseManifest(manifestContent, id);
+  const snapshot = createSnapshot(manifest);
 
   await mkdir(path.join(destinationWiki, "versions", id), { recursive: true });
   await writeFile(path.join(destinationWiki, "current"), `${id}\n`, "utf8");
-  await cp(
-    manifestPath,
+  await writeFile(
     path.join(destinationWiki, "versions", id, "wiki.json"),
+    `${JSON.stringify(manifest, null, 2)}\n`,
+    "utf8",
   );
 
   for (const page of manifest.pages) {
@@ -65,7 +68,7 @@ export async function stageCurrentZReadWiki(
     await cp(sourcePage, destinationPage);
   }
 
-  return manifest;
+  return snapshot;
 }
 
 function parseCurrentVersionId(current: string): string {
@@ -77,7 +80,7 @@ function parseCurrentVersionId(current: string): string {
   return id;
 }
 
-function parseManifest(content: string, expectedId: string): ZReadWikiSnapshot {
+function parseManifest(content: string, expectedId: string): ZReadWikiManifest {
   let value: unknown;
   try {
     value = JSON.parse(content);
@@ -85,7 +88,9 @@ function parseManifest(content: string, expectedId: string): ZReadWikiSnapshot {
     throw new Error("ZRead wiki.json is not valid JSON", { cause: error });
   }
 
-  const parsed = ZReadWikiManifestSchema.safeParse(value);
+  const parsed = ZReadWikiManifestSchema.safeParse(
+    normalizeVendorManifest(value),
+  );
   if (!parsed.success) {
     throw new Error(`Invalid ZRead wiki.json: ${parsed.error.message}`);
   }
@@ -96,12 +101,42 @@ function parseManifest(content: string, expectedId: string): ZReadWikiSnapshot {
       `ZRead wiki.json id ${id} does not match current version ${expectedId}`,
     );
   }
+  return parsed.data;
+}
+
+function normalizeVendorManifest(value: unknown): unknown {
+  if (!isRecord(value) || !Array.isArray(value.pages)) {
+    return value;
+  }
   return {
-    generatedAt: parsed.data.generated_at,
-    id,
-    language: parsed.data.language,
-    pages: parsed.data.pages,
+    ...value,
+    pages: value.pages.map((page) => {
+      if (!isRecord(page)) {
+        return page;
+      }
+      return {
+        ...page,
+        group:
+          typeof page.group === "string" && page.group
+            ? page.group
+            : page.section,
+        level: typeof page.level === "number" ? String(page.level) : page.level,
+      };
+    }),
   };
+}
+
+function createSnapshot(manifest: ZReadWikiManifest): ZReadWikiSnapshot {
+  return {
+    generatedAt: manifest.generated_at,
+    id: manifest.id,
+    language: manifest.language,
+    pages: manifest.pages,
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 async function assertRegularPage(

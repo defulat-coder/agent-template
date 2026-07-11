@@ -3,37 +3,88 @@ import { test } from "vitest";
 import { createZReadHeadingId, resolveZReadHref } from "./zread-links";
 
 test("rewrites relative Markdown links into docs routes", () => {
+  const knownSlugs = new Set([
+    "architecture/overview",
+    "domain/concepts",
+    "operations/testing",
+  ]);
   assert.equal(
     resolveZReadHref(
       ["architecture", "overview"],
       "../domain/concepts.md#tool",
+      "architecture/overview",
+      knownSlugs,
     ),
     "/docs/domain/concepts#tool",
   );
   assert.equal(
-    resolveZReadHref(["operations", "local-dev"], "./testing.md"),
+    resolveZReadHref(
+      ["operations", "local-dev"],
+      "./testing.md",
+      "architecture/overview",
+      knownSlugs,
+    ),
     "/docs/operations/testing",
   );
   assert.equal(
-    resolveZReadHref([], "architecture/overview.md"),
-    "/docs/architecture/overview",
+    resolveZReadHref(
+      [],
+      "architecture/overview.md",
+      "architecture/overview",
+      knownSlugs,
+    ),
+    "/docs",
   );
 });
 
 test("keeps anchors, external URLs and non-Markdown assets unchanged", () => {
+  const knownSlugs = new Set<string>();
   assert.equal(
-    resolveZReadHref(["domain", "concepts"], "#runtime"),
+    resolveZReadHref(
+      ["domain", "concepts"],
+      "#runtime",
+      "overview",
+      knownSlugs,
+    ),
     "#runtime",
   );
   assert.equal(
-    resolveZReadHref([], "https://example.com/docs"),
+    resolveZReadHref([], "https://example.com/docs", "overview", knownSlugs),
     "https://example.com/docs",
   );
-  assert.equal(resolveZReadHref([], "./diagram.svg"), "./diagram.svg");
+  assert.equal(
+    resolveZReadHref([], "./diagram.svg", "overview", knownSlugs),
+    "./diagram.svg",
+  );
+});
+
+test("rewrites extensionless ZRead slugs without treating source Markdown as Wiki pages", () => {
+  const knownSlugs = new Set(["1-xiang-mu-gai-lan", "2-kuai-su-qi-dong"]);
+
+  assert.equal(
+    resolveZReadHref([], "2-kuai-su-qi-dong", "1-xiang-mu-gai-lan", knownSlugs),
+    "/docs/2-kuai-su-qi-dong",
+  );
+  assert.equal(
+    resolveZReadHref(
+      [],
+      "1-xiang-mu-gai-lan",
+      "1-xiang-mu-gai-lan",
+      knownSlugs,
+    ),
+    "/docs",
+  );
+  assert.equal(
+    resolveZReadHref([], "README.md#L1-L9", "1-xiang-mu-gai-lan", knownSlugs),
+    "README.md#L1-L9",
+  );
 });
 
 test("does not turn traversal outside the wiki into an application route", () => {
-  assert.equal(resolveZReadHref([], "../README.md"), "../README.md");
+  assert.equal(
+    resolveZReadHref([], "../README.md", "overview", new Set()),
+    "../README.md",
+  );
 });
 
 test("creates stable heading ids for Markdown anchor links", () => {

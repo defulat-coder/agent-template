@@ -39,3 +39,5 @@ pnpm --filter @agent-template/web build
 ```
 
 `docs:zread:update` 会把当前已提交版本克隆到隔离目录，调用 Kimi 生成全部页面，校验 JSONL 终态、写入边界、manifest、Markdown 文件、路径安全以及 stdout、stderr、ZRead log 和生成内容中没有 provider credential 后，仅把当前版本发布到 `.zread/wiki/`。该命令会发送仓库源码上下文并消耗模型额度，必须由有权限的人显式执行。
+
+发布 adapter 会把 ZRead vendor manifest 规范化成稳定的项目契约：`current` 只保存版本 ID，缺失的 `group` 使用 `section`，`level` 统一为字符串。Web 和其他消费者只读取该 canonical manifest，不兼容 vendor 的临时格式差异。

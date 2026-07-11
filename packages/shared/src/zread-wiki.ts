@@ -13,7 +13,7 @@ export const ZReadPageSlugSchema = z
 export const ZReadManifestPageSchema = z.object({
   file: ZReadPageFileSchema,
   group: z.string().min(1),
-  level: z.number().int(),
+  level: z.string().min(1),
   section: z.string().min(1),
   slug: ZReadPageSlugSchema,
   title: z.string().min(1),

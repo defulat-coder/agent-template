@@ -102,7 +102,7 @@ function createManifest() {
       {
         file: "overview.md",
         group: "开始",
-        level: 1,
+        level: "1",
         section: "开始",
         slug: "overview",
         title: "项目概览",
@@ -110,7 +110,7 @@ function createManifest() {
       {
         file: "architecture/runtime.md",
         group: "架构",
-        level: 1,
+        level: "1",
         section: "架构",
         slug: "architecture/runtime",
         title: "Runtime 架构",

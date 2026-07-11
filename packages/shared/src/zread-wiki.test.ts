@@ -9,7 +9,7 @@ const validManifest = {
     {
       file: "overview.md",
       group: "开始",
-      level: 1,
+      level: "1",
       section: "开始",
       slug: "overview",
       title: "项目概览",
@@ -17,7 +17,7 @@ const validManifest = {
     {
       file: "architecture/runtime.md",
       group: "架构",
-      level: 1,
+      level: "1",
       section: "架构",
       slug: "architecture/runtime",
       title: "Runtime 架构",
@@ -28,6 +28,20 @@ const validManifest = {
 describe("ZReadWikiManifestSchema", () => {
   it("accepts the ZRead current wiki contract", () => {
     expect(ZReadWikiManifestSchema.parse(validManifest)).toEqual(validManifest);
+  });
+
+  it("rejects unnormalized vendor pages at the committed manifest seam", () => {
+    const pages = validManifest.pages.map((page) => ({
+      file: page.file,
+      level: "Beginner",
+      section: page.section,
+      slug: page.slug,
+      title: page.title,
+    }));
+
+    expect(() =>
+      ZReadWikiManifestSchema.parse({ ...validManifest, pages }),
+    ).toThrow();
   });
 
   it("rejects traversal and duplicate slugs", () => {

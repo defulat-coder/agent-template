@@ -102,9 +102,13 @@ export default async function DocsPage({ params }: DocsPageProps) {
             <span>{document.section}</span>
           </div>
           <div className="max-w-3xl">
+            <h1 className="mb-8 text-3xl font-semibold tracking-tight text-slate-950 md:text-4xl">
+              {document.title}
+            </h1>
             <DocsMarkdown
               currentSlug={document.slug}
               indexSlug={catalog[0]?.sourceSlug ?? "overview"}
+              knownSlugs={new Set(catalog.map((entry) => entry.sourceSlug))}
             >
               {document.content}
             </DocsMarkdown>

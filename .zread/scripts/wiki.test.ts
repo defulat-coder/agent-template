@@ -31,6 +31,18 @@ test("stages only the active validated ZRead wiki version", async () => {
       await readFile(path.join(fixture.destination, "current"), "utf8"),
       "2026-07-11_2030_abc123\n",
     );
+    const publishedManifest = JSON.parse(
+      await readFile(
+        path.join(
+          fixture.destination,
+          "versions",
+          "2026-07-11_2030_abc123",
+          "wiki.json",
+        ),
+        "utf8",
+      ),
+    );
+    assert.equal(publishedManifest.pages[0].level, "1");
     await assert.rejects(
       access(path.join(fixture.destination, "versions", "old-version")),
     );
