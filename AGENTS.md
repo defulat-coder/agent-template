@@ -34,8 +34,8 @@
 ## 架构规则
 
 - 每个有文件改动的任务完成并验证后，提交前必须使用 `improve-codebase-architecture` 审查本次变更及直接影响模块。
-- 与本次变更直接相关、非破坏性的架构候选默认修复；无关的全仓候选写入 `.scratch/architecture-review/backlog.md`，不扩大当前任务范围。
-- 涉及产品取舍、破坏性变更、成本明显扩大或外部约束无法判断时向用户确认；每个实际修复的候选单独提交，全部验证后统一推送。
+- 与本次变更直接相关、非破坏性的候选默认修复；无关候选只报告，不扩大当前任务范围。
+- 产品取舍、破坏性变更、成本明显扩大或外部约束不明时向用户确认；长期决策写入 `docs/adr/`，延期工作按 `docs/agents/issue-tracker.md` 建 issue，HTML 报告只放临时目录。
 - `apps/*` 使用 Agent runtime 时只通过 `@agent-template/agent`，不直接依赖具体 runtime package；runtime 仅由部署环境的 `AGENT_RUNTIME=claude|eve` 选择。
 - Claude/Eve 各自持有 Toolbox MCP Client；`@agent-template/toolbox-config` 只维护配置与 schema；Web 不直连 MCP Server。
 - `AGENT_CAPABILITY_PROFILE` 只收窄模型可见 Tool；生产授权由 Toolbox OIDC、Tool scope 和数据库权限强制。
