@@ -43,12 +43,12 @@ pnpm db:seed
 
 ## Skills 管理
 
-- 项目协作 Skills（`.agents/skills/`）统一使用 `npx skills` 管理，不手工复制、更新、删除 Skill 目录或维护 Agent 发现路径。
+- `.agents/skills/` 是项目协作 Skills 的唯一真实来源，统一使用 `npx skills` 管理，不手工复制、更新、删除 Skill 目录或维护 Agent 发现路径。
 - 每个 `.agents/skills/*` 都必须有对应的 `skills-lock.json` 锁项；锁文件只由 `npx skills add/update/remove` 生成，不手工编辑。
 - 查找：先使用 `find-skills` 工作流，再运行 `npx skills find <query>`。
-- 安装：`npx skills add <source>`；使用项目级作用域，不加 `-g`，并按需选择 Skill 与目标 Agent。
+- 安装：`npx skills add <source> --agent codex claude-code`；使用项目级作用域，不加 `-g`，默认同时支持 Codex 与 Claude Code。
 - 查看、更新、删除：`npx skills list`、`npx skills update [skills...] -p`、`npx skills remove [skills]`。
-- `.claude/skills/` 与 `packages/agent-eve/agent/skills/` 是运行时业务 Skills，不适用本节；继续由 `pnpm skills:generate:toolbox` 生成和同步。
+- `.claude/skills/` 中指向 `.agents/skills/` 的协作 Skill 软链接由 `npx skills` 维护；其中的真实业务 Skill 目录与 `packages/agent-eve/agent/skills/` 继续由 `pnpm skills:generate:toolbox` 生成和同步。
 - 如果 Skill 自带 Codex hook，合并到 `.codex/hooks.json`，不要覆盖已有 hook。
 - 不把已安装 Skills 清单写进 AGENTS.md；这里只写管理方式和协作规则。
 

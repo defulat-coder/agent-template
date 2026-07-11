@@ -55,6 +55,12 @@
       "skillPath": "SKILL.md",
       "computedHash": "79a1e606ecf33eed33c1f3adc1cc266de391e19aa9237ca37e4f3aa3fba6b228"
     },
+    "fastify-best-practices": {
+      "source": "mcollina/skills",
+      "sourceType": "github",
+      "skillPath": "skills/fastify/SKILL.md",
+      "computedHash": "269924684709b8c6f50a569ef988e66031efb822ef92cba6c8dfa160e54ed4d4"
+    },
     "find-skills": {
       "source": "vercel-labs/skills",
       "sourceType": "github",
