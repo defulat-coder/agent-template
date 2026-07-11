@@ -29,6 +29,7 @@
     "toolbox:check:production": "tsx scripts/generate-toolbox-production-config.ts --check",
     "toolbox:verify:auth:local": "tsx scripts/toolbox/verify-toolbox-auth-local.ts",
     "toolbox:verify:local": "tsx scripts/toolbox/verify-ecommerce-toolbox.ts",
+    "toolbox:verify:plans": "tsx scripts/verify-toolbox-query-plans.ts",
     "toolbox:verify:docker": "tsx scripts/toolbox/verify-ecommerce-toolbox.ts --docker",
     "skills:generate:toolbox": "pnpm toolbox:check:semantic && tsx scripts/generate-toolbox-business-skills.ts",
     "skills:check:toolbox": "pnpm toolbox:check:semantic && tsx scripts/generate-toolbox-business-skills.ts --check",

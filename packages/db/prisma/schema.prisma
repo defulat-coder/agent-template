@@ -68,6 +68,5 @@ model AgentRunEvent {
 
   @@unique([runId, sequence])
   @@index([runId, createdAt])
-  @@index([runId, executionAttempt, kind])
   @@schema("public")
 }

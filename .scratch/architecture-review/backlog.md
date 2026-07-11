@@ -49,6 +49,7 @@
 | completed  | 对齐 BullMQ redelivery 与 execution lease  | Strong          | 固定 retry delay 由默认 lease + grace 派生，并通过本地 Redis/BullMQ 验证                |
 | completed  | 持久化 Agent run event attempt provenance  | Strong          | execution event 原子投影 attempt；timeline 与 Tool 配对禁止跨 attempt 关联              |
 | completed  | 收口本地 Toolbox verifier 资源生命周期     | Worth exploring | connect failure close Client；launcher stop/parent exit 清理临时 Toolbox                |
+| completed  | 对齐 AgentRun Toolbox SQL 与生产索引       | Strong          | 先 limit run 再 lateral count；三条访问路径由专用索引和 EXPLAIN gate 锁定               |
 | completed  | 同步 Toolbox 生成产物                      | Strong          | production 配置、官方原始 Skill 与 runtime Skill 均由同一事实源生成并通过 stale gate    |
 | completed  | 固定 Toolbox UTC 日桶                      | Strong          | 销售日显式按 UTC 转换，不再依赖 PostgreSQL session timezone                             |
 | completed  | 规范化 Toolbox MCP URL                     | Worth exploring | `/mcp/` 与 `/mcp` 归一为一个 MCP path，Claude/Eve 共享 parser 不再重复追加              |
@@ -62,6 +63,14 @@
 - 每轮完成后用中文 Conventional Commit 提交。
 
 ## 已完成
+
+### 对齐 AgentRun Toolbox SQL 与生产索引
+
+- 日期：2026-07-11
+- locality：Agent run observability SQL 与 PostgreSQL access path 同时维护；列表先限量 run，再按主键统计事件。
+- deletion test：删除专用索引会让 requestedAt、failed completedAt 与 kind/time 查询退化为增长型扫描；不能把成本推给 Toolbox。
+- leverage：三条索引支撑 run 面板、失败分诊和 Tool invocation 聚合；移除不匹配的 attempt/kind 索引减少写放大。
+- 聚焦验证：`pnpm toolbox:verify:plans` 在真实 PostgreSQL 禁用 seq scan 后断言计划命中三个指定索引；native MCP 全场景继续通过。
 
 ### 收口本地 Toolbox verifier 资源生命周期
 

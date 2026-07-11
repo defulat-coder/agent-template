@@ -655,6 +655,25 @@ annotations:
   idempotentHint: true
   openWorldHint: false
 statement: |
+  WITH recent_runs AS MATERIALIZED (
+    SELECT
+      id,
+      status,
+      "executionAttempt",
+      "heartbeatAt",
+      "leaseExpiresAt",
+      runtime,
+      model,
+      "requestedAt",
+      "startedAt",
+      "completedAt",
+      output,
+      reason
+    FROM public."AgentRun"
+    WHERE "requestedAt" >= NOW() - INTERVAL '30 days'
+    ORDER BY "requestedAt" DESC, id DESC
+    LIMIT $1
+  )
   SELECT
     runs.id AS "runId",
     runs.status,
@@ -668,13 +687,14 @@ statement: |
     runs."completedAt",
     runs.output,
     runs.reason,
-    COUNT(events.id)::int AS "eventCount"
-  FROM public."AgentRun" AS runs
-  LEFT JOIN public."AgentRunEvent" AS events ON events."runId" = runs.id
-  WHERE runs."requestedAt" >= NOW() - INTERVAL '30 days'
-  GROUP BY runs.id
-  ORDER BY runs."requestedAt" DESC, runs.id DESC
-  LIMIT $1;
+    COALESCE(events."eventCount", 0)::int AS "eventCount"
+  FROM recent_runs AS runs
+  LEFT JOIN LATERAL (
+    SELECT COUNT(*)::int AS "eventCount"
+    FROM public."AgentRunEvent" AS event
+    WHERE event."runId" = runs.id
+  ) AS events ON true
+  ORDER BY runs."requestedAt" DESC, runs.id DESC;
 parameters:
   - name: limit
     type: integer

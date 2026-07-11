@@ -327,6 +327,16 @@ function validateTool(tool: ToolboxEntry) {
     );
   }
 
+  if (
+    name === "list-agent-runs" &&
+    (!statement.includes("WITH recent_runs AS MATERIALIZED") ||
+      !statement.includes("LEFT JOIN LATERAL"))
+  ) {
+    errors.push(
+      `${name}: limit the AgentRun index scan before counting events through a lateral lookup`,
+    );
+  }
+
   if (/^list[-_]/.test(name) && !/\bLIMIT\b/i.test(statement)) {
     errors.push(`${name}: list tools must enforce a SQL LIMIT`);
   }

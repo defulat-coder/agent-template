@@ -156,7 +156,7 @@ Agent run 相关 Tool 直接读取 `public."AgentRun"` 与 `public."AgentRunEven
 
 ## 索引与上线要求
 
-`TemplateEvent` 的样例巡检路径由 `createdAt` 与 `(type, createdAt)` 索引支持；Agent run 由 `(status, createdAt)`、`(runId, sequence)` 和 `(runId, createdAt)` 支持真实生命周期与时间线查询。电商读模型为订单时间、状态/付款时间、客户/付款时间、订单项外键建索引；已结算订单另有部分覆盖索引，避免把取消和待支付订单放入日销售、渠道和商品排行的访问路径。商品净销售会把订单级退款按 `refundedTotal / paidTotal` 比例分摊到订单项，保证全额与部分退款和日销售、渠道销售的净额口径一致。
+`TemplateEvent` 的样例巡检路径由 `createdAt` 与 `(type, createdAt)` 索引支持；Agent run 列表先用 `(requestedAt DESC, id DESC)` 限量再按 run 统计事件，失败窗口使用 partial `(completedAt DESC, id DESC) WHERE status='failed'`，Tool invocation 使用 `(kind, createdAt)`，时间线使用唯一 `(runId, sequence)`。`pnpm toolbox:verify:plans` 通过真实 PostgreSQL `EXPLAIN` 锁定这些访问路径。电商读模型为订单时间、状态/付款时间、客户/付款时间、订单项外键建索引；已结算订单另有部分覆盖索引，避免把取消和待支付订单放入日销售、渠道和商品排行的访问路径。商品净销售会把订单级退款按 `refundedTotal / paidTotal` 比例分摊到订单项，保证全额与部分退款和日销售、渠道销售的净额口径一致。
 
 实际多租户项目不得直接复用当前模板的跨组织查询。应先将稳定的 `tenantId` / `organizationId` 提升为一等列，使用受限数据库角色和 RLS，再为每个 Tool 强制注入可信身份范围；不要把租户范围交给模型提供的 `templateParameters`。
 
