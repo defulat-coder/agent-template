@@ -79,7 +79,7 @@ pnpm db:seed
 - 每个架构候选修复后单独提交，全部候选修复并验证完成后再统一推送。
 - `apps/*` 只依赖 `@agent-template/agent` 的公共 runtime 边界，不直接依赖具体 runtime package。
 - Agent runtime 只通过 `AGENT_RUNTIME=claude|eve` 选择；不要从 request 或 job payload 覆盖。
-- Kimi Code 接入 Cloud 和 Eve 都使用 Anthropic-compatible 协议；API Key 只放本地 `.env` 或部署环境变量。
+- Kimi Code 接入 Claude 和 Eve 都使用 Anthropic-compatible 协议；API Key 只放本地 `.env` 或部署环境变量。
 - `TOOLBOX_URL`、`TOOLBOX_AUTH_TOKEN` 和 `AGENT_CAPABILITY_PROFILE` 只配置当前 runtime 的 Toolbox MCP Client，不参与 runtime 选择。
 - 生产 Agent 默认只加载 `apps/toolbox/tools.yaml` 中显式声明的自定义 toolset。
 - Claude runtime 使用 SDK HTTP MCP server 配置直连 Toolbox；Eve runtime 使用 `agent/connections/toolbox.ts` 的 `defineMcpClientConnection` 直连 Toolbox。不得恢复共享 MCP Host 或 API MCP 代理。

@@ -10,7 +10,7 @@ The template needs to answer business questions expressed with domain terms such
 
 ## Decision
 
-Use a versioned Business semantic catalog per domain to map business terms, metrics, dimensions, value mappings, ambiguity rules, and question patterns to certified Toolbox Tools. The current PostgreSQL implementation uses outcome-focused, prepared-statement Tools and Agent Skills that load the catalog on demand. Trusted identity, tenant scope, and authorization remain outside model-controlled arguments and must be enforced by the Host and database.
+Use a versioned Business semantic catalog per domain to map business terms, metrics, dimensions, value mappings, ambiguity rules, and question patterns to certified Toolbox Tools. The current PostgreSQL implementation uses outcome-focused, prepared-statement Tools and Agent Skills that load the catalog on demand. Trusted identity, tenant scope, and authorization remain outside model-controlled arguments and must be enforced by Toolbox authentication, Tool scopes, restricted database roles, and RLS or equivalent controls.
 
 Do not introduce arbitrary NL2SQL in the PostgreSQL template. A future semantic query compiler may support higher-dimensional combinations only through catalog allowlists and parameterized SQL. AlloyDB AI NL remains an optional, separate migration path because it requires AlloyDB `nl_config` and its own security configuration.
 
@@ -21,7 +21,7 @@ The implementation hierarchy is normative:
 3. An external semantic layer is selected when several BI and AI consumers need one source of truth for metrics and relationships; Toolbox must call that governed model rather than duplicate formulas.
 4. Database-native NL2SQL is a separate AlloyDB migration. Its `nl_config`, Parameterized Secure Views, and authenticated or bound identity parameters are mandatory rather than prompt-level conventions.
 
-Toolsets remain context and Skill-generation groups, not authorization. Host capability profiles must exist before a deployment claims per-Agent least-privilege Tool visibility.
+Toolsets remain context and Skill-generation groups, not authorization. An `AGENT_CAPABILITY_PROFILE` must exist before a deployment claims role-specific model-visible Tool narrowing; it does not replace Toolbox or database authorization.
 
 ## Consequences
 

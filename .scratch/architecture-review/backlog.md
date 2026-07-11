@@ -39,6 +39,7 @@
 | completed | 建立所选 Agent runtime readiness           | Strong          | Claude 校验 MCP capability，Eve 使用官方 health；API 只聚合 shared state              |
 | completed | 收紧 Agent run event/result 协议不变量     | Strong          | Tool event 关联 call/name；terminal result 按 status 强制必需字段                      |
 | completed | 按部署选择动态加载 runtime adapter         | Strong          | 公共 selector 保留同步 config，execution/readiness 只加载所选 adapter                  |
+| completed | 修正 ADR 与模块规则的 Host 漂移            | Strong          | superseded ADR 仅保留历史；当前规则统一指向 runtime-owned MCP 与 Toolbox 授权          |
 | completed | 同步 Toolbox 生成产物                      | Strong          | production 配置、官方原始 Skill 与 runtime Skill 均由同一事实源生成并通过 stale gate |
 | completed | 固定 Toolbox UTC 日桶                      | Strong          | 销售日显式按 UTC 转换，不再依赖 PostgreSQL session timezone                          |
 | completed | 规范化 Toolbox MCP URL                    | Worth exploring | `/mcp/` 与 `/mcp` 归一为一个 MCP path，Claude/Eve 共享 parser 不再重复追加            |
@@ -52,6 +53,14 @@
 - 每轮完成后用中文 Conventional Commit 提交。
 
 ## 已完成
+
+### 修正 ADR 与模块规则的 Host 漂移
+
+- 日期：2026-07-11
+- locality：ADR 0002/0006 与 Web/Toolbox/Claude 协作规则统一到 ADR 0007；ADR 0003/0005 明确标记为非规范性历史决策。
+- deletion test：保留冲突规则会让后续 Agent 同时尝试 runtime-owned MCP 与已删除 Host bridge，因此文档一致性直接影响代码架构。
+- leverage：Tool visibility、Toolbox OIDC/scope、数据库授权和交互式 UI 未决边界分别只有一个规范来源；Cloud/Claude 命名同步领域语言。
+- 聚焦验证：全仓非 Skill Markdown 漂移扫描、ADR 链接检查、`git diff --check`。
 
 ### 按部署选择动态加载 runtime adapter
 

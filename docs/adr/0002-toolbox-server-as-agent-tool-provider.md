@@ -2,11 +2,11 @@
 
 ## Status
 
-Accepted, superseded in part by [ADR 0003: Host-Managed MCP](./0003-host-managed-mcp.md)
+Accepted. MCP Client ownership was amended by [ADR 0007: Agent-runtime-owned MCP clients](./0007-agent-runtime-owned-mcp-clients.md).
 
 ## Context
 
-The template has two independent Agent runtimes: Cloud and Eve. Both should be able to use database-backed tools without either runtime owning database connection details.
+The template has two independent Agent runtimes: Claude and Eve. Both should be able to use database-backed tools without either runtime owning database connection details.
 
 MCP Toolbox for Databases has two relevant modes:
 
@@ -25,11 +25,11 @@ The default `tools.yaml` exposes only read-only `TemplateEvent` tools under `age
 
 ## Consequences
 
-- Cloud and Eve runtimes stay independent.
+- Claude and Eve runtimes stay independent.
 - Database tool permissions are visible in one audited `tools.yaml` file.
 - New database tools require an explicit tool and toolset entry plus a matching shared Tool/Profile entry. Runtime profiles reduce model-visible tools; Toolbox OIDC, Tool scopes, restricted database roles and RLS/equivalent controls enforce authorization.
 - Runtime-owned MCP is the production integration path: Claude uses the SDK HTTP MCP server configuration and Eve uses `defineMcpClientConnection`.
-- Runtime-owned Toolbox connections such as project `.mcp.json` or `packages/agent-eve/agent/connections/toolbox.ts` are historical context, not the current implementation direction.
+- Runtime-owned Toolbox connections are the current implementation: Claude receives an SDK HTTP MCP server config and Eve declares `packages/agent-eve/agent/connections/toolbox.ts`.
 
 ## References
 

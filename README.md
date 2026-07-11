@@ -61,7 +61,7 @@ packages/
   db/            Prisma schema 和 Prisma Client
   logger/        Pino logger 封装
   agent/         Agent runtime 公共边界
-  agent-claude/  Cloud/Claude Agent SDK runtime
+  agent-claude/  Claude Agent SDK runtime
   agent-eve/     Eve runtime
   toolbox-config/ Toolbox 共享配置与能力 Profile
   shared/        共享 Zod schema 和 TypeScript 类型
