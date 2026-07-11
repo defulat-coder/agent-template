@@ -12,6 +12,7 @@
 - `src/index.ts` 导出 Prisma Client 和 `AgentRunRepository` adapter。
 - Agent run claim、heartbeat、execution event 和 terminal update 必须以 PostgreSQL 原子条件实现 fencing；不能先读 token 再无条件写。
 - execution lease 的唯一时钟是 PostgreSQL `clock_timestamp()`；应用传入的业务时间不得参与 lease ownership 判定。
+- execution event insert 必须在同一 fenced SQL 中从 AgentRun 投影 `executionAttempt`；lifecycle-only event 使用 `null`，不能由调用方伪造 attempt。
 - 默认数据库连接使用 `localhost:15432`，避免和本机默认 PostgreSQL 冲突。
 - Prisma 目录内的 schema、migration、seed 规则见 `prisma/AGENTS.md`。
 

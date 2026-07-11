@@ -127,11 +127,12 @@ export function createPrismaAgentRunRepository(client: PrismaClient) {
     ) {
       const inserted = await client.$executeRaw`
         INSERT INTO public."AgentRunEvent"
-          (id, "runId", sequence, kind, payload, "createdAt")
+          (id, "runId", sequence, "executionAttempt", kind, payload, "createdAt")
         SELECT
           ${randomUUID()},
           ${runId},
           ${input.sequence},
+          "executionAttempt",
           ${input.event.kind},
           ${JSON.stringify(input.event)}::jsonb,
           ${input.createdAt}
@@ -147,11 +148,12 @@ export function createPrismaAgentRunRepository(client: PrismaClient) {
     async appendLifecycleEvent(runId: string, input: StoredRunEventInput) {
       const inserted = await client.$executeRaw`
         INSERT INTO public."AgentRunEvent"
-          (id, "runId", sequence, kind, payload, "createdAt")
+          (id, "runId", sequence, "executionAttempt", kind, payload, "createdAt")
         SELECT
           ${randomUUID()},
           ${runId},
           ${input.sequence},
+          NULL,
           ${input.event.kind},
           ${JSON.stringify(input.event)}::jsonb,
           ${input.createdAt}
@@ -270,6 +272,7 @@ function mapStoredRun(
     sessionId: run.sessionId,
     events: run.events.map((event) => ({
       sequence: event.sequence,
+      executionAttempt: event.executionAttempt,
       event: AgentRunEventSchema.parse(event.payload),
       createdAt: event.createdAt,
     })),

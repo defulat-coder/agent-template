@@ -41,7 +41,7 @@ A time-bounded, renewable claim for one execution attempt of an Agent run. Its f
 _Avoid_: BullMQ lock, Worker heartbeat
 
 **Agent run event**:
-An ordered, runtime-neutral event emitted while an Agent run executes. Tool events correlate one invocation by `callId` and name the capability by `toolName`.
+An ordered, runtime-neutral event emitted while an Agent run executes. Persistent execution events record their execution attempt; lifecycle-only events use no attempt. Tool events correlate one invocation by attempt, `callId`, and `toolName`.
 _Avoid_: UI timeline item, log line
 
 **Agent message part**:

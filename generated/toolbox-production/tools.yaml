@@ -743,7 +743,7 @@ annotations:
   idempotentHint: true
   openWorldHint: false
 statement: |
-  SELECT id, sequence, kind, payload, "createdAt"
+  SELECT id, sequence, "executionAttempt", kind, payload, "createdAt"
   FROM public."AgentRunEvent"
   WHERE "runId" = $1
   ORDER BY sequence ASC
@@ -829,6 +829,7 @@ statement: |
   call_events AS (
     SELECT
       "runId",
+      "executionAttempt",
       payload->>'callId' AS "callId",
       payload->>'toolName' AS "toolName",
       "createdAt" AS "calledAt"
@@ -841,6 +842,7 @@ statement: |
   result_events AS (
     SELECT
       "runId",
+      "executionAttempt",
       payload->>'callId' AS "callId",
       "createdAt" AS "resultAt"
     FROM public."AgentRunEvent"
@@ -853,6 +855,7 @@ statement: |
     FROM call_events AS calls
     LEFT JOIN result_events AS results
       ON results."runId" = calls."runId"
+      AND results."executionAttempt" = calls."executionAttempt"
       AND results."callId" = calls."callId"
   )
   SELECT

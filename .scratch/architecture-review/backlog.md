@@ -47,6 +47,7 @@
 | completed  | 建立 Agent run execution lease 与 fencing  | Strong          | 过期 running 可 reclaim；attempt/token/heartbeat 原子保护 event 与 terminal write       |
 | completed  | 统一 execution lease 数据库时钟            | Strong          | claim/heartbeat/event/finish 只用 PostgreSQL clock；Worker 时间只作业务 metadata        |
 | completed  | 对齐 BullMQ redelivery 与 execution lease  | Strong          | 固定 retry delay 由默认 lease + grace 派生，并通过本地 Redis/BullMQ 验证                |
+| completed  | 持久化 Agent run event attempt provenance  | Strong          | execution event 原子投影 attempt；timeline 与 Tool 配对禁止跨 attempt 关联              |
 | completed  | 同步 Toolbox 生成产物                      | Strong          | production 配置、官方原始 Skill 与 runtime Skill 均由同一事实源生成并通过 stale gate    |
 | completed  | 固定 Toolbox UTC 日桶                      | Strong          | 销售日显式按 UTC 转换，不再依赖 PostgreSQL session timezone                             |
 | completed  | 规范化 Toolbox MCP URL                     | Worth exploring | `/mcp/` 与 `/mcp` 归一为一个 MCP path，Claude/Eve 共享 parser 不再重复追加              |
@@ -60,6 +61,14 @@
 - 每轮完成后用中文 Conventional Commit 提交。
 
 ## 已完成
+
+### 持久化 Agent run event attempt provenance
+
+- 日期：2026-07-11
+- locality：Prisma adapter 在 fenced event insert 内原子复制当前 `executionAttempt`，调用方不能伪造；lifecycle-only event 明确为 `null`。
+- deletion test：不保存 attempt 会让 timeline、审计和 Tool latency 调用方各自推测 retry 分段；持久化一次可集中复杂度。
+- leverage：timeline、故障调查和 Tool invocation 聚合共用同一 provenance；call/result 以 run + attempt + callId 配对。
+- 聚焦验证：unit/真实 PostgreSQL 断言 reclaim 后 event attempt=2；Toolbox 原生 MCP 验证 timeline attempt 与 attempt-aware latency 聚合。
 
 ### 对齐 BullMQ redelivery 与 execution lease
 

@@ -318,6 +318,15 @@ function validateTool(tool: ToolboxEntry) {
     );
   }
 
+  if (
+    name === "summarize-tool-invocations" &&
+    !statement.includes('results."executionAttempt" = calls."executionAttempt"')
+  ) {
+    errors.push(
+      `${name}: Tool call/result correlation must include executionAttempt`,
+    );
+  }
+
   if (/^list[-_]/.test(name) && !/\bLIMIT\b/i.test(statement)) {
     errors.push(`${name}: list tools must enforce a SQL LIMIT`);
   }

@@ -128,6 +128,7 @@ async function main() {
     assert.equal(recovered?.status, "completed");
     assert.equal(recovered?.executionAttempt, 2);
     assert.equal(recovered?.events[0]?.event.kind, "done");
+    assert.equal(recovered?.events[0]?.executionAttempt, 2);
 
     const cancelledCrash = await lifecycle.queue({
       prompt: "Cancel crashed execution",
@@ -146,7 +147,7 @@ async function main() {
     assert.equal(finalizedCancellation.events[0]?.kind, "cancelled");
 
     console.log(
-      "Local Agent run lifecycle verification passed: persistence, cancellation, expired-lease reclaim, stale-executor fencing, and crashed-run cancellation.",
+      "Local Agent run lifecycle verification passed: persistence, cancellation, expired-lease reclaim, stale-executor fencing, event attempt provenance, and crashed-run cancellation.",
     );
   } finally {
     await prisma.agentRun.deleteMany({ where: { id: { in: createdRunIds } } });

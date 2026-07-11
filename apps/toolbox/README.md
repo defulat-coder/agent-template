@@ -152,7 +152,7 @@ docker compose exec toolbox /toolbox --config /app/tools.yaml invoke get-agent-r
 docker compose exec toolbox /toolbox --config /app/tools.yaml invoke list-agent-run-timeline '{"runId":"run_invoice_001","limit":100}'
 ```
 
-Agent run 相关 Tool 直接读取 `public."AgentRun"` 与 `public."AgentRunEvent"`。`TemplateEvent` 只保留样例事件巡检职责，不再作为 run 生命周期、终态或 Tool 调用统计的间接投影。
+Agent run 相关 Tool 直接读取 `public."AgentRun"` 与 `public."AgentRunEvent"`。时间线显式返回 `executionAttempt`，Tool call/result 按 `runId + executionAttempt + callId` 配对，避免 retry 复用 callId 时串联不同 attempt。`TemplateEvent` 只保留样例事件巡检职责，不再作为 run 生命周期、终态或 Tool 调用统计的间接投影。
 
 ## 索引与上线要求
 

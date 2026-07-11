@@ -9,9 +9,12 @@ import {
 
 export type StoredAgentRunEvent = {
   sequence: number;
+  executionAttempt: number | null;
   event: AgentRunEvent;
   createdAt: Date;
 };
+
+type AgentRunEventWrite = Omit<StoredAgentRunEvent, "executionAttempt">;
 
 export type StoredAgentRun = {
   id: string;
@@ -58,9 +61,9 @@ export type AgentRunRepository = {
   ): Promise<"active" | "cancelled" | "lost">;
   appendExecutionEvent(
     id: string,
-    input: StoredAgentRunEvent & { executionToken: string },
+    input: AgentRunEventWrite & { executionToken: string },
   ): Promise<boolean>;
-  appendLifecycleEvent(id: string, input: StoredAgentRunEvent): Promise<void>;
+  appendLifecycleEvent(id: string, input: AgentRunEventWrite): Promise<void>;
   finishExecution(
     id: string,
     input: {

@@ -27,6 +27,7 @@
 - 认证业务问数 Tool 的准入物是：语义目录的指标/维度/值映射/歧义规则、问题模式、golden cases、数据负责人、可信身份访问范围和数据新鲜度。缺失任一项时先补目录，不新增 Tool。
 - 平台只读运维 Tool 不要求业务语义目录或业务 Skill，但仍必须有结果型描述、MCP annotations、有界参数、runtime capability profile 和 native 执行验证；不要把它误归为智能问数能力。
 - Agent run 运维 Tool 必须读取 `AgentRun` / `AgentRunEvent` durable source of truth；`TemplateEvent` 只用于样例事件巡检，不得模拟生命周期终态或 Tool 调用统计。
+- Agent run timeline 必须返回 `executionAttempt`；Tool call/result 统计必须按 `runId + executionAttempt + callId` 配对，禁止跨 retry attempt 关联。
 - Toolset 只用于 Skill 生成和模型上下文分组，不能当作运行时最小权限。`AGENT_CAPABILITY_PROFILE` 只收窄模型可见 Tool；实际授权由 Toolbox OIDC、Tool scope、可信身份和数据库 RLS/等效控制强制。
 - 生产授权必须 fail-closed：server 声明 OIDC scope，每个 Tool 声明业务 scope。生产 JWT 只从部署环境的 `TOOLBOX_AUTH_TOKEN` 注入 MCP Client header，不能成为 Tool 参数或进入模型 subprocess env。
 - 分析 Tool 必须声明业务时区、`[from, to)` 时间边界与数据库时间类型；UTC 输入承诺不能依赖 PostgreSQL session 的隐式时区转换。

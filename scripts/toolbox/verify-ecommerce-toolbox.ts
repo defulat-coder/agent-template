@@ -275,6 +275,10 @@ async function main() {
       runTimeline.map((row) => row.kind),
       ["tool-call", "tool-result", "done"],
     );
+    assert.deepEqual(
+      runTimeline.map((row) => row.executionAttempt),
+      [1, 1, 1],
+    );
 
     const failedRuns = await callRows(
       client,
@@ -347,6 +351,7 @@ async function seedAgentRunVerificationData() {
       startedAt,
       completedAt,
       status: "COMPLETED",
+      executionAttempt: 1,
       runtime: "claude",
       model: "local-verifier",
       output: "Toolbox read model verified",
@@ -354,6 +359,7 @@ async function seedAgentRunVerificationData() {
         create: [
           {
             sequence: 0,
+            executionAttempt: 1,
             kind: "tool-call",
             payload: {
               kind: "tool-call",
@@ -365,6 +371,7 @@ async function seedAgentRunVerificationData() {
           },
           {
             sequence: 1,
+            executionAttempt: 1,
             kind: "tool-result",
             payload: {
               kind: "tool-result",
@@ -375,6 +382,7 @@ async function seedAgentRunVerificationData() {
           },
           {
             sequence: 2,
+            executionAttempt: 1,
             kind: "done",
             payload: { kind: "done", result: "Toolbox read model verified" },
             createdAt: completedAt,

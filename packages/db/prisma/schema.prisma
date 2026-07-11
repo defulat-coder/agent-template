@@ -57,15 +57,17 @@ model AgentRun {
 }
 
 model AgentRunEvent {
-  id        String   @id @default(cuid())
-  runId     String
-  run       AgentRun @relation(fields: [runId], references: [id], onDelete: Cascade)
-  sequence  Int
-  kind      String
-  payload   Json
-  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  id               String   @id @default(cuid())
+  runId            String
+  run              AgentRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  sequence         Int
+  executionAttempt Int?
+  kind             String
+  payload          Json
+  createdAt        DateTime @default(now()) @db.Timestamptz(3)
 
   @@unique([runId, sequence])
   @@index([runId, createdAt])
+  @@index([runId, executionAttempt, kind])
   @@schema("public")
 }

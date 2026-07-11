@@ -117,6 +117,9 @@ describe("Agent run lifecycle", () => {
       status: "cancelled",
     });
     expect(executions).toBe(0);
+    await expect(repository.find(queued.id)).resolves.toMatchObject({
+      events: [{ executionAttempt: null }],
+    });
   });
 
   it("reclaims an expired execution and fences the stale executor", async () => {
@@ -195,6 +198,9 @@ describe("Agent run lifecycle", () => {
       executionAttempt: 2,
       output: "recovered",
       status: "completed",
+    });
+    await expect(repository.find("run-lease")).resolves.toMatchObject({
+      events: [{ executionAttempt: 2, sequence: 0 }],
     });
   });
 
@@ -331,14 +337,19 @@ function createInMemoryRepository(now = () => new Date()): AgentRunRepository {
       ) {
         return false;
       }
-      run.events.push(input);
+      run.events.push({
+        sequence: input.sequence,
+        executionAttempt: run.executionAttempt,
+        event: input.event,
+        createdAt: input.createdAt,
+      });
       return true;
     },
     async appendLifecycleEvent(id, input) {
       const run = runs.get(id);
       if (!run || run.status !== "cancelled") throw new Error("missing run");
       if (!run.events.some((event) => event.sequence === input.sequence)) {
-        run.events.push(input);
+        run.events.push({ ...input, executionAttempt: null });
       }
     },
     async finishExecution(id, input) {
