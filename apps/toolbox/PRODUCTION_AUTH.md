@@ -5,15 +5,15 @@
 ## 认证链路
 
 ```text
-可信调用方
-  -> MCP Host（只从可信 invocation context 或 TOOLBOX_AUTH_TOKEN 读取 JWT）
+Claude / Eve Agent runtime
+  -> runtime-owned MCP Client（只从部署环境 TOOLBOX_AUTH_TOKEN 读取 JWT）
   -> Authorization: Bearer <JWT>
   -> Toolbox Generic OIDC（issuer、audience、server scope）
   -> Tool scope（ecommerce:read / agent-template:observe）
   -> 受限 PostgreSQL 角色与 RLS/等效控制
 ```
 
-Token、租户和组织范围都不是模型参数。MCP Host 的 `callTool` / `listTools` 可接收可信 `authorizationToken` context，部署也可通过 `mcp-host.config.json` 的 `authTokenEnv` 从 `TOOLBOX_AUTH_TOKEN` 读取服务身份；两者都不会出现在 `getServers()`、Tool schema 或 Tool 结果中。
+Token、租户和组织范围都不是模型参数。Claude 仅把 `TOOLBOX_AUTH_TOKEN` 写入 SDK MCP server 的 `Authorization` header，Eve connection 仅通过 `auth.getToken` 返回 token；二者都不把 token 放进模型 Tool schema、Tool 参数、Tool 结果或 Claude subprocess env。
 
 ## 生成与校验
 
@@ -28,7 +28,7 @@ pnpm toolbox:check:production
 
 下面只启动本地 Toolbox binary，不启动 Docker；PostgreSQL 地址仍由 `TOOLBOX_POSTGRES_*` 提供。
 
-项目提供可直接运行的本地端到端认证验收。它会在随机本机端口启动临时 OIDC issuer 和官方 Toolbox binary，生成短期 RS256 JWT，验证未认证 MCP 被拒绝、scope 后的 18 个 Tool 可发现，并通过 MCP Host 实际执行一个电商查询；不会写入私钥或 token，也不会启动 Docker：
+项目提供可直接运行的本地端到端认证验收。它会在随机本机端口启动临时 OIDC issuer 和官方 Toolbox binary，生成短期 RS256 JWT，验证未认证 MCP 被拒绝、scope 后的 18 个 Tool 可发现，并通过原生 MCP Client 实际执行一个电商查询；不会写入私钥或 token，也不会启动 Docker：
 
 ```bash
 pnpm toolbox:verify:auth:local
@@ -48,7 +48,7 @@ node_modules/.bin/toolbox \
   --telemetry-service-name agent-template-toolbox
 ```
 
-调用方通过 `TOOLBOX_AUTH_TOKEN` 或可信 invocation context 提供由该 issuer 签发、audience 与 scope 均匹配的 JWT。生产部署不得使用占位 token，也不得把终端用户提交的任意字符串直接当成可信 token。
+Agent runtime 通过部署环境的 `TOOLBOX_AUTH_TOKEN` 提供由该 issuer 签发、audience 与 scope 均匹配的 JWT。生产部署不得使用占位 token，也不得把终端用户提交的任意字符串直接当成可信 token。
 
 ## 多租户数据
 

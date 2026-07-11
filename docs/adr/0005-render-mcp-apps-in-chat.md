@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Superseded by [ADR 0007: Agent-runtime-owned MCP clients](./0007-agent-runtime-owned-mcp-clients.md). The Host-specific MCP App path is removed with the shared MCP Host.
 
 ## Context
 

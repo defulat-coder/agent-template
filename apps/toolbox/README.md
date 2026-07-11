@@ -6,7 +6,7 @@
 
 智能问数的术语、指标、实际字段/取值、歧义处理和 golden cases 位于 [semantic/](./semantic/)，完整的生产落地路径见 [INTELLIGENT_QUERY.md](./INTELLIGENT_QUERY.md)。
 
-真实业务数据必须使用 [Toolbox 生产认证](./PRODUCTION_AUTH.md)：生成的 OIDC 配置在 `generated/toolbox-production/tools.yaml`，MCP Host 只从可信 context 或 `TOOLBOX_AUTH_TOKEN` 转发 Bearer token。开发 fixture 配置不启用认证，不能直接作为生产部署配置。
+真实业务数据必须使用 [Toolbox 生产认证](./PRODUCTION_AUTH.md)：生成的 OIDC 配置在 `generated/toolbox-production/tools.yaml`，Claude/Eve runtime 从部署环境的 `TOOLBOX_AUTH_TOKEN` 设置 Bearer token。开发 fixture 配置不启用认证，不能直接作为生产部署配置。
 
 生产日志、SQLCommenter、OpenTelemetry 与告警要求见 [Toolbox 生产可观测性](./OBSERVABILITY.md)。
 
@@ -18,9 +18,8 @@
 - 不使用 `templateParameters`，避免让模型控制表名、列名、排序字段或 SQL 结构。
 - 所有 SQL Tool 显式标注 `readOnlyHint: true`、`destructiveHint: false`、`idempotentHint: true` 和 `openWorldHint: false`。
 - 面向 Agent 的业务 Toolset 按单一分析或运营任务分组，避免一次向模型暴露无关 Tool 导致 context rot。
-- `mcp-host.config.json` 的 `allowedTools` 是 Host 侧可执行 allowlist。Google Toolbox 的 toolset 由其 Client SDK 选择；裸 MCP `tools/list` 默认可见服务端全部工具，因此新增 Tool 时必须同时更新 allowlist。
-- MCP Host 缺少 `allowedTools` 时默认拒绝配置；只有显式 `allowAllToolsForDevelopment` 才允许开发期全量发现。生产配置禁止启用该开关。
-- `AGENT_CAPABILITY_PROFILE` 选择 Agent 实际可见的业务工具子集；它必须是 `mcp-host.config.json` 中已声明的 profile，并且不能超出 Host allowlist。本地默认 `development-all`，生产应按岗位使用 `ecommerce-sales`、`ecommerce-product`、`ecommerce-orders`、`ecommerce-fulfillment`、`ecommerce-analyst` 或 `platform-observability`。
+- 裸 MCP `tools/list` 默认可见服务端全部工具；`AGENT_CAPABILITY_PROFILE` 从 `@agent-template/toolbox-config` 选择 Agent 模型可见的业务子集。本地默认 `development-all`，生产应按岗位使用 `ecommerce-sales`、`ecommerce-product`、`ecommerce-orders`、`ecommerce-fulfillment`、`ecommerce-analyst` 或 `platform-observability`。
+- Capability Profile 是模型工具面约束，不代替授权。生产强制边界是 Toolbox OIDC、Tool scope、受限数据库角色与 RLS/等效控制。
 
 ## 电商业务验证数据（主要路径）
 
@@ -63,11 +62,11 @@ generated/toolbox-skills/        # Toolbox 官方原始完整产物
 packages/agent-eve/agent/skills/ # Eve 实际加载的适配版
 ```
 
-原始目录保留每个 Skill 的 `SKILL.md`、`assets/tools.yaml` 和 `scripts/*.js`，便于检查和本地诊断。Eve 使用下划线形式的 authored tool 名，Claude 保留 Toolbox 的原始 Tool 名。实际版 Skill 除了按需加载业务流程，还带有 `references/ecommerce-semantic-catalog.yaml`；执行仍走 MCP Host allowlist，官方数据库直连脚本不会复制进 Agent 运行目录。
+原始目录保留每个 Skill 的 `SKILL.md`、`assets/tools.yaml` 和 `scripts/*.js`，便于检查和本地诊断。Eve Skill 调用 `toolbox__*`，Claude Skill 调用 `mcp__toolbox__*`。实际版 Skill 除了按需加载业务流程，还带有 `references/ecommerce-semantic-catalog.yaml`；执行由各 runtime 的原生 MCP Client 完成，官方数据库直连脚本不会复制进 Agent 运行目录。
 
 Toolbox 固定生成的标题、表头和脚本模板保持英文；可配置的 Skill 描述、补充说明、业务 Tool 描述和参数描述统一使用中文。生成门禁会检查这些业务内容包含中文。
 
-这四个业务 Toolset 用于官方 Skill 生成和业务能力分组，不是运行时授权机制。当前 raw MCP client 不按 `TOOLBOX_TOOLSET` 隔离工具；生产可执行范围以 `mcp-host.config.json` 的 `allowedTools` 为安全上限，Agent 模型可见范围再由 `AGENT_CAPABILITY_PROFILE` 收窄。Claude 使用 SDK `allowedTools`，Eve 使用 `session.started` 动态工具解析，两者读取同一份 profile。
+这四个业务 Toolset 用于官方 Skill 生成和业务能力分组，不是运行时授权机制。Agent 模型可见范围由 `AGENT_CAPABILITY_PROFILE` 收窄：Claude 使用 SDK `allowedTools` 与 MCP Tool policy，Eve connection 使用 `tools.allow`，两者读取同一份共享配置。
 
 ## 电商 MCP 本地端到端验证（默认）
 
@@ -77,7 +76,7 @@ Toolbox 固定生成的标题、表头和脚本模板保持英文；可配置的
 pnpm toolbox:verify:local
 ```
 
-该命令直接使用 `.env`/默认本地连接，对本机数据库执行 migration 和确定性 seed，启动临时官方 Toolbox 二进制，然后验证原生 MCP `tools/list`、Host allowlist、9 个业务 Tool、语义溯源、分页、可操作空结果、部分退款、UTC 边界、非法时间窗与能力隔离。命令结束后临时 Toolbox 自动退出，不使用 Docker。
+该命令直接使用 `.env`/默认本地连接，对本机数据库执行 migration 和确定性 seed，启动临时官方 Toolbox 二进制，然后用原生 MCP Client 验证 `tools/list`、10 个业务场景、分页、空结果、部分退款、UTC 边界、非法时间窗与能力 Profile。命令结束后临时 Toolbox 自动退出，不使用 Docker。
 
 ## 电商 MCP Docker 集成验证（仅显式要求时）
 
@@ -85,7 +84,7 @@ pnpm toolbox:verify:local
 pnpm toolbox:verify:docker
 ```
 
-该门禁会启动 PostgreSQL 与 Toolbox、生成 Prisma Client、应用已提交 migration、写入 fixture、重建 Toolbox，然后精确断言裸 MCP `tools/list`、Host allowlist 和九个电商 Tool 的确定性返回值。
+该门禁会启动 PostgreSQL 与 Toolbox、生成 Prisma Client、应用已提交 migration、写入 fixture、重建 Toolbox，然后精确断言裸 MCP `tools/list` 和电商 Tool 的确定性返回值。
 
 验证日销售、渠道和商品排行：
 

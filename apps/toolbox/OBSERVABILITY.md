@@ -34,7 +34,7 @@ node_modules/.bin/toolbox \
 
 - MCP 请求量、错误率和 P50/P95/P99 延迟，按 server、Tool、状态分类。
 - 数据库查询耗时、连接池等待、超时与取消；SQLCommenter 用于将数据库侧查询关联回 Toolbox 调用。
-- `certifiedQuery` 中的 Tool、目录版本、返回行数、空结果与分页信息；不要记录完整业务明细。
+- Agent runtime 中的 Tool 名、语义目录版本、返回行数、空结果与分页信息；不要记录完整业务明细。
 - 认证失败、scope 拒绝和 capability profile 拒绝；token 只能记录不可逆摘要或 issuer/subject 的非敏感标识。
 - 空结果率、澄清率、未知术语和用户纠正，作为语义目录治理输入。
 

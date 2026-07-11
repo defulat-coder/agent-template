@@ -27,7 +27,7 @@ Toolsets remain context and Skill-generation groups, not authorization. Host cap
 
 - Metrics and business values receive one reviewed, versioned definition.
 - Claude and Eve share the same business vocabulary without directly connecting to the database.
-- Every new Tool must be referenced by the catalog, Host allowlist, Agent adapter, generated Skill, and semantic golden cases.
-- The previous requirement applies to certified business query Tools; platform read-only operational Tools instead require bounded inputs, annotations, Host allowlisting, and native execution verification.
+- Every new Tool must be referenced by the catalog, shared Tool/Profile config, runtime-native MCP Client, generated Skill, and semantic golden cases.
+- The previous requirement applies to certified business query Tools; platform read-only operational Tools instead require bounded inputs, annotations, a runtime capability profile, and native execution verification.
 - Every analytical Tool documents a business timezone, `[from, to)` interval, and compatible database time type; no Tool may depend on an implicit database session timezone.
 - Free-form combinations beyond the certified query catalog require an intentional compiler or AlloyDB migration, not prompt-only SQL generation.

@@ -25,7 +25,7 @@ An event emitted while an Agent runtime executes an Agent run.
 _Avoid_: UI timeline item, log line
 
 **Agent message part**:
-One ordered piece of an assistant message, such as text, a folded tool event, or an MCP App block.
+One ordered piece of an assistant message, such as text or a folded tool event.
 _Avoid_: Timeline item, standalone panel
 
 **Template event**:
@@ -48,10 +48,6 @@ _Avoid_: Prompt glossary, table dictionary
 A structured analytical request whose metric, dimensions, filters, and time window are selected from a Business semantic catalog. It does not mean arbitrary natural-language SQL.
 _Avoid_: Raw SQL, unrestricted NL2SQL
 
-**Certified query result**:
-A Tool result annotated by the MCP Host with the executed Tool and arguments, Business semantic catalog name/version, certified metrics and dimensions, execution time, data-freshness status, result fields, and known limitations.
-_Avoid_: Raw database response, model-generated citation
-
 **Tool provider**:
 An external capability source that exposes tools an Agent run may use.
 _Avoid_: Agent runtime, app service
@@ -65,20 +61,12 @@ A named group of Toolbox server tools that an Agent runtime may load for a speci
 _Avoid_: Runtime plugin, database permission set
 
 **Agent capability profile**:
-A deployment-selected, named subset of Host-allowed tools that an Agent runtime presents to the model for one business role. It narrows model-visible capabilities but does not replace authentication or the MCP Host allowlist.
+A deployment-selected, named subset of Toolbox server tools that an Agent runtime presents to the model for one business role. It narrows model-visible capabilities but does not replace Toolbox authentication or database authorization.
 _Avoid_: User-selected mode, authorization policy
 
-**MCP Host**:
-The user-facing AI application that manages MCP server connections, presents chat, and renders MCP Apps or other interactive MCP outputs.
-_Avoid_: MCP server, Tool provider
-
 **MCP Client**:
-A protocol client owned by an MCP Host or Agent runtime that maintains one connection to one MCP Server.
-_Avoid_: Web page, Agent runtime
-
-**MCP App**:
-An interactive UI returned by an MCP tool through a `ui://` HTML resource and rendered by the MCP Host inside Chat.
-_Avoid_: JSON Render spec, standalone web page
+A protocol client owned by one Agent runtime that maintains a connection to a Tool provider. Claude and Eve use their framework-native MCP Client implementations.
+_Avoid_: Shared MCP Host, Tool provider
 
 **Claude Agent runtime**:
 A Claude Agent SDK backed Agent runtime.

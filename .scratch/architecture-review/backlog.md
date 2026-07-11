@@ -25,13 +25,15 @@
 | deferred  | 收拢 Queue runtime knowledge               | Worth exploring | 当前只有两个装配点；继续抽象会形成 shallow module                                     |
 | deferred  | 集中 Health display locality               | Speculative     | 等第二个页面或测试重复使用 health panel 映射                                          |
 | completed | 收拢 Toolbox Tool 分类与准入 matrix        | Strong          | 平台运维、认证业务问数和未来 compiler 的 interface 已集中到智能问数标准               |
-| completed | 收紧 MCP Host 授权边界                     | Strong          | Host fail-closed，OIDC token 只从可信 context/config 注入                             |
-| completed | 建立 Agent capability profile seam         | Strong          | 部署级 profile 同源投影到 Claude allowedTools 与 Eve dynamic tools                    |
-| completed | 深化业务语义结果契约                       | Strong          | 语义目录由运行时 schema 校验，Host 返回 Certified query result                        |
+| superseded | 收紧 MCP Host 授权边界                    | Strong          | MCP Host 已删除；授权由 Toolbox OIDC、Tool scope 与数据库强制                         |
+| completed | 建立 Agent capability profile seam         | Strong          | Profile 同源投影到 Claude SDK policy 与 Eve connection `tools.allow`                  |
+| completed | 深化业务语义查询契约                       | Strong          | 语义目录由共享 schema 校验并随业务 Skill 投影，不隐式改写 Tool 返回值                 |
 | completed | 建立原生 MCP 本地验收 seam                 | Strong          | 默认本机 migration/seed + 临时官方 Toolbox；Docker 只保留显式入口                     |
-| completed | 补齐列表分页与空结果 interface             | Worth exploring | 稳定 LIMIT/OFFSET + totalCount，Host 返回精确 page 与可操作空结果                     |
+| completed | 补齐列表分页与空结果 interface             | Worth exploring | 稳定 LIMIT/OFFSET + totalCount，Skill 规定分页与可操作空结果回答                       |
 | completed | 集中 Toolbox 可观测性启动策略              | Worth exploring | 临时启动器统一 JSON、SQLCommenter、OTLP env 与 service name                           |
 | completed | 统一本地验证文档边界                       | Strong          | 根规则与 Toolbox 文档不再把 Docker 描述为默认路径                                     |
+| completed | 由 Agent runtime 持有 MCP Client            | Strong          | Claude/Eve 各自使用框架原生 Client，共享包只持有配置与 schema                         |
+| completed | 阻止 Toolbox token 进入 Claude subprocess  | Strong          | ambient Toolbox env 在创建 Claude subprocess env 时显式删除并有回归测试               |
 
 ## 执行规则
 
@@ -163,6 +165,16 @@
 - 聚焦验证：`vitest` 覆盖 shared schema、Web client、API intake；`tsc`、`eslint`、shared build、API build 和 Web build 通过。
 
 ## 本轮复审
+
+### 2026-07-11 Agent runtime 直连 MCP 复审
+
+- lifecycle locality：Claude SDK HTTP MCP server 与 Eve `defineMcpClientConnection` 各自持有连接生命周期；`@agent-template/toolbox-config` 不创建 Client 或代理调用。
+- deletion test：删除 `packages/mcp-host`、API MCP routes 和 MCP App UI 后，没有把协议复杂度推回 API/Web；两套 runtime 原生 adapter 已完整吸收。
+- security seam：Capability Profile 只收窄模型可见 Tool；Toolbox OIDC、Tool scope、受限数据库角色与 RLS/等效控制负责授权。
+- token containment：Claude subprocess env 显式删除 `TOOLBOX_AUTH_TOKEN`、`TOOLBOX_URL` 和 `AGENT_CAPABILITY_PROFILE`；Eve token 只由 connection `auth.getToken` 提供。
+- runtime evidence：Eve discovery manifest 发现 `connections/toolbox.ts`；本机匿名/认证两套原生 MCP 验收均通过，未使用 Docker。
+- 复审报告：`$TMPDIR/agent-template-mcp-direct-architecture-review.html`。
+- 复审结论：本轮新增 Strong 候选已修复，无待处理架构候选。
 
 ### 2026-07-11 MCP Toolbox 最终复审
 

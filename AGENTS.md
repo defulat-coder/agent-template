@@ -69,7 +69,7 @@ pnpm db:seed
 - `packages/agent`: Agent runtime contract、`AGENT_RUNTIME` selector 和公共入口。
 - `packages/agent-claude`: Claude Agent SDK backed runtime。
 - `packages/agent-eve`: Eve filesystem-first runtime 和 `agent/` authored surface。
-- `packages/mcp-host`: MCP Host 核心边界，统一管理 MCP server registry、client lifecycle、tools/list、tools/call 和交互式 UI 输出。
+- `packages/toolbox-config`: Claude/Eve 共用的 Toolbox URL、Bearer token、能力 Profile 和业务语义 schema；不持有 MCP client lifecycle。
 
 ## 架构规则
 
@@ -79,11 +79,12 @@ pnpm db:seed
 - `apps/*` 只依赖 `@agent-template/agent` 的公共 runtime 边界，不直接依赖具体 runtime package。
 - Agent runtime 只通过 `AGENT_RUNTIME=claude|eve` 选择；不要从 request 或 job payload 覆盖。
 - Kimi Code 接入 Cloud 和 Eve 都使用 Anthropic-compatible 协议；API Key 只放本地 `.env` 或部署环境变量。
-- `TOOLBOX_URL` 和 `TOOLBOX_TOOLSET` 只表达 Host-managed MCP 连接信息，不参与 runtime 选择。
+- `TOOLBOX_URL`、`TOOLBOX_AUTH_TOKEN` 和 `AGENT_CAPABILITY_PROFILE` 只配置当前 runtime 的 Toolbox MCP Client，不参与 runtime 选择。
 - 生产 Agent 默认只加载 `apps/toolbox/tools.yaml` 中显式声明的自定义 toolset。
-- MCP Host 是平台能力，统一放在 `@agent-template/mcp-host`；Claude/Eve runtime 不直接持有 Toolbox MCP connection。
-- MCP Host server registry 默认从根目录 `mcp-host.config.json` 的 `servers` 读取；改 MCP Server 地址或 toolset 时改文件并重启服务，不改 Cloud/Eve runtime 代码。生产 server 的 `allowedTools` 是 Host 侧 allowlist；新增 Toolbox tool 时需同步更新 toolset 和 allowlist。旧的 `toolboxUrl` / `toolboxToolset` 仅作为兼容入口。
-- Web 不直接连接 MCP Server；交互式 MCP 输出通过 `apps/api` 的 Chat SSE 或 MCP Host API 返回到前端。
+- Claude runtime 使用 SDK HTTP MCP server 配置直连 Toolbox；Eve runtime 使用 `agent/connections/toolbox.ts` 的 `defineMcpClientConnection` 直连 Toolbox。不得恢复共享 MCP Host 或 API MCP 代理。
+- `@agent-template/toolbox-config` 只统一配置解析、能力 Profile 与语义 schema；不得创建 MCP Client、管理连接生命周期或代理调用。
+- `AGENT_CAPABILITY_PROFILE` 限制模型可见 Tool；生产授权仍由 Toolbox OIDC、Tool scope、受限数据库角色与 RLS/等效控制强制。
+- Web 不直接连接 MCP Server；Tool 调用由当前 Agent runtime 执行，API 只转发 Agent Chat SSE 事件和最终结果。
 - Queue runtime 暂不抽新 module；等第三个 queue consumer 或可替换 adapter 需求出现再抽。
 
 ## 提交规则
