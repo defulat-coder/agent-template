@@ -21,20 +21,11 @@
 - 真实业务部署使用 `generated/toolbox-production/tools.yaml`，由 `pnpm toolbox:generate:production` 生成；它必须启用 Generic OIDC、server scope 和 Tool scope，不能手改生成产物。
 - 本地 Toolbox launcher 必须在显式 stop 与父进程退出时清理子进程；MCP connect 失败也必须 close Client，验证结束后不得遗留临时端口进程。
 
-## 智能问数后续设计标准
+## 智能问数
 
-- [INTELLIGENT_QUERY.md](./INTELLIGENT_QUERY.md) 是智能问数的规范性分层标准；每个新增业务能力先选择“认证查询目录、semantic query compiler、独立语义层或 AlloyDB AI NL”之一，再开始改 `tools.yaml`。
-- PostgreSQL 的默认路径是认证业务查询目录。只有业务域持续出现经验证的三维以上受控组合时，才能提议 semantic query compiler；必须先记录 ADR。不得在 PostgreSQL 上以 prompt 或自由 SQL 模拟 AlloyDB AI NL。
-- 认证业务问数 Tool 的准入物是：语义目录的指标/维度/值映射/歧义规则、问题模式、golden cases、数据负责人、可信身份访问范围和数据新鲜度。缺失任一项时先补目录，不新增 Tool。
-- 平台只读运维 Tool 不要求业务语义目录或业务 Skill，但仍必须有结果型描述、MCP annotations、有界参数、runtime capability profile 和 native 执行验证；不要把它误归为智能问数能力。
-- Agent run 运维 Tool 必须读取 `AgentRun` / `AgentRunEvent` durable source of truth；`TemplateEvent` 只用于样例事件巡检，不得模拟生命周期终态或 Tool 调用统计。
-- Agent run timeline 必须返回 `executionAttempt`；Tool call/result 统计必须按 `runId + executionAttempt + callId` 配对，禁止跨 retry attempt 关联。
-- Toolset 只用于 Skill 生成和模型上下文分组，不能当作运行时最小权限。`AGENT_CAPABILITY_PROFILE` 只收窄模型可见 Tool；实际授权由 Toolbox OIDC、Tool scope、可信身份和数据库 RLS/等效控制强制。
-- 生产授权必须 fail-closed：server 声明 OIDC scope，每个 Tool 声明业务 scope。生产 JWT 只从部署环境的 `TOOLBOX_AUTH_TOKEN` 注入 MCP Client header，不能成为 Tool 参数或进入模型 subprocess env。
-- 分析 Tool 必须声明业务时区、`[from, to)` 时间边界与数据库时间类型；UTC 输入承诺不能依赖 PostgreSQL session 的隐式时区转换。
-- 业务列表 Tool 必须使用稳定排序和有上限的 `limit/offset`，并返回 `totalCount`；Skill 必须规定分页与可操作空结果说明。
-- 本地与生产 Toolbox 使用 JSON 日志和 SQLCommenter；生产通过 `TOOLBOX_OTLP_ENDPOINT` 接入 OpenTelemetry，禁止记录 token、密码或业务明细。
-- 新增认证业务问数 Tool 必须同步 `tools.yaml`、Toolset、共享 Tool/Profile、Claude/Eve 原生 client、原始/实际 Skill、语义目录和 golden cases；完成语义门禁、Skill 生成校验与本地 native Tool 执行验收后才能合入。
+- ADR 0006 持有智能问数的长期架构决策；[INTELLIGENT_QUERY.md](./INTELLIGENT_QUERY.md) 是对应的执行规范与 Tool 分类准入 matrix。
+- 当前业务契约维护在 [SEMANTIC_LAYER.md](./SEMANTIC_LAYER.md) 与 `semantic/`，生产授权维护在 [PRODUCTION_AUTH.md](./PRODUCTION_AUTH.md)；不要在本文件重复这些规则。
+- 新增或修改 Tool 时同步事实源与生成产物，并通过 `pnpm toolbox:check` 及对应的本地 native verifier。
 
 ## 不应该做
 
