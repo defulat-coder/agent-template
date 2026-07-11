@@ -15,6 +15,15 @@
 - 默认在本地验证；只有用户明确要求时才运行 Docker Compose 或内部调用它的 verifier。
 - 服务端口：Web `13000`、API `14000`、Toolbox `15000`、PostgreSQL `15432`、Redis `16379`；`pnpm toolbox:verify:local` 自行管理临时 Toolbox。
 
+## 工程原则
+
+- **Fail Fast / Errors Never Pass Silently**：禁止用兜底、忽略异常或伪造成功吞掉错误；错误必须携带足够上下文显式失败。
+- **Fix the Cause, Not the Symptom / Don't Paper Over Bugs**：先复现并定位根因，再做完整修复；禁止用仅覆盖当前症状的特判或补丁掩盖缺陷。
+- **Make It Observable**：定位证据不足时先补日志、指标或追踪并诚实说明信息不足；没有验证证据不得宣称问题已修复。
+- **Design for Debugging / Traceability**：关键路径必须记录关联标识、关键状态转换和失败上下文，使一次执行可端到端追溯。
+- **Living Documentation / Single Source of Truth**：关键技术栈、架构边界或产品方向变化时，同步更新适用范围内的 `AGENTS.md` 和必要 ADR，文档与代码同批演进。
+- **Don't Break Mainline**：大规模重构或实验性改动开始前，必须先创建并切换到独立分支；未验证通过不得合入主线。
+
 ## Skills 管理
 
 - `.agents/skills/` 是项目协作 Skills 的唯一真实来源，统一使用项目级 `npx skills` 管理，不手工维护 Skill 目录或 Agent 发现路径。
@@ -48,7 +57,4 @@
 - 按功能点提交，不把无关改动混进同一个提交。
 - 提交前检查 `git status --short --branch`。
 - 不提交 `.env`、构建产物、缓存目录、`node_modules`。
-
-## 提交归属
-
 - AI 提交必须包含自身 `Co-Authored-By: <name> <email>` trailer。
