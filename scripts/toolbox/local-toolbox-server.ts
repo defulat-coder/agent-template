@@ -2,9 +2,9 @@ import { spawn } from "node:child_process";
 import { createServer } from "node:net";
 import { fileURLToPath } from "node:url";
 
-const repositoryRoot = fileURLToPath(new URL("../../..", import.meta.url));
+const repositoryRoot = fileURLToPath(new URL("../..", import.meta.url));
 const toolboxExecutable = fileURLToPath(
-  new URL("../../../node_modules/.bin/toolbox", import.meta.url),
+  new URL("../../node_modules/.bin/toolbox", import.meta.url),
 );
 
 export async function startLocalToolbox(input: {

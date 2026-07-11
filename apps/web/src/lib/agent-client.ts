@@ -4,7 +4,7 @@ import {
   AgentRunEventSchema,
   type AgentJobAccepted,
   type AgentRunEvent,
-  type AgentRunResult
+  type AgentRunResult,
 } from "@agent-template/shared";
 
 export type { AgentJobAccepted };
@@ -19,24 +19,10 @@ type StreamAgentChatOptions = SubmitAgentJobOptions & {
   onEvent?: (event: AgentRunEvent) => void;
 };
 
-type CallMcpToolOptions = {
-  args?: Record<string, unknown>;
-  baseUrl?: string;
-  fetcher?: typeof fetch;
-  serverId: string;
-  toolName: string;
-};
-
-type FetchMcpAppResourceOptions = {
-  baseUrl?: string;
-  fetcher?: typeof fetch;
-  uri: string;
-};
-
 export async function submitAgentJob({
   prompt,
   baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:14000",
-  fetcher = fetch
+  fetcher = fetch,
 }: SubmitAgentJobOptions): Promise<AgentJobAccepted> {
   const trimmedPrompt = prompt.trim();
 
@@ -52,15 +38,17 @@ export async function submitAgentJob({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         prompt: trimmedPrompt,
-        requestedAt: new Date().toISOString()
-      })
+        requestedAt: new Date().toISOString(),
+      }),
     });
   } catch {
     throw new Error("Unable to reach Agent job intake API");
   }
 
   if (!response.ok) {
-    throw new Error(`Agent job intake rejected the request with status ${response.status}`);
+    throw new Error(
+      `Agent job intake rejected the request with status ${response.status}`,
+    );
   }
 
   return AgentJobAcceptedSchema.parse(await response.json());
@@ -70,7 +58,7 @@ export async function streamAgentChat({
   prompt,
   baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:14000",
   fetcher = fetch,
-  onEvent
+  onEvent,
 }: StreamAgentChatOptions): Promise<AgentRunResult> {
   const trimmedPrompt = prompt.trim();
 
@@ -84,14 +72,16 @@ export async function streamAgentChat({
     response = await fetcher(`${baseUrl}/agent/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: trimmedPrompt })
+      body: JSON.stringify({ prompt: trimmedPrompt }),
     });
   } catch {
     throw new Error("Unable to reach Agent chat API");
   }
 
   if (!response.ok) {
-    throw new Error(`Agent chat rejected the request with status ${response.status}`);
+    throw new Error(
+      `Agent chat rejected the request with status ${response.status}`,
+    );
   }
 
   if (!response.body) {
@@ -130,40 +120,6 @@ export async function streamAgentChat({
   return result;
 }
 
-export async function fetchMcpAppResource({
-  baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:14000",
-  fetcher = fetch,
-  uri
-}: FetchMcpAppResourceOptions): Promise<string> {
-  const response = await fetcher(`${baseUrl}/mcp/apps/resource?uri=${encodeURIComponent(uri)}`);
-
-  if (!response.ok) {
-    throw new Error(`MCP App resource request failed with status ${response.status}`);
-  }
-
-  return response.text();
-}
-
-export async function callMcpTool({
-  args = {},
-  baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:14000",
-  fetcher = fetch,
-  serverId,
-  toolName
-}: CallMcpToolOptions) {
-  const response = await fetcher(`${baseUrl}/mcp/servers/${encodeURIComponent(serverId)}/tools/${encodeURIComponent(toolName)}/call`, {
-    body: JSON.stringify({ arguments: args }),
-    headers: { "Content-Type": "application/json" },
-    method: "POST"
-  });
-
-  if (!response.ok) {
-    throw new Error(`MCP tool call failed with status ${response.status}`);
-  }
-
-  return response.json() as Promise<unknown>;
-}
-
 function readSseMessages(buffer: string, onMessage: (message: string) => void) {
   let cursor = buffer.indexOf("\n\n");
 
@@ -193,12 +149,21 @@ function parseSseMessage(message: string) {
   const parsed = JSON.parse(data);
 
   if (event === "agent-event") {
-    return { type: "agent-event" as const, data: AgentRunEventSchema.parse(parsed) };
+    return {
+      type: "agent-event" as const,
+      data: AgentRunEventSchema.parse(parsed),
+    };
   }
 
   if (event === "result") {
-    return { type: "result" as const, data: AgentRunResultSchema.parse(parsed) };
+    return {
+      type: "result" as const,
+      data: AgentRunResultSchema.parse(parsed),
+    };
   }
 
-  return { type: "error" as const, data: { message: String(parsed.message ?? "Agent chat failed") } };
+  return {
+    type: "error" as const,
+    data: { message: String(parsed.message ?? "Agent chat failed") },
+  };
 }

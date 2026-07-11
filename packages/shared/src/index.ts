@@ -35,13 +35,7 @@ export {
 } from "./mcp-toolbox";
 export {
   AgentArtifactSchema,
-  AgentRunsDashboardDataSchema,
-  AgentMcpAppUiSchema,
-  AgentRunUiSchema,
   AgentRunEventSchema,
   type AgentArtifact,
-  type AgentRunsDashboardData,
-  type AgentMcpAppUi,
-  type AgentRunUi,
   type AgentRunEvent,
 } from "./agent-run-events";

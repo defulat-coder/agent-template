@@ -1,21 +1,17 @@
 {
-  "name": "@agent-template/agent",
+  "name": "@agent-template/toolbox-config",
   "private": true,
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm",
+    "build": "node ../../scripts/tsc7.mjs -p tsconfig.json",
     "lint": "eslint src",
     "typecheck": "node ../../scripts/tsc7.mjs -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
-    "@agent-template/agent-claude": "workspace:*",
-    "@agent-template/agent-eve": "workspace:*",
-    "@agent-template/shared": "workspace:*",
-    "@agent-template/toolbox-config": "workspace:*",
     "zod": "^4.4.3"
   },
   "devDependencies": {

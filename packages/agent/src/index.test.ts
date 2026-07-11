@@ -94,7 +94,7 @@ describe("Agent runtime selector", () => {
     expect(events).toEqual([{ kind: "text", text: "Working" }]);
   });
 
-  it("passes Toolbox tool provider env through to the Cloud Agent runtime", async () => {
+  it("passes direct Toolbox MCP Client env through to the Claude runtime", async () => {
     await expect(
       runAgent(
         {
@@ -102,15 +102,19 @@ describe("Agent runtime selector", () => {
         },
         {
           ANTHROPIC_AUTH_TOKEN: "test-token",
-          TOOLBOX_TOOLSET: "agent_template_read_model",
+          AGENT_CAPABILITY_PROFILE: "ecommerce-sales",
+          TOOLBOX_AUTH_TOKEN: "toolbox-token",
           TOOLBOX_URL: "http://toolbox:15000",
         },
         {
           runClaude: async (_input, config) => {
             expect(config).toMatchObject({
               authToken: "test-token",
-              toolboxToolset: "agent_template_read_model",
-              toolboxUrl: "http://toolbox:15000",
+              toolbox: {
+                authorizationToken: "toolbox-token",
+                capabilityProfile: "ecommerce-sales",
+                url: "http://toolbox:15000/mcp",
+              },
             });
 
             return {

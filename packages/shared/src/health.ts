@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const DependencyStateSchema = z.object({
   status: z.enum(["ok", "error", "skipped"]),
-  message: z.string()
+  message: z.string(),
 });
 
 export const HealthStatusSchema = z.object({
@@ -13,18 +13,18 @@ export const HealthStatusSchema = z.object({
   redis: DependencyStateSchema,
   queue: z.object({
     name: z.string(),
-    status: z.enum(["ready", "unavailable"])
+    status: z.enum(["ready", "unavailable"]),
   }),
   agent: z.object({
     runtime: z.enum(["claude", "eve"]),
     configured: z.boolean(),
-    model: z.string()
+    model: z.string(),
   }),
   toolbox: z.object({
     configured: z.boolean(),
     url: z.string().url(),
-    toolset: z.string().min(1)
-  })
+    capabilityProfile: z.string().min(1),
+  }),
 });
 
 export type DependencyState = z.infer<typeof DependencyStateSchema>;

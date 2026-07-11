@@ -1,1 +1,4 @@
-export { createBullMqConnectionOptions, type BullMqConnectionOptions } from "./queue";
+export {
+  createBullMqConnectionOptions,
+  type BullMqConnectionOptions,
+} from "./queue";

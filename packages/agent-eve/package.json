@@ -17,8 +17,8 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.7",
-    "@agent-template/mcp-host": "workspace:*",
     "@agent-template/shared": "workspace:*",
+    "@agent-template/toolbox-config": "workspace:*",
     "ai": "^7.0.14",
     "eve": "latest",
     "zod": "^4.4.3"

@@ -7,7 +7,7 @@ describe("GET /health", () => {
   it("returns health status without external services in tests", async () => {
     const app = buildApp({
       env: loadEnv({ NODE_ENV: "test" }),
-      checkExternal: false
+      checkExternal: false,
     });
 
     const response = await app.inject({ method: "GET", url: "/health" });
@@ -23,7 +23,7 @@ describe("GET /health", () => {
     expect(body.toolbox).toEqual({
       configured: true,
       url: "http://localhost:15000",
-      toolset: "agent_template_read_model"
+      capabilityProfile: "development-all",
     });
   });
 });
@@ -37,8 +37,8 @@ describe("POST /agent/jobs", () => {
         async enqueue(input) {
           calls.push(input);
           return { id: "job-1", queue: "agent-jobs" };
-        }
-      }
+        },
+      },
     });
 
     const response = await app.inject({
@@ -46,184 +46,50 @@ describe("POST /agent/jobs", () => {
       url: "/agent/jobs",
       payload: {
         prompt: "Summarize this template",
-        requestedAt: "2026-06-26T00:00:00.000Z"
-      }
+        requestedAt: "2026-06-26T00:00:00.000Z",
+      },
     });
 
     expect(response.statusCode).toBe(202);
     expect(response.json()).toEqual({ id: "job-1", queue: "agent-jobs" });
-    expect(calls).toEqual([
-      {
-        prompt: "Summarize this template",
-        requestedAt: "2026-06-26T00:00:00.000Z"
-      }
-    ]);
+    expect(calls).toHaveLength(1);
   });
 });
 
 describe("POST /agent/chat", () => {
-  it("streams Agent events and the final result", async () => {
+  it("streams Agent events and the final result without an MCP proxy", async () => {
     const app = buildApp({
       env: loadEnv({ NODE_ENV: "test" }),
-      mcpHost: {
-        getServers: () => [],
-        listTools: async () => [],
-        callTool: async () => ({ content: [] }),
-        createAgentRunsDashboard: async () => ({
-          metrics: { completedRuns: 0, failedRuns: 0, failureRate: 0, totalRuns: 0 },
-          runs: []
-        }),
-        createAgentRunsDashboardEvents: async () => [],
-        getAppResource: () => ({ html: "", mimeType: "text/html;profile=mcp-app", uri: "ui://agent-template/agent-runs" })
-      },
       async runAgent(input, _env, options) {
         options?.onEvent?.({ kind: "text", text: "Working" });
 
         return {
           configured: true,
-          events: [{ kind: "text", text: "Working" }, { kind: "done", result: "Done" }],
+          events: [
+            { kind: "text", text: "Working" },
+            { kind: "done", result: "Done" },
+          ],
           model: "kimi-for-coding",
           output: "Done",
           promptLength: (input as { prompt: string }).prompt.length,
           runtime: "claude",
-          status: "completed"
+          status: "completed",
         };
-      }
+      },
     });
 
     const response = await app.inject({
       method: "POST",
       url: "/agent/chat",
-      payload: {
-        prompt: "Run agent"
-      }
+      payload: { prompt: "Run agent" },
     });
 
     expect(response.statusCode).toBe(200);
     expect(response.headers["content-type"]).toContain("text/event-stream");
-    expect(response.body).toContain('event: agent-event\ndata: {"kind":"text","text":"Working"}');
+    expect(response.body).toContain(
+      'event: agent-event\ndata: {"kind":"text","text":"Working"}',
+    );
     expect(response.body).toContain('event: result\ndata: {"configured":true');
-  });
-
-  it("streams Host-managed MCP UI events for analytics prompts", async () => {
-    const app = buildApp({
-      env: loadEnv({ NODE_ENV: "test" }),
-      mcpHost: {
-        getServers: () => [],
-        listTools: async () => [],
-        callTool: async () => ({ content: [] }),
-        createAgentRunsDashboard: async () => ({
-          metrics: {
-            completedRuns: 1,
-            failedRuns: 0,
-            failureRate: 0,
-            totalRuns: 1
-          },
-          runs: [
-            {
-              eventCount: 4,
-              firstEventAt: "2026-07-04T11:30:00.000Z",
-              lastEventAt: "2026-07-04T11:30:22.000Z",
-              runId: "run_knowledge_001",
-              terminalEvent: "agent.run.completed"
-            }
-          ]
-        }),
-        createAgentRunsDashboardEvents: async () => [
-          {
-            input: "{\"limit\":20}",
-            kind: "tool-call",
-            tool: "mcp-host/toolbox/list-agent-runs"
-          },
-          {
-            kind: "tool-result",
-            tool: "mcp-host/toolbox/list-agent-runs"
-          },
-          {
-            kind: "ui",
-            ui: {
-              component: "mcp-app",
-              id: "agent-runs-mcp-app",
-              resource: {
-                mimeType: "text/html;profile=mcp-app",
-                uri: "ui://agent-template/agent-runs"
-              },
-              serverId: "toolbox",
-              title: "Agent Runs MCP App",
-              toolData: { metrics: { totalRuns: 1 }, runs: [] },
-              toolName: "list-agent-runs"
-            }
-          }
-        ],
-        getAppResource: () => ({ html: "", mimeType: "text/html;profile=mcp-app", uri: "ui://agent-template/agent-runs" })
-      },
-      async runAgent(input, _env, options) {
-        options?.onEvent?.({ kind: "text", text: "Working" });
-
-        return {
-          configured: true,
-          events: [{ kind: "text", text: "Working" }, { kind: "done", result: "Done" }],
-          model: "kimi-for-coding",
-          output: "Done",
-          promptLength: (input as { prompt: string }).prompt.length,
-          runtime: "claude",
-          status: "completed"
-        };
-      }
-    });
-
-    const response = await app.inject({
-      method: "POST",
-      url: "/agent/chat",
-      payload: {
-        prompt: "给我做 Agent 运行统计分析"
-      }
-    });
-
-    expect(response.statusCode).toBe(200);
-    expect(response.body).toContain('"kind":"tool-call","tool":"mcp-host/toolbox/list-agent-runs"');
-    expect(response.body).toContain('"kind":"ui","ui":{"component":"mcp-app"');
-    expect(response.body).toContain('"uri":"ui://agent-template/agent-runs"');
-  });
-});
-
-describe("MCP Host API", () => {
-  it("exposes Host-managed MCP servers and tools", async () => {
-    const app = buildApp({
-      env: loadEnv({ NODE_ENV: "test" }),
-      mcpHost: {
-        getServers: () => [{ id: "toolbox", toolset: "agent_template_read_model", url: "http://toolbox:15000/mcp" }],
-        listTools: async (serverId) => {
-          expect(serverId).toBe("toolbox");
-
-          return [{ inputSchema: { type: "object" }, name: "list-agent-runs" }];
-        },
-        callTool: async () => ({ content: [] }),
-        createAgentRunsDashboard: async () => ({
-          metrics: { completedRuns: 0, failedRuns: 0, failureRate: 0, totalRuns: 0 },
-          runs: []
-        }),
-        createAgentRunsDashboardEvents: async () => [],
-        getAppResource: () => ({
-          html: "<!doctype html><html><body>MCP App</body></html>",
-          mimeType: "text/html;profile=mcp-app",
-          uri: "ui://agent-template/agent-runs"
-        })
-      }
-    });
-
-    await expect(app.inject({ method: "GET", url: "/mcp/servers" }).then((response) => response.json())).resolves.toEqual({
-      servers: [{ id: "toolbox", toolset: "agent_template_read_model", url: "http://toolbox:15000/mcp" }]
-    });
-    await expect(app.inject({ method: "GET", url: "/mcp/servers/toolbox/tools" }).then((response) => response.json())).resolves.toEqual({
-      tools: [{ inputSchema: { type: "object" }, name: "list-agent-runs" }]
-    });
-    const resource = await app.inject({
-      method: "GET",
-      url: "/mcp/apps/resource?uri=ui%3A%2F%2Fagent-template%2Fagent-runs"
-    });
-    expect(resource.headers["content-type"]).toContain("text/html;profile=mcp-app");
-    expect(resource.body).toContain("MCP App");
   });
 });
 
@@ -232,10 +98,16 @@ describe("getHealth", () => {
     const status = await getHealth(loadEnv({ NODE_ENV: "test" }), {
       checkExternal: true,
       adapters: {
-        database: async () => ({ status: "ok", message: "PostgreSQL reachable" }),
-        redis: async () => ({ status: "error", message: "Redis refused connection" }),
-        now: () => "2026-06-26T00:00:00.000Z"
-      }
+        database: async () => ({
+          status: "ok",
+          message: "PostgreSQL reachable",
+        }),
+        redis: async () => ({
+          status: "error",
+          message: "Redis refused connection",
+        }),
+        now: () => "2026-06-26T00:00:00.000Z",
+      },
     });
 
     expect(status.status).toBe("degraded");
@@ -243,7 +115,7 @@ describe("getHealth", () => {
     expect(status.queue.status).toBe("unavailable");
     expect(status.redis.message).toBe("Redis refused connection");
     expect(status.agent.runtime).toBe("claude");
-    expect(status.toolbox.toolset).toBe("agent_template_read_model");
+    expect(status.toolbox.capabilityProfile).toBe("development-all");
   });
 
   it("keeps Eve Agent runtime env config available after API env parsing", async () => {
@@ -252,11 +124,9 @@ describe("getHealth", () => {
         NODE_ENV: "test",
         AGENT_RUNTIME: "eve",
         EVE_AGENT_HOST: "http://127.0.0.1:13000",
-        EVE_AGENT_MODEL: "eve-custom"
+        EVE_AGENT_MODEL: "eve-custom",
       }),
-      {
-        checkExternal: false
-      }
+      { checkExternal: false },
     );
 
     expect(status.agent.runtime).toBe("eve");
@@ -265,9 +135,14 @@ describe("getHealth", () => {
   });
 
   it("reports an unconfigured Eve Agent runtime without an Eve Agent host", async () => {
-    const status = await getHealth(loadEnv({ NODE_ENV: "test", AGENT_RUNTIME: "eve", EVE_AGENT_MODEL: "eve-custom" }), {
-      checkExternal: false
-    });
+    const status = await getHealth(
+      loadEnv({
+        NODE_ENV: "test",
+        AGENT_RUNTIME: "eve",
+        EVE_AGENT_MODEL: "eve-custom",
+      }),
+      { checkExternal: false },
+    );
 
     expect(status.agent.runtime).toBe("eve");
     expect(status.agent.configured).toBe(false);

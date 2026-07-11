@@ -2,13 +2,18 @@
 
 import { FormEvent, useState } from "react";
 import { Button } from "@agent-template/ui";
-import type { AgentMcpAppUi, AgentRunEvent, AgentRunResult } from "@agent-template/shared";
+import type { AgentRunEvent, AgentRunResult } from "@agent-template/shared";
 import { streamAgentChat } from "@/lib/agent-client";
 import { AgentMarkdown } from "./agent-markdown";
 import { AgentRunTimeline } from "./agent-run-timeline";
-import { McpAppPanel } from "./mcp-app-panel";
 
-type AgentConsoleStatus = "idle" | "submitting" | "running" | "completed" | "skipped" | "failed";
+type AgentConsoleStatus =
+  | "idle"
+  | "submitting"
+  | "running"
+  | "completed"
+  | "skipped"
+  | "failed";
 
 export function AgentConsole() {
   const [prompt, setPrompt] = useState("");
@@ -46,12 +51,14 @@ export function AgentConsole() {
             setStreamedOutput(event.result);
           }
           setStatus("running");
-        }
+        },
       });
 
       setResult(chatResult);
       setStreamedOutput(chatResult.output ?? chatResult.reason ?? "");
-      setStatus(chatResult.status === "skipped" ? "skipped" : chatResult.status);
+      setStatus(
+        chatResult.status === "skipped" ? "skipped" : chatResult.status,
+      );
     } catch (caught) {
       setError(getAgentChatErrorMessage(caught));
       setStatus("failed");
@@ -72,32 +79,53 @@ export function AgentConsole() {
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <Button disabled={submitting} type="submit">
-          {submitting ? "运行中..." : status === "failed" ? "重试" : "发送给 Agent"}
+          {submitting
+            ? "运行中..."
+            : status === "failed"
+              ? "重试"
+              : "发送给 Agent"}
         </Button>
-        <p aria-live="polite" className={status === "failed" ? "text-sm text-red-600" : "text-sm text-slate-500"}>
+        <p
+          aria-live="polite"
+          className={
+            status === "failed"
+              ? "text-sm text-red-600"
+              : "text-sm text-slate-500"
+          }
+        >
           {getStatusText(status, error)}
         </p>
       </div>
 
       {result || streamedOutput || messageParts.length ? (
         <section className="rounded-md border border-slate-200 bg-white p-4">
-          <p className={result?.status === "failed" ? "text-sm font-medium text-red-700" : "text-sm font-medium text-green-700"}>
+          <p
+            className={
+              result?.status === "failed"
+                ? "text-sm font-medium text-red-700"
+                : "text-sm font-medium text-green-700"
+            }
+          >
             Agent 回复
           </p>
           <div className="mt-3 flex flex-col gap-4">
             {messageParts.length ? (
-              messageParts.map((part, index) =>
-                part.kind === "mcp-app" ? (
-                  <McpAppPanel key={`reply-mcp-app-${part.ui.id}`} ui={part.ui} />
-                ) : (
-                  <div className="flex flex-col gap-3 break-words text-sm text-slate-950" key={`reply-text-${index}`}>
-                    <AgentMarkdown>{part.text}</AgentMarkdown>
-                  </div>
-                )
-              )
+              messageParts.map((part, index) => (
+                <div
+                  className="flex flex-col gap-3 break-words text-sm text-slate-950"
+                  key={`reply-text-${index}`}
+                >
+                  <AgentMarkdown>{part.text}</AgentMarkdown>
+                </div>
+              ))
             ) : (
               <div className="flex flex-col gap-3 break-words text-sm text-slate-950">
-                <AgentMarkdown>{streamedOutput || result?.output || result?.reason || "Agent 未返回内容。"}</AgentMarkdown>
+                <AgentMarkdown>
+                  {streamedOutput ||
+                    result?.output ||
+                    result?.reason ||
+                    "Agent 未返回内容。"}
+                </AgentMarkdown>
               </div>
             )}
           </div>
@@ -114,9 +142,7 @@ export function AgentConsole() {
   );
 }
 
-type AgentMessagePart =
-  | { kind: "text"; text: string }
-  | { kind: "mcp-app"; ui: AgentMcpAppUi };
+type AgentMessagePart = { kind: "text"; text: string };
 
 function buildAgentMessageParts(events: AgentRunEvent[]) {
   const parts: AgentMessagePart[] = [];
@@ -136,10 +162,6 @@ function buildAgentMessageParts(events: AgentRunEvent[]) {
       } else {
         parts.push({ kind: "text", text });
       }
-    }
-
-    if (event.kind === "ui" && event.ui.component === "mcp-app") {
-      parts.push({ kind: "mcp-app", ui: event.ui });
     }
   }
 
@@ -188,7 +210,9 @@ function getAgentChatErrorMessage(caught: unknown) {
     return "启动 Agent run 失败，请重试。";
   }
 
-  if (caught.message.startsWith("Agent chat rejected the request with status ")) {
+  if (
+    caught.message.startsWith("Agent chat rejected the request with status ")
+  ) {
     return `后端拒绝了 Agent Chat 请求（状态码 ${caught.message.split(" ").at(-1)}）。`;
   }
 

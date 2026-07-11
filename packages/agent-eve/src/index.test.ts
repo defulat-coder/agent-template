@@ -26,9 +26,9 @@ describe("Eve Agent runtime", () => {
       );
 
       expect(skill).toContain(`name: ${skillName}`);
-      expect(skill).toContain("Host-managed typed tools");
+      expect(skill).toContain("Toolbox MCP");
       expect(skill).toContain("Business semantic catalog");
-      expect(skill).not.toMatch(/^### [a-z0-9]+-[a-z0-9-]+$/m);
+      expect(skill).toMatch(/^### `toolbox__[a-z0-9_-]+`$/m);
 
       const semanticCatalog = readFileSync(
         new URL(
@@ -80,39 +80,18 @@ describe("Eve Agent runtime", () => {
     expect(agent.model?.modelId).toBe(defaultEveAgentModel);
   });
 
-  it("resolves only the selected capability profile through Eve dynamic tools", async () => {
-    const previousProfile = process.env.AGENT_CAPABILITY_PROFILE;
-    process.env.AGENT_CAPABILITY_PROFILE = "ecommerce-sales";
+  it("owns the Toolbox MCP client through an Eve connection", async () => {
+    const toolbox = (await import("../agent/connections/toolbox")).default as {
+      url?: string;
+      tools?: { allow?: string[] };
+    };
 
-    try {
-      const toolbox = (await import("../agent/tools/toolbox")).default as {
-        events: {
-          "session.started": (
-            event: unknown,
-            context: unknown,
-          ) => Promise<Record<string, { description?: string }>>;
-        };
-      };
-      const tools = await toolbox.events["session.started"]({}, {});
-
-      expect(Object.keys(tools)).toEqual([
-        "summarize_ecommerce_sales_by_day",
-        "summarize_ecommerce_sales_by_channel",
-        "summarize_sales_by_region",
-        "summarize_sales_by_customer_segment",
-      ]);
-      expect(tools.summarize_sales_by_region?.description).toContain("大区");
-      expect(tools).not.toHaveProperty("get_ecommerce_order_detail");
-      expect(
-        existsSync(new URL("../agent/connections/toolbox.ts", import.meta.url)),
-      ).toBe(false);
-    } finally {
-      if (previousProfile === undefined) {
-        delete process.env.AGENT_CAPABILITY_PROFILE;
-      } else {
-        process.env.AGENT_CAPABILITY_PROFILE = previousProfile;
-      }
-    }
+    expect(toolbox.url).toBe("http://localhost:15000/mcp");
+    expect(toolbox.tools?.allow).toHaveLength(18);
+    expect(toolbox.tools?.allow).toContain("summarize_sales_by_region");
+    expect(
+      existsSync(new URL("../agent/tools/toolbox.ts", import.meta.url)),
+    ).toBe(false);
   });
 
   it("defines the Eve channel route auth in the authored surface", async () => {

@@ -22,6 +22,7 @@ describe("createAgentWorkerProcess", () => {
       env: {
         REDIS_URL: "redis://localhost:16379",
         AGENT_RUNTIME: "claude",
+        AGENT_CAPABILITY_PROFILE: "development-all",
         ANTHROPIC_MODEL: "kimi-for-coding",
         CLAUDE_AGENT_MODEL: "kimi-for-coding",
         EVE_AGENT_MODEL: "kimi-for-coding"

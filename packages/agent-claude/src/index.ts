@@ -3,25 +3,15 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { z } from "zod";
 import type {
-  McpServerConfig,
+  McpHttpServerConfig,
   SDKMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 import {
-  createMcpHost,
-  loadMcpHostConfig,
-  readAgentCapabilityTools,
-  type McpHostConfig,
-  type McpHostToolCallResult,
-} from "@agent-template/mcp-host";
-import {
-  McpToolboxLimitSchema,
-  McpToolboxOrderNumberInputSchema,
-  McpToolboxRunSummaryInputSchema,
-  McpToolboxRunTimelineInputSchema,
-  McpToolboxTimeWindowSchema,
-  McpToolboxTimeWindowWithLimitSchema,
-  type AgentRunEvent,
-} from "@agent-template/shared";
+  parseToolboxAgentConfig,
+  ToolboxAgentConfigSchema,
+  toolboxToolNames,
+} from "@agent-template/toolbox-config";
+import { type AgentRunEvent } from "@agent-template/shared";
 
 export const defaultClaudeAgentModel = "kimi-for-coding";
 export const defaultAnthropicBaseUrl = "https://api.kimi.com/coding/";
@@ -33,8 +23,7 @@ export const ClaudeAgentConfigSchema = z.object({
   authToken: z.string().min(1).optional(),
   baseUrl: z.string().url().optional(),
   model: z.string().min(1).default(defaultClaudeAgentModel),
-  toolboxUrl: z.string().url().optional(),
-  toolboxToolset: z.string().min(1).optional(),
+  toolbox: ToolboxAgentConfigSchema.optional(),
 });
 
 export type ClaudeAgentConfig = z.infer<typeof ClaudeAgentConfigSchema>;
@@ -69,13 +58,13 @@ export type ClaudeAgentRunResult =
 export function parseClaudeAgentConfig(
   input: Record<string, unknown>,
 ): ClaudeAgentConfig {
+  const toolbox = parseToolboxAgentConfig(input);
   return ClaudeAgentConfigSchema.parse({
     apiKey: input.ANTHROPIC_API_KEY || undefined,
     authToken: input.ANTHROPIC_AUTH_TOKEN || undefined,
     baseUrl: input.ANTHROPIC_BASE_URL || undefined,
     model: input.CLAUDE_AGENT_MODEL || input.ANTHROPIC_MODEL || undefined,
-    toolboxUrl: input.TOOLBOX_URL || undefined,
-    toolboxToolset: input.TOOLBOX_TOOLSET || undefined,
+    ...(toolbox ? { toolbox } : {}),
   });
 }
 
@@ -103,14 +92,6 @@ type ClaudeAgentSdk = {
     prompt: string;
     options?: Record<string, unknown>;
   }): AsyncIterable<SDKMessage>;
-  createSdkMcpServer(options: Record<string, unknown>): McpServerConfig;
-  tool(
-    name: string,
-    description: string,
-    inputSchema: Record<string, z.ZodType>,
-    handler: (args: Record<string, unknown>) => Promise<McpHostToolCallResult>,
-    extras?: Record<string, unknown>,
-  ): unknown;
 };
 
 export async function runClaudeAgent(
@@ -140,9 +121,9 @@ export async function runClaudeAgent(
     options: {
       env: createClaudeAgentSubprocessEnv(config),
       cwd: readClaudeProjectDir(),
-      allowedTools: readHostManagedClaudeTools(config),
+      allowedTools: readClaudeToolboxTools(config),
       maxTurns: defaultClaudeAgentMaxTurns,
-      mcpServers: createHostManagedClaudeMcpServers(sdk, config),
+      mcpServers: createClaudeToolboxMcpServers(config),
       permissionMode: "dontAsk",
       persistSession: false,
       settingSources: ["project"],
@@ -347,7 +328,7 @@ function createClaudeAgentSubprocessEnv(config: ClaudeAgentConfig) {
   const claudeConfigDir = join(tmpdir(), "agent-template-claude-code");
   mkdirSync(claudeConfigDir, { recursive: true });
 
-  const env = {
+  const env: NodeJS.ProcessEnv = {
     ...process.env,
     CLAUDE_CODE_AUTO_COMPACT_WINDOW: "262144",
     CLAUDE_CONFIG_DIR: claudeConfigDir,
@@ -371,6 +352,10 @@ function createClaudeAgentSubprocessEnv(config: ClaudeAgentConfig) {
     delete env.ANTHROPIC_MODEL;
   }
 
+  delete env.AGENT_CAPABILITY_PROFILE;
+  delete env.TOOLBOX_AUTH_TOKEN;
+  delete env.TOOLBOX_URL;
+
   return env;
 }
 
@@ -382,227 +367,46 @@ function readClaudeProjectDir() {
   return process.env.INIT_CWD ?? process.cwd();
 }
 
-function readHostManagedClaudeTools(config: ClaudeAgentConfig) {
-  const mcpHostConfig = readClaudeMcpHostConfig(config);
-  return mcpHostConfig.toolboxUrl
-    ? readAgentCapabilityTools(mcpHostConfig).map(
-        (toolName) => `mcp__agent_template_mcp_host__${toolName}`,
-      )
-    : [];
+function readClaudeToolboxTools(config: ClaudeAgentConfig) {
+  return (
+    config.toolbox?.allowedTools.map(
+      (toolName) => `mcp__toolbox__${toolName}`,
+    ) ?? []
+  );
 }
 
-function createHostManagedClaudeMcpServers(
-  sdk: ClaudeAgentSdk,
+function createClaudeToolboxMcpServers(
   config: ClaudeAgentConfig,
-): Record<string, McpServerConfig> {
-  const mcpHostConfig = readClaudeMcpHostConfig(config);
+): Record<string, McpHttpServerConfig> {
+  const toolbox = config.toolbox;
+  if (!toolbox) return {};
 
-  if (!mcpHostConfig.toolboxUrl) {
-    return {};
-  }
-
-  const host = createMcpHost(mcpHostConfig);
+  const allowedTools = new Set(toolbox.allowedTools);
 
   return {
-    agent_template_mcp_host: sdk.createSdkMcpServer({
-      name: "agent_template_mcp_host",
-      version: "0.1.0",
-      instructions:
-        "Use these Host-managed MCP tools for Agent Template read-model data. The runtime must not connect to Toolbox directly.",
-      tools: [
-        sdk.tool(
-          "list-agent-runs",
-          "List Agent runs from the last 30 days through the Host-managed Toolbox MCP server.",
-          { limit: McpToolboxLimitSchema.optional() },
-          async (args) => host.callTool("toolbox", "list-agent-runs", args),
-        ),
-        sdk.tool(
-          "get-agent-run-summary",
-          "Get the lifecycle summary for one concrete Agent run from the Host-managed Toolbox MCP server.",
-          McpToolboxRunSummaryInputSchema.shape,
-          async (args) =>
-            host.callTool(
-              "toolbox",
-              "get-agent-run-summary",
-              McpToolboxRunSummaryInputSchema.parse(args),
-            ),
-        ),
-        sdk.tool(
-          "list-agent-run-timeline",
-          "List a bounded event timeline for one concrete Agent run from the Host-managed Toolbox MCP server.",
-          McpToolboxRunTimelineInputSchema.shape,
-          async (args) =>
-            host.callTool(
-              "toolbox",
-              "list-agent-run-timeline",
-              McpToolboxRunTimelineInputSchema.parse(args),
-            ),
-        ),
-        sdk.tool(
-          "list-template-events",
-          "List template business events from the last 30 days through the Host-managed Toolbox MCP server.",
-          { limit: McpToolboxLimitSchema.optional() },
-          async (args) =>
-            host.callTool("toolbox", "list-template-events", args),
-        ),
-        sdk.tool(
-          "summarize-ecommerce-sales-by-day",
-          "Summarize daily gross sales, refunds, net sales, orders, and buyers for the synthetic ecommerce dataset.",
-          McpToolboxTimeWindowSchema.shape,
-          async (args) =>
-            host.callTool(
-              "toolbox",
-              "summarize-ecommerce-sales-by-day",
-              McpToolboxTimeWindowSchema.parse(args),
-            ),
-        ),
-        sdk.tool(
-          "summarize-ecommerce-sales-by-channel",
-          "Compare synthetic ecommerce sales performance by channel in an explicit UTC time window.",
-          McpToolboxTimeWindowSchema.shape,
-          async (args) =>
-            host.callTool(
-              "toolbox",
-              "summarize-ecommerce-sales-by-channel",
-              McpToolboxTimeWindowSchema.parse(args),
-            ),
-        ),
-        sdk.tool(
-          "summarize_sales_by_region",
-          "Summarize synthetic ecommerce gross sales, refunds, net sales, buyers, and AOV by customer region in an explicit UTC time window.",
-          McpToolboxTimeWindowSchema.shape,
-          async (args) =>
-            host.callTool(
-              "toolbox",
-              "summarize_sales_by_region",
-              McpToolboxTimeWindowSchema.parse(args),
-            ),
-        ),
-        sdk.tool(
-          "summarize_sales_by_customer_segment",
-          "Summarize synthetic ecommerce gross sales, refunds, net sales, buyers, and AOV by customer segment in an explicit UTC time window.",
-          McpToolboxTimeWindowSchema.shape,
-          async (args) =>
-            host.callTool(
-              "toolbox",
-              "summarize_sales_by_customer_segment",
-              McpToolboxTimeWindowSchema.parse(args),
-            ),
-        ),
-        sdk.tool(
-          "list-ecommerce-top-products",
-          "Rank synthetic ecommerce products by paid quantity and net merchandise sales in an explicit UTC time window.",
-          McpToolboxTimeWindowWithLimitSchema.shape,
-          async (args) =>
-            host.callTool(
-              "toolbox",
-              "list-ecommerce-top-products",
-              McpToolboxTimeWindowWithLimitSchema.parse(args),
-            ),
-        ),
-        sdk.tool(
-          "summarize_merchandise_by_category",
-          "Summarize synthetic ecommerce units, gross merchandise sales, and refund-adjusted net merchandise sales by category in an explicit UTC time window.",
-          McpToolboxTimeWindowSchema.shape,
-          async (args) =>
-            host.callTool(
-              "toolbox",
-              "summarize_merchandise_by_category",
-              McpToolboxTimeWindowSchema.parse(args),
-            ),
-        ),
-        sdk.tool(
-          "list-ecommerce-orders-in-window",
-          "List bounded synthetic ecommerce orders with operational and customer-segment context in an explicit UTC time window.",
-          McpToolboxTimeWindowWithLimitSchema.shape,
-          async (args) =>
-            host.callTool(
-              "toolbox",
-              "list-ecommerce-orders-in-window",
-              McpToolboxTimeWindowWithLimitSchema.parse(args),
-            ),
-        ),
-        sdk.tool(
-          "get-ecommerce-order-detail",
-          "Get one synthetic ecommerce order and its line items from a concrete order number.",
-          McpToolboxOrderNumberInputSchema.shape,
-          async (args) =>
-            host.callTool(
-              "toolbox",
-              "get-ecommerce-order-detail",
-              McpToolboxOrderNumberInputSchema.parse(args),
-            ),
-        ),
-        sdk.tool(
-          "list-ecommerce-fulfillment-exceptions",
-          "List bounded paid but unfulfilled synthetic ecommerce orders in an explicit UTC time window.",
-          McpToolboxTimeWindowWithLimitSchema.shape,
-          async (args) =>
-            host.callTool(
-              "toolbox",
-              "list-ecommerce-fulfillment-exceptions",
-              McpToolboxTimeWindowWithLimitSchema.parse(args),
-            ),
-        ),
-        sdk.tool(
-          "list-template-events-in-window",
-          "List bounded template events in an explicit UTC time window through the Host-managed Toolbox MCP server.",
-          McpToolboxTimeWindowWithLimitSchema.shape,
-          async (args) =>
-            host.callTool(
-              "toolbox",
-              "list-template-events-in-window",
-              McpToolboxTimeWindowWithLimitSchema.parse(args),
-            ),
-        ),
-        sdk.tool(
-          "summarize-template-events-by-type",
-          "Summarize template event counts by type in an explicit UTC time window through the Host-managed Toolbox MCP server.",
-          McpToolboxTimeWindowSchema.shape,
-          async (args) =>
-            host.callTool(
-              "toolbox",
-              "summarize-template-events-by-type",
-              McpToolboxTimeWindowSchema.parse(args),
-            ),
-        ),
-        sdk.tool(
-          "list-failed-agent-runs-in-window",
-          "List bounded Agent failures in an explicit UTC time window through the Host-managed Toolbox MCP server.",
-          McpToolboxTimeWindowWithLimitSchema.shape,
-          async (args) =>
-            host.callTool(
-              "toolbox",
-              "list-failed-agent-runs-in-window",
-              McpToolboxTimeWindowWithLimitSchema.parse(args),
-            ),
-        ),
-        sdk.tool(
-          "summarize-tool-invocations",
-          "Summarize MCP Toolbox invocation volume and latency in an explicit UTC time window.",
-          McpToolboxTimeWindowWithLimitSchema.shape,
-          async (args) =>
-            host.callTool(
-              "toolbox",
-              "summarize-tool-invocations",
-              McpToolboxTimeWindowWithLimitSchema.parse(args),
-            ),
-        ),
-        sdk.tool(
-          "get-template-event",
-          "Get one template business event from the Host-managed Toolbox MCP server.",
-          { eventId: z.string().min(1) },
-          async (args) => host.callTool("toolbox", "get-template-event", args),
-        ),
-      ],
-    }),
+    toolbox: {
+      type: "http",
+      url: toolbox.url,
+      ...(toolbox.authorizationToken
+        ? {
+            headers: {
+              Authorization: `Bearer ${toolbox.authorizationToken}`,
+            },
+          }
+        : {}),
+      tools: toolboxToolNames.map((toolName) =>
+        allowedTools.has(toolName)
+          ? {
+              name: toolName,
+              org_max_permission: "allow",
+              permission_policy: "always_allow",
+            }
+          : {
+              name: toolName,
+              org_max_permission: "blocked",
+              permission_policy: "always_deny",
+            },
+      ),
+    },
   };
-}
-
-function readClaudeMcpHostConfig(config: ClaudeAgentConfig): McpHostConfig {
-  return loadMcpHostConfig({
-    ...process.env,
-    TOOLBOX_TOOLSET: config.toolboxToolset,
-    TOOLBOX_URL: config.toolboxUrl,
-  });
 }

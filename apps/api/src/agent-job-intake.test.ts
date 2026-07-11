@@ -17,13 +17,13 @@ describe("createAgentJobIntake", () => {
           },
           async close() {
             calls.push(["close"]);
-          }
+          },
         };
-      }
+      },
     });
     const result = await intake.enqueue({
       prompt: "Summarize this template",
-      requestedAt: "2026-06-26T00:00:00.000Z"
+      requestedAt: "2026-06-26T00:00:00.000Z",
     });
 
     expect(result).toEqual({ id: "job-1", queue: "agent-jobs" });
@@ -34,10 +34,10 @@ describe("createAgentJobIntake", () => {
         "agent.run",
         {
           prompt: "Summarize this template",
-          requestedAt: "2026-06-26T00:00:00.000Z"
-        }
+          requestedAt: "2026-06-26T00:00:00.000Z",
+        },
       ],
-      ["close"]
+      ["close"],
     ]);
   });
 });

@@ -6,7 +6,7 @@ x-runtime-environment: &runtime-environment
   DATABASE_URL: postgresql://project_template:project_template@postgres:5432/project_template?schema=public
   REDIS_URL: redis://redis:6379
   TOOLBOX_URL: http://toolbox:15000
-  TOOLBOX_TOOLSET: agent_template_read_model
+  AGENT_CAPABILITY_PROFILE: development-all
   ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
   ANTHROPIC_AUTH_TOKEN: ${ANTHROPIC_AUTH_TOKEN:-}
   ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-https://api.kimi.com/coding/}

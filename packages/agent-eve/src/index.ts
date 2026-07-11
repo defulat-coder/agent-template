@@ -4,12 +4,16 @@ import type { AgentRunEvent } from "@agent-template/shared";
 import { defaultEveAgentModel, readEveAgentModel } from "./config.js";
 
 export const eveAgentDirectory = "packages/agent-eve/agent";
-export { defaultEveAgentModel, readEveAgentModel, readEveAnthropicBaseURL } from "./config.js";
+export {
+  defaultEveAgentModel,
+  readEveAgentModel,
+  readEveAnthropicBaseURL,
+} from "./config.js";
 
 export const EveAgentConfigSchema = z.object({
   host: z.string().min(1).optional(),
   model: z.string().min(1).default(defaultEveAgentModel),
-  serviceToken: z.string().min(1).optional()
+  serviceToken: z.string().min(1).optional(),
 });
 
 export type EveAgentConfig = z.infer<typeof EveAgentConfigSchema>;
@@ -53,27 +57,38 @@ type EveMessageResponse = AsyncIterable<unknown> & {
   sessionId: string;
 };
 
-export function parseEveAgentConfig(input: Record<string, unknown>): EveAgentConfig {
+export function parseEveAgentConfig(
+  input: Record<string, unknown>,
+): EveAgentConfig {
   return EveAgentConfigSchema.parse({
-    host: typeof input.EVE_AGENT_HOST === "string" && input.EVE_AGENT_HOST.length > 0 ? input.EVE_AGENT_HOST : undefined,
+    host:
+      typeof input.EVE_AGENT_HOST === "string" &&
+      input.EVE_AGENT_HOST.length > 0
+        ? input.EVE_AGENT_HOST
+        : undefined,
     model: readEveAgentModel(input),
     serviceToken:
-      typeof input.EVE_AGENT_SERVICE_TOKEN === "string" && input.EVE_AGENT_SERVICE_TOKEN.length > 0
+      typeof input.EVE_AGENT_SERVICE_TOKEN === "string" &&
+      input.EVE_AGENT_SERVICE_TOKEN.length > 0
         ? input.EVE_AGENT_SERVICE_TOKEN
-        : undefined
+        : undefined,
   });
 }
 
-export function getEveAgentRuntimeState(config: EveAgentConfig): EveAgentRuntimeState {
+export function getEveAgentRuntimeState(
+  config: EveAgentConfig,
+): EveAgentRuntimeState {
   return {
     configured: Boolean(config.host),
     model: config.model,
     authoredSurface: eveAgentDirectory,
-    ...(config.host ? { host: config.host } : {})
+    ...(config.host ? { host: config.host } : {}),
   };
 }
 
-export function getEveAgentRuntimeStateFromEnv(input: Record<string, unknown>): EveAgentRuntimeState {
+export function getEveAgentRuntimeStateFromEnv(
+  input: Record<string, unknown>,
+): EveAgentRuntimeState {
   return getEveAgentRuntimeState(parseEveAgentConfig(input));
 }
 
@@ -83,7 +98,7 @@ export async function runEveAgent(
   options: {
     createClient?: (host: string, config: EveAgentConfig) => EveClient;
     onEvent?: (event: AgentRunEvent) => void;
-  } = {}
+  } = {},
 ): Promise<EveAgentRunResult> {
   if (!config.host) {
     return { status: "skipped", reason: "EVE_AGENT_HOST is not configured" };
@@ -114,7 +129,7 @@ export async function runEveAgent(
       status: "failed",
       events: [...events, event],
       reason,
-      sessionId: response.sessionId
+      sessionId: response.sessionId,
     };
   }
 
@@ -126,14 +141,16 @@ export async function runEveAgent(
     status: "completed",
     events: [...events, event],
     output,
-    sessionId: response.sessionId
+    sessionId: response.sessionId,
   };
 }
 
 function createEveClient(host: string, config: EveAgentConfig): EveClient {
   return new Client({
     host,
-    ...(config.serviceToken ? { headers: { "x-agent-template-eve-token": config.serviceToken } } : {})
+    ...(config.serviceToken
+      ? { headers: { "x-agent-template-eve-token": config.serviceToken } }
+      : {}),
   });
 }
 
@@ -142,15 +159,27 @@ function formatEveAgentEvents(event: unknown): AgentRunEvent[] {
     return [{ kind: "unknown", text: formatEveOutput(event) }];
   }
 
-  if (event.type === "message.appended" && isRecord(event.data) && typeof event.data.messageSoFar === "string") {
+  if (
+    event.type === "message.appended" &&
+    isRecord(event.data) &&
+    typeof event.data.messageSoFar === "string"
+  ) {
     return [{ kind: "text", text: event.data.messageSoFar }];
   }
 
-  if (event.type === "message.completed" && isRecord(event.data) && typeof event.data.message === "string") {
+  if (
+    event.type === "message.completed" &&
+    isRecord(event.data) &&
+    typeof event.data.message === "string"
+  ) {
     return [{ kind: "text", text: event.data.message }];
   }
 
-  if (event.type === "actions.requested" && isRecord(event.data) && Array.isArray(event.data.actions)) {
+  if (
+    event.type === "actions.requested" &&
+    isRecord(event.data) &&
+    Array.isArray(event.data.actions)
+  ) {
     return event.data.actions.map(formatEveActionRequest);
   }
 
@@ -160,7 +189,9 @@ function formatEveAgentEvents(event: unknown): AgentRunEvent[] {
   }
 
   if (
-    (event.type === "step.failed" || event.type === "turn.failed" || event.type === "session.failed") &&
+    (event.type === "step.failed" ||
+      event.type === "turn.failed" ||
+      event.type === "session.failed") &&
     isRecord(event.data) &&
     typeof event.data.message === "string"
   ) {
@@ -178,7 +209,7 @@ function formatEveActionRequest(action: unknown): AgentRunEvent {
   return {
     kind: "tool-call",
     tool: readEveActionRequestToolName(action),
-    input: formatEveOutput(action.input ?? {})
+    input: formatEveOutput(action.input ?? {}),
   };
 }
 
@@ -187,11 +218,17 @@ function readEveActionRequestToolName(action: Record<string, unknown>): string {
     return action.toolName;
   }
 
-  if (action.kind === "subagent-call" && typeof action.subagentName === "string") {
+  if (
+    action.kind === "subagent-call" &&
+    typeof action.subagentName === "string"
+  ) {
     return `eve:subagent:${action.subagentName}`;
   }
 
-  if (action.kind === "remote-agent-call" && typeof action.remoteAgentName === "string") {
+  if (
+    action.kind === "remote-agent-call" &&
+    typeof action.remoteAgentName === "string"
+  ) {
     return `eve:subagent:${action.remoteAgentName}`;
   }
 
@@ -207,7 +244,10 @@ function readEveActionResultToolName(result: unknown): string | undefined {
     return result.toolName;
   }
 
-  if (result.kind === "subagent-result" && typeof result.subagentName === "string") {
+  if (
+    result.kind === "subagent-result" &&
+    typeof result.subagentName === "string"
+  ) {
     return `eve:subagent:${result.subagentName}`;
   }
 
@@ -222,7 +262,9 @@ function findEveFailure(events: unknown[]): string | undefined {
   for (const event of events) {
     if (
       isRecord(event) &&
-      (event.type === "session.failed" || event.type === "turn.failed" || event.type === "step.failed") &&
+      (event.type === "session.failed" ||
+        event.type === "turn.failed" ||
+        event.type === "step.failed") &&
       isRecord(event.data) &&
       typeof event.data.message === "string"
     ) {
@@ -245,11 +287,17 @@ function findEveOutput(events: unknown[]): string {
       output = formatEveOutput(event.data.result);
     }
 
-    if (event.type === "message.completed" && typeof event.data.message === "string") {
+    if (
+      event.type === "message.completed" &&
+      typeof event.data.message === "string"
+    ) {
       output = event.data.message;
     }
 
-    if (event.type === "message.appended" && typeof event.data.messageSoFar === "string") {
+    if (
+      event.type === "message.appended" &&
+      typeof event.data.messageSoFar === "string"
+    ) {
       output = event.data.messageSoFar;
     }
   }
@@ -258,7 +306,7 @@ function findEveOutput(events: unknown[]): string {
 }
 
 function formatEveOutput(value: unknown): string {
-  return typeof value === "string" ? value : JSON.stringify(value) ?? "";
+  return typeof value === "string" ? value : (JSON.stringify(value) ?? "");
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

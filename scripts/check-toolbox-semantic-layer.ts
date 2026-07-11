@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseAllDocuments } from "yaml";
-import { BusinessSemanticCatalogSchema } from "@agent-template/mcp-host";
+import { BusinessSemanticCatalogSchema } from "@agent-template/toolbox-config";
 
 type ToolboxEntry = Record<string, unknown>;
 

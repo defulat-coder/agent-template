@@ -8,7 +8,9 @@ export function AgentRunTimeline({ events }: { events: AgentRunEvent[] }) {
     <section className="rounded-md border border-slate-200 bg-white p-4">
       <div className="flex flex-col gap-1">
         <h2 className="text-base font-semibold text-slate-950">运行事件</h2>
-        <p className="text-sm text-slate-500">来自当前 Agent Chat SSE 连接的运行事件。</p>
+        <p className="text-sm text-slate-500">
+          来自当前 Agent Chat SSE 连接的运行事件。
+        </p>
       </div>
 
       {events.length ? (
@@ -18,7 +20,9 @@ export function AgentRunTimeline({ events }: { events: AgentRunEvent[] }) {
           ))}
         </div>
       ) : (
-        <p className="mt-4 rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-500">暂无运行事件。</p>
+        <p className="mt-4 rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-500">
+          暂无运行事件。
+        </p>
       )}
     </section>
   );
@@ -61,29 +65,33 @@ function AgentRunEventRow({ event }: { event: AgentRunEvent }) {
     return <ArtifactTabs tabs={event.tabs} />;
   }
 
-  if (event.kind === "ui") {
-    return (
-      <LogRow label={`MCP App: ${event.ui.title}`} tone="blue">
-        {`${event.ui.resource.uri} -> ${event.ui.serverId}/${event.ui.toolName}`}
-      </LogRow>
-    );
-  }
-
   return <LogRow label="Unknown event">{event.text}</LogRow>;
 }
 
-function LogRow({ children, label, tone = "slate" }: { children?: string; label: string; tone?: "blue" | "green" | "red" | "slate" }) {
+function LogRow({
+  children,
+  label,
+  tone = "slate",
+}: {
+  children?: string;
+  label: string;
+  tone?: "blue" | "green" | "red" | "slate";
+}) {
   const toneClass = {
     blue: "border-blue-200 bg-blue-50 text-blue-900",
     green: "border-green-200 bg-green-50 text-green-900",
     red: "border-red-200 bg-red-50 text-red-900",
-    slate: "border-slate-200 bg-slate-50 text-slate-900"
+    slate: "border-slate-200 bg-slate-50 text-slate-900",
   }[tone];
 
   return (
     <div className={`rounded-md border px-3 py-2 text-sm ${toneClass}`}>
       <div className="font-medium">{label}</div>
-      {children ? <pre className="mt-2 whitespace-pre-wrap break-words font-sans leading-6">{children}</pre> : null}
+      {children ? (
+        <pre className="mt-2 whitespace-pre-wrap break-words font-sans leading-6">
+          {children}
+        </pre>
+      ) : null}
     </div>
   );
 }
@@ -117,7 +125,9 @@ function ArtifactTabs({ tabs }: { tabs: AgentArtifact[] }) {
           复制
         </button>
       </div>
-      <pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap break-words text-slate-900">{active.content}</pre>
+      <pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap break-words text-slate-900">
+        {active.content}
+      </pre>
     </div>
   );
 }

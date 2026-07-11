@@ -1,6 +1,10 @@
 import { getAgentRuntimeStateFromEnv } from "@agent-template/agent";
-import { defaultMcpToolboxServerId, loadMcpHostConfig } from "@agent-template/mcp-host";
-import { createHealthStatus, agentQueueName, type DependencyState, type HealthStatus } from "@agent-template/shared";
+import {
+  createHealthStatus,
+  agentQueueName,
+  type DependencyState,
+  type HealthStatus,
+} from "@agent-template/shared";
 import { createRedisPingConnection } from "./queue.js";
 import type { Env } from "./env.js";
 
@@ -18,14 +22,21 @@ export type HealthAdapters = {
 async function checkDatabase(): Promise<DependencyState> {
   try {
     const { prisma } = await import("@agent-template/db");
-    await withTimeout(prisma.$queryRaw`SELECT 1`, 800, "PostgreSQL check timed out");
+    await withTimeout(
+      prisma.$queryRaw`SELECT 1`,
+      800,
+      "PostgreSQL check timed out",
+    );
     return { status: "ok", message: "PostgreSQL reachable" };
   } catch (error) {
-    const message = error instanceof Error && error.message.trim() ? error.message : "PostgreSQL check failed";
+    const message =
+      error instanceof Error && error.message.trim()
+        ? error.message
+        : "PostgreSQL check failed";
 
     return {
       status: "error",
-      message
+      message,
     };
   }
 }
@@ -37,14 +48,21 @@ async function checkRedis(redisUrl: string): Promise<DependencyState> {
   });
 
   try {
-    await withTimeout(redis.connect().then(() => redis.ping()), 800, "Redis check timed out");
+    await withTimeout(
+      redis.connect().then(() => redis.ping()),
+      800,
+      "Redis check timed out",
+    );
     return { status: "ok", message: "Redis reachable" };
   } catch (error) {
-    const message = error instanceof Error && error.message.trim() ? error.message : "Redis check failed";
+    const message =
+      error instanceof Error && error.message.trim()
+        ? error.message
+        : "Redis check failed";
 
     return {
       status: "error",
-      message
+      message,
     };
   } finally {
     redis.disconnect();
@@ -53,9 +71,15 @@ async function checkRedis(redisUrl: string): Promise<DependencyState> {
 
 function createSkippedAdapters(): HealthAdapters {
   return {
-    database: async () => ({ status: "skipped", message: "external checks disabled" }),
-    redis: async () => ({ status: "skipped", message: "external checks disabled" }),
-    now: () => new Date().toISOString()
+    database: async () => ({
+      status: "skipped",
+      message: "external checks disabled",
+    }),
+    redis: async () => ({
+      status: "skipped",
+      message: "external checks disabled",
+    }),
+    now: () => new Date().toISOString(),
   };
 }
 
@@ -63,11 +87,15 @@ function createDefaultAdapters(env: Env): HealthAdapters {
   return {
     database: checkDatabase,
     redis: () => checkRedis(env.REDIS_URL),
-    now: () => new Date().toISOString()
+    now: () => new Date().toISOString(),
   };
 }
 
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  message: string,
+): Promise<T> {
   let timeout: NodeJS.Timeout | undefined;
 
   try {
@@ -75,7 +103,7 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: s
       promise,
       new Promise<never>((_, reject) => {
         timeout = setTimeout(() => reject(new Error(message)), timeoutMs);
-      })
+      }),
     ]);
   } finally {
     if (timeout) {
@@ -84,12 +112,21 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: s
   }
 }
 
-export async function getHealth(env: Env, options: HealthOptions): Promise<HealthStatus> {
-  const adapters = options.adapters ?? (options.checkExternal ? createDefaultAdapters(env) : createSkippedAdapters());
-  const [database, redis] = await Promise.all([adapters.database(), adapters.redis()]);
-  const status = database.status === "error" || redis.status === "error" ? "degraded" : "ok";
-  const mcpHostConfig = loadMcpHostConfig(env);
-  const toolboxServer = mcpHostConfig.servers[defaultMcpToolboxServerId];
+export async function getHealth(
+  env: Env,
+  options: HealthOptions,
+): Promise<HealthStatus> {
+  const adapters =
+    options.adapters ??
+    (options.checkExternal
+      ? createDefaultAdapters(env)
+      : createSkippedAdapters());
+  const [database, redis] = await Promise.all([
+    adapters.database(),
+    adapters.redis(),
+  ]);
+  const status =
+    database.status === "error" || redis.status === "error" ? "degraded" : "ok";
 
   return createHealthStatus({
     service: "api",
@@ -99,13 +136,13 @@ export async function getHealth(env: Env, options: HealthOptions): Promise<Healt
     redis,
     queue: {
       name: agentQueueName,
-      status: redis.status === "error" ? "unavailable" : "ready"
+      status: redis.status === "error" ? "unavailable" : "ready",
     },
     agent: getAgentRuntimeStateFromEnv(env),
     toolbox: {
-      configured: Boolean(toolboxServer),
-      url: toolboxServer?.url ?? "",
-      toolset: toolboxServer?.toolset ?? mcpHostConfig.toolboxToolset
-    }
+      configured: Boolean(env.TOOLBOX_URL),
+      url: env.TOOLBOX_URL,
+      capabilityProfile: env.AGENT_CAPABILITY_PROFILE,
+    },
   });
 }

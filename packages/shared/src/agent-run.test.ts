@@ -11,8 +11,8 @@ describe("AgentRunResultSchema", () => {
         output: "Done",
         promptLength: 9,
         runtime: "claude",
-        status: "completed"
-      })
+        status: "completed",
+      }),
     ).toEqual({
       configured: true,
       events: [{ kind: "done", result: "Done" }],
@@ -20,7 +20,7 @@ describe("AgentRunResultSchema", () => {
       output: "Done",
       promptLength: 9,
       runtime: "claude",
-      status: "completed"
+      status: "completed",
     });
   });
 });

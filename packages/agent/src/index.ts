@@ -17,6 +17,7 @@ import {
   type AgentRunEvent,
   type AgentRunResult,
 } from "@agent-template/shared";
+import { ToolboxCapabilityProfileSchema } from "@agent-template/toolbox-config";
 
 export { defaultClaudeAgentModel, defaultEveAgentModel, loadClaudeAgentSdk };
 export type { AgentRunResult };
@@ -34,8 +35,10 @@ export const AgentRuntimeEnvSchema = z.object({
   EVE_AGENT_HOST: z.string().optional(),
   EVE_AGENT_MODEL: z.string().default(defaultEveAgentModel),
   EVE_AGENT_SERVICE_TOKEN: z.string().optional(),
+  AGENT_CAPABILITY_PROFILE:
+    ToolboxCapabilityProfileSchema.default("development-all"),
+  TOOLBOX_AUTH_TOKEN: z.string().optional(),
   TOOLBOX_URL: z.string().url().optional(),
-  TOOLBOX_TOOLSET: z.string().optional(),
 });
 
 export type AgentRuntimeName = z.infer<typeof AgentRuntimeNameSchema>;

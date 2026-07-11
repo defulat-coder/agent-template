@@ -5,14 +5,13 @@ import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import {
-  createMcpHost,
-  loadMcpHostConfig,
-  readAgentCapabilityTools,
-} from "./index.js";
+  toolboxCapabilityProfiles,
+  toolboxToolNames,
+} from "@agent-template/toolbox-config";
 import { startLocalToolbox } from "./local-toolbox-server.js";
 
 const productionConfig = fileURLToPath(
-  new URL("../../../generated/toolbox-production/tools.yaml", import.meta.url),
+  new URL("../../generated/toolbox-production/tools.yaml", import.meta.url),
 );
 const database = {
   database: process.env.TOOLBOX_POSTGRES_DATABASE ?? "project_template",
@@ -21,11 +20,7 @@ const database = {
   port: process.env.TOOLBOX_POSTGRES_PORT ?? "15432",
   user: process.env.TOOLBOX_POSTGRES_USER ?? "project_template",
 };
-const databaseUrl =
-  process.env.DATABASE_URL ??
-  `postgresql://${database.user}:${database.password}@${database.host}:${database.port}/${database.database}?schema=public`;
 const audience = process.env.TOOLBOX_OIDC_AUDIENCE ?? "agent-template-toolbox";
-const expectedToolCount = 18;
 
 async function main() {
   const oidc = await startLocalOidcIssuer(audience);
@@ -41,26 +36,18 @@ async function main() {
       TOOLBOX_POSTGRES_USER: database.user,
     },
   });
-  const toolboxUrl = toolbox.url;
+  let client: Client | undefined;
 
   try {
-    await waitForAuthorizedToolbox(toolboxUrl, oidc.token);
-    await assertUnauthenticatedRequestIsRejected(toolboxUrl);
+    client = await waitForAuthorizedToolbox(toolbox.url, oidc.token);
+    await assertUnauthenticatedRequestIsRejected(toolbox.url);
 
-    const hostConfig = loadMcpHostConfig({
-      DATABASE_URL: databaseUrl,
-      TOOLBOX_AUTH_TOKEN: oidc.token,
-      TOOLBOX_URL: toolboxUrl,
-    });
-    const host = createMcpHost(hostConfig);
-    const tools = await host.listTools("toolbox");
-    assert.equal(tools.length, expectedToolCount);
-    const liveToolNames = new Set(tools.map((tool) => tool.name));
-    for (const profileName of Object.keys(hostConfig.capabilityProfiles)) {
-      const profileTools = readAgentCapabilityTools({
-        ...hostConfig,
-        agentCapabilityProfile: profileName,
-      });
+    const tools = await client.listTools();
+    assert.equal(tools.tools.length, toolboxToolNames.length);
+    const liveToolNames = new Set(tools.tools.map((tool) => tool.name));
+    for (const [profileName, profileTools] of Object.entries(
+      toolboxCapabilityProfiles,
+    )) {
       assert.ok(profileTools.length > 0, `${profileName} must not be empty`);
       for (const toolName of profileTools) {
         assert.ok(
@@ -70,25 +57,21 @@ async function main() {
       }
     }
 
-    const result = await host.callTool("toolbox", "summarize_sales_by_region", {
-      from: "2026-06-01T00:00:00Z",
-      to: "2026-07-01T00:00:00Z",
+    const result = await client.callTool({
+      name: "summarize_sales_by_region",
+      arguments: {
+        from: "2026-06-01T00:00:00Z",
+        to: "2026-07-01T00:00:00Z",
+      },
     });
     assert.equal(result.isError, undefined);
     assert.ok(result.content.length > 0);
-    const certifiedQuery = result.structuredContent?.certifiedQuery as
-      | Record<string, unknown>
-      | undefined;
-    assert.equal(certifiedQuery?.kind, "certified-query-result");
-    assert.deepEqual(certifiedQuery?.catalog, {
-      name: "ecommerce-retail-example",
-      version: 1,
-    });
 
     console.log(
-      `Local Toolbox OIDC verification passed: unauthenticated MCP rejected, 18 scoped tools listed, ${Object.keys(hostConfig.capabilityProfiles).length} Agent capability profiles matched live tools, and an authenticated business query returned certified semantic provenance through MCP Host.`,
+      `Local Toolbox OIDC verification passed: unauthenticated MCP rejected, 18 scoped tools listed, ${Object.keys(toolboxCapabilityProfiles).length} Agent capability profiles matched live tools, and an authenticated business query succeeded through a direct MCP client.`,
     );
   } finally {
+    await client?.close();
     await toolbox.stop();
     await closeServer(oidc.server);
   }
@@ -99,12 +82,9 @@ async function waitForAuthorizedToolbox(url: string, token: string) {
   for (let attempt = 0; attempt < 40; attempt += 1) {
     try {
       const client = await connectClient(url, token);
-      try {
-        const tools = await client.listTools();
-        if (tools.tools.length === expectedToolCount) return;
-      } finally {
-        await client.close();
-      }
+      const tools = await client.listTools();
+      if (tools.tools.length === toolboxToolNames.length) return client;
+      await client.close();
     } catch (error) {
       lastError = error;
     }
@@ -125,11 +105,12 @@ async function connectClient(url: string, token?: string) {
     { name: "agent-template-local-auth-verifier", version: "1.0.0" },
     { capabilities: {} },
   );
-  const transport = new StreamableHTTPClientTransport(new URL(`${url}/mcp`), {
-    ...(token
+  const transport = new StreamableHTTPClientTransport(
+    new URL(`${url.replace(/\/$/, "")}/mcp`),
+    token
       ? { requestInit: { headers: { Authorization: `Bearer ${token}` } } }
-      : {}),
-  });
+      : undefined,
+  );
   await client.connect(transport as Parameters<Client["connect"]>[0]);
   return client;
 }
@@ -225,4 +206,7 @@ function closeServer(server: Server) {
   });
 }
 
-await main();
+main().catch((error: unknown) => {
+  console.error(error);
+  process.exitCode = 1;
+});

@@ -9,12 +9,12 @@ export function createRedisPingConnection(redisUrl: string) {
     enableOfflineQueue: false,
     lazyConnect: true,
     maxRetriesPerRequest: 1,
-    retryStrategy: null
+    retryStrategy: null,
   });
 }
 
 export function createAgentQueue(redisUrl: string) {
   return new Queue<AgentJobPayload>(agentQueueName, {
-    connection: createBullMqConnectionOptions(redisUrl)
+    connection: createBullMqConnectionOptions(redisUrl),
   });
 }

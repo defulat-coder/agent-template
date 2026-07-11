@@ -11,9 +11,9 @@
 - `loadClaudeAgentSdk` 保持懒加载，避免无 key 时影响本地启动。
 - Kimi Code 通过 Anthropic-compatible env 接入：`ANTHROPIC_BASE_URL=https://api.kimi.com/coding/`、`ANTHROPIC_MODEL=kimi-for-coding`、`ANTHROPIC_API_KEY`。
 - 传给 Claude Agent SDK subprocess 的 `env` 必须合并 `process.env`，不要替换掉 `PATH`、`HOME` 等运行时变量。
-- Toolbox server 通过 `@agent-template/mcp-host` 接入；Claude runtime 只创建 SDK MCP server 表面并委托 Host，不直接 import `apps/toolbox/tools.yaml`，不把 `TOOLBOX_URL` / `TOOLBOX_TOOLSET` 下发给 Claude Code subprocess。
+- Toolbox 通过 Claude Agent SDK 的 HTTP MCP server 配置直连；读取 `@agent-template/toolbox-config`，不要 import `apps/toolbox/tools.yaml`，不要把 `TOOLBOX_AUTH_TOKEN` 下发给 Claude Code subprocess env。
 - Claude 实际可见的 MCP 工具必须由 `AGENT_CAPABILITY_PROFILE` 对应的 Host capability profile 生成 SDK `allowedTools`；不要在 runtime 内再维护一份硬编码全量名单。
-- 项目级业务 Skill 放在根目录 `.claude/skills/`；Claude Agent SDK 必须启用 project setting source 和 skills，Skill 仍只调用 Host-managed MCP tools。
+- 项目级业务 Skill 放在根目录 `.claude/skills/`；Claude Agent SDK 必须启用 project setting source 和 skills，Skill 调用 `mcp__toolbox__*`。
 - 电商业务 Skill 由根目录的 Toolbox 官方生成器同步，不手工维护两份副本，也不安装官方生成的数据库直连脚本。
 
 ## 不应该做
@@ -23,7 +23,7 @@
 - 不写具体业务 prompt。
 - 不把 Kimi API Key 写入仓库。
 - 不把 PostgreSQL 连接信息放进 Claude runtime 配置；数据库权限留在 Toolbox server。
-- 不恢复项目级 `.mcp.json` / `.claude/settings.json` 作为 Toolbox 主路径；生产形态以 Host-managed MCP 为准。
+- 不恢复共享 MCP Host 或 API MCP 代理；Toolbox 连接、Bearer header 与 Tool policy 由本 runtime 配置。
 - 不凭记忆直接写 Claude Agent SDK API；以官方文档和已安装包类型为准。
 
 ## 官方参考

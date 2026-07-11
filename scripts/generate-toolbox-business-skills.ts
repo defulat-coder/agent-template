@@ -14,6 +14,10 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { format } from "prettier";
+import {
+  toolboxCapabilityProfiles,
+  toolboxToolNames,
+} from "@agent-template/toolbox-config";
 
 type BusinessSkill = {
   description: string;
@@ -159,9 +163,7 @@ async function main() {
           "references/ecommerce-semantic-catalog.yaml",
         );
         const markdown = await format(
-          runtime === "eve"
-            ? useEveToolNames(adaptedMarkdown, toolNames)
-            : adaptedMarkdown,
+          useRuntimeToolNames(adaptedMarkdown, toolNames, runtime),
           { parser: "markdown" },
         );
 
@@ -235,7 +237,7 @@ function adaptSkillMarkdown(markdown: string, workflow: string) {
 
 ## Usage
 
-本项目已经把下列 Toolbox 能力注册为 Host-managed typed tools。加载本 skill 后，直接调用同名 Tool；不要绕过 MCP Host 直连数据库。官方生成器同时产出的直连脚本不会安装到 Agent 的 skill 目录。
+本项目的 Claude 与 Eve runtime 已分别通过原生 MCP Client 直连 Toolbox。加载本 Skill 后，调用当前 runtime 对应的 Toolbox MCP Tool；不要绕过 Toolbox 执行任意 SQL。官方生成器产出的数据库直连脚本不会安装到 Agent 的 Skill 目录。
 
 ## Workflow
 
@@ -460,34 +462,35 @@ function containsChinese(value: string) {
 }
 
 function validateExecutionSurfaces(skillName: string, toolNames: string[]) {
-  const hostConfig = JSON.parse(
-    readFileSync(join(repositoryRoot, "mcp-host.config.json"), "utf8"),
-  ) as {
-    servers?: { toolbox?: { allowedTools?: unknown } };
-  };
-  const allowedTools = hostConfig.servers?.toolbox?.allowedTools;
-  const eveToolboxAdapter = readFileSync(
-    join(evePackageRoot, "agent/tools/toolbox.ts"),
+  const knownTools = new Set(toolboxToolNames);
+  const profiledTools = new Set(
+    Object.values(toolboxCapabilityProfiles).flat(),
+  );
+  const eveConnection = readFileSync(
+    join(evePackageRoot, "agent/connections/toolbox.ts"),
     "utf8",
   );
 
-  if (
-    !Array.isArray(allowedTools) ||
-    !allowedTools.every((tool): tool is string => typeof tool === "string")
-  ) {
-    throw new Error("Toolbox MCP Host allowedTools must be a string array");
-  }
-
   for (const toolName of toolNames) {
-    if (!allowedTools.includes(toolName)) {
+    if (!knownTools.has(toolName as (typeof toolboxToolNames)[number])) {
       throw new Error(
-        `${skillName} tool ${toolName} is missing from MCP Host allowedTools`,
+        `${skillName} tool ${toolName} is missing from shared Toolbox config`,
       );
     }
-
-    if (!eveToolboxAdapter.includes(`callHostTool("${toolName}"`)) {
-      throw new Error(`${skillName} tool ${toolName} has no Eve adapter`);
+    if (!profiledTools.has(toolName as (typeof toolboxToolNames)[number])) {
+      throw new Error(
+        `${skillName} tool ${toolName} has no capability profile`,
+      );
     }
+  }
+
+  if (
+    !eveConnection.includes("defineMcpClientConnection") ||
+    !eveConnection.includes("tools: { allow: toolbox.allowedTools }")
+  ) {
+    throw new Error(
+      "Eve Toolbox connection must apply the shared capability profile",
+    );
   }
 }
 
@@ -498,25 +501,45 @@ function validateEveDiscovery() {
   });
   const jsonStart = output.indexOf("{");
   const info = JSON.parse(output.slice(jsonStart)) as {
+    artifacts?: { discoveryManifest?: string };
     diagnostics?: { errors?: number };
     skills?: unknown;
   };
   const discoveredSkills = Array.isArray(info.skills) ? info.skills : [];
+  const discovery = info.artifacts?.discoveryManifest
+    ? (JSON.parse(readFileSync(info.artifacts.discoveryManifest, "utf8")) as {
+        connections?: Array<{ connectionName?: string }>;
+      })
+    : undefined;
+  const discoveredConnections =
+    discovery?.connections?.map((connection) => connection.connectionName) ?? [];
   const missingSkills = businessSkills
     .map((skill) => skill.name)
     .filter((skillName) => !discoveredSkills.includes(skillName));
 
-  if (info.diagnostics?.errors !== 0 || missingSkills.length > 0) {
+  if (
+    info.diagnostics?.errors !== 0 ||
+    missingSkills.length > 0 ||
+    !discoveredConnections.includes("toolbox")
+  ) {
     throw new Error(
       `Eve did not discover all Toolbox business skills: ${missingSkills.join(", ")}`,
     );
   }
 }
 
-function useEveToolNames(markdown: string, toolNames: string[]) {
-  return toolNames.reduce(
-    (content, toolName) =>
-      content.replaceAll(toolName, toolName.replaceAll("-", "_")),
-    markdown,
-  );
+function useRuntimeToolNames(
+  markdown: string,
+  toolNames: string[],
+  runtime: string,
+) {
+  return toolNames.reduce((content, toolName) => {
+    const qualifiedName =
+      runtime === "eve"
+        ? `toolbox__${toolName}`
+        : `mcp__toolbox__${toolName}`;
+    return content
+      .replaceAll(toolName, qualifiedName)
+      .replace(`### ${qualifiedName}`, `### \`${qualifiedName}\``);
+  }, markdown);
 }

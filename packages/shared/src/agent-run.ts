@@ -2,7 +2,7 @@ import { z } from "zod";
 import { AgentRunEventSchema } from "./agent-run-events";
 
 export const AgentRunInputSchema = z.object({
-  prompt: z.string().min(1)
+  prompt: z.string().min(1),
 });
 
 export const AgentRunResultSchema = z.object({
@@ -14,7 +14,7 @@ export const AgentRunResultSchema = z.object({
   events: z.array(AgentRunEventSchema).optional(),
   output: z.string().optional(),
   reason: z.string().optional(),
-  sessionId: z.string().optional()
+  sessionId: z.string().optional(),
 });
 
 export type AgentRunInput = z.infer<typeof AgentRunInputSchema>;

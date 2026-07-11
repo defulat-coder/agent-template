@@ -8,9 +8,15 @@ importers:
 
   .:
     devDependencies:
+      '@agent-template/toolbox-config':
+        specifier: workspace:*
+        version: link:packages/toolbox-config
       '@eslint/js':
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.5.0(jiti@2.7.0))
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.29.0
+        version: 1.29.0(zod@4.4.3)
       '@toolbox-sdk/server':
         specifier: ^1.6.0
         version: 1.6.0
@@ -56,9 +62,6 @@ importers:
       '@agent-template/logger':
         specifier: workspace:*
         version: link:../../packages/logger
-      '@agent-template/mcp-host':
-        specifier: workspace:*
-        version: link:../../packages/mcp-host
       '@agent-template/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -179,6 +182,9 @@ importers:
       '@agent-template/shared':
         specifier: workspace:*
         version: link:../shared
+      '@agent-template/toolbox-config':
+        specifier: workspace:*
+        version: link:../toolbox-config
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -189,12 +195,12 @@ importers:
 
   packages/agent-claude:
     dependencies:
-      '@agent-template/mcp-host':
-        specifier: workspace:*
-        version: link:../mcp-host
       '@agent-template/shared':
         specifier: workspace:*
         version: link:../shared
+      '@agent-template/toolbox-config':
+        specifier: workspace:*
+        version: link:../toolbox-config
       '@anthropic-ai/claude-agent-sdk':
         specifier: '>=0.3.193 <1.0.0'
         version: 0.3.193(@anthropic-ai/sdk@0.106.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(zod@4.4.3)
@@ -208,12 +214,12 @@ importers:
 
   packages/agent-eve:
     dependencies:
-      '@agent-template/mcp-host':
-        specifier: workspace:*
-        version: link:../mcp-host
       '@agent-template/shared':
         specifier: workspace:*
         version: link:../shared
+      '@agent-template/toolbox-config':
+        specifier: workspace:*
+        version: link:../toolbox-config
       '@ai-sdk/anthropic':
         specifier: ^4.0.7
         version: 4.0.7(zod@4.4.3)
@@ -263,17 +269,8 @@ importers:
         specifier: ^4.1.9
         version: 4.1.9(@types/node@26.0.1)(vite@8.1.0(@types/node@26.0.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
 
-  packages/mcp-host:
+  packages/shared:
     dependencies:
-      '@agent-template/shared':
-        specifier: workspace:*
-        version: link:../shared
-      '@modelcontextprotocol/sdk':
-        specifier: ^1.29.0
-        version: 1.29.0(zod@4.4.3)
-      yaml:
-        specifier: ^2.9.0
-        version: 2.9.0
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -282,7 +279,7 @@ importers:
         specifier: ^4.1.9
         version: 4.1.9(@types/node@26.0.1)(vite@8.1.0(@types/node@26.0.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
 
-  packages/shared:
+  packages/toolbox-config:
     dependencies:
       zod:
         specifier: ^4.4.3

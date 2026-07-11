@@ -7,12 +7,14 @@ export type BullMqConnectionOptions = {
   maxRetriesPerRequest: null;
 };
 
-export function createBullMqConnectionOptions(redisUrl: string): BullMqConnectionOptions {
+export function createBullMqConnectionOptions(
+  redisUrl: string,
+): BullMqConnectionOptions {
   const parsed = new URL(redisUrl);
   const options: BullMqConnectionOptions = {
     host: parsed.hostname,
     port: parsed.port ? Number(parsed.port) : 6379,
-    maxRetriesPerRequest: null
+    maxRetriesPerRequest: null,
   };
 
   if (parsed.username) {
@@ -27,7 +29,9 @@ export function createBullMqConnectionOptions(redisUrl: string): BullMqConnectio
     const db = Number(parsed.pathname.slice(1));
 
     if (!Number.isInteger(db) || db < 0) {
-      throw new Error("Redis URL database index must be a non-negative integer");
+      throw new Error(
+        "Redis URL database index must be a non-negative integer",
+      );
     }
 
     options.db = db;

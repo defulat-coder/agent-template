@@ -13,7 +13,6 @@ COPY packages/agent-claude/package.json packages/agent-claude/package.json
 COPY packages/agent-eve/package.json packages/agent-eve/package.json
 COPY packages/db/package.json packages/db/package.json
 COPY packages/logger/package.json packages/logger/package.json
-COPY packages/mcp-host/package.json packages/mcp-host/package.json
 COPY packages/shared/package.json packages/shared/package.json
 COPY packages/ui/package.json packages/ui/package.json
 
