@@ -246,11 +246,16 @@ describe("Eve Agent runtime", () => {
       status: "completed",
       events: [
         {
+          callId: "call-1",
           kind: "tool-call",
-          tool: "toolbox__list-agent-runs",
-          input: '{"limit":1}',
+          toolName: "toolbox__list-agent-runs",
+          input: { limit: 1 },
         },
-        { kind: "tool-result", tool: "toolbox__list-agent-runs" },
+        {
+          callId: "call-1",
+          kind: "tool-result",
+          toolName: "toolbox__list-agent-runs",
+        },
         { kind: "text", text: "Do" },
         { kind: "text", text: "Done" },
         { kind: "done", result: "Done" },
@@ -260,11 +265,16 @@ describe("Eve Agent runtime", () => {
     });
     expect(events).toEqual([
       {
+        callId: "call-1",
         kind: "tool-call",
-        tool: "toolbox__list-agent-runs",
-        input: '{"limit":1}',
+        toolName: "toolbox__list-agent-runs",
+        input: { limit: 1 },
       },
-      { kind: "tool-result", tool: "toolbox__list-agent-runs" },
+      {
+        callId: "call-1",
+        kind: "tool-result",
+        toolName: "toolbox__list-agent-runs",
+      },
       { kind: "text", text: "Do" },
       { kind: "text", text: "Done" },
       { kind: "done", result: "Done" },

@@ -169,13 +169,24 @@ export function createAgentRunLifecycle(input: {
         return finishCancelled(started, emittedEvents);
       }
 
-      const finished = await input.repository.finish(runId, {
-        status: result.status,
-        completedAt: now(),
-        ...(result.output ? { output: result.output } : {}),
-        ...(result.reason ? { reason: result.reason } : {}),
-        ...(result.sessionId ? { sessionId: result.sessionId } : {}),
-      });
+      const completedAt = now();
+      const session = result.sessionId ? { sessionId: result.sessionId } : {};
+      const finished = await input.repository.finish(
+        runId,
+        result.status === "completed"
+          ? {
+              status: result.status,
+              completedAt,
+              output: result.output,
+              ...session,
+            }
+          : {
+              status: result.status,
+              completedAt,
+              reason: result.reason,
+              ...session,
+            },
+      );
       return { ...result, runId: finished.id };
     } catch (error) {
       await eventWrites;
@@ -209,9 +220,11 @@ export function createAgentRunLifecycle(input: {
       events: AgentRunEvent[],
     ): Promise<AgentRunResult> {
       const reason = "Agent run was cancelled";
-      const event = { kind: "error", message: reason } satisfies AgentRunEvent;
+      const event = { kind: "cancelled", reason } satisfies AgentRunEvent;
       if (
-        !events.some((item) => item.kind === "error" && item.message === reason)
+        !events.some(
+          (item) => item.kind === "cancelled" && item.reason === reason,
+        )
       ) {
         await input.repository.appendEvent(run.id, {
           sequence,
@@ -243,9 +256,26 @@ export function createAgentRunLifecycle(input: {
     async cancel(runId) {
       const run = await input.repository.find(runId);
       if (!run) return undefined;
-      return toSnapshot(
-        await input.repository.requestCancellation(runId, now()),
+      const cancelled = await input.repository.requestCancellation(
+        runId,
+        now(),
       );
+      if (
+        cancelled.status === "cancelled" &&
+        !cancelled.events.some((event) => event.event.kind === "cancelled")
+      ) {
+        await input.repository.appendEvent(runId, {
+          sequence: cancelled.events.length,
+          event: {
+            kind: "cancelled",
+            reason: cancelled.reason ?? "Agent run was cancelled",
+          },
+          createdAt: now(),
+        });
+        const updated = await input.repository.find(runId);
+        if (updated) return toSnapshot(updated);
+      }
+      return toSnapshot(cancelled);
     },
     async failQueued(runId, reason) {
       return toSnapshot(
@@ -322,20 +352,38 @@ function isAbortError(error: unknown) {
 }
 
 function resultFromStoredRun(run: StoredAgentRun): AgentRunResult {
-  const status =
-    run.status === "queued" || run.status === "running" ? "failed" : run.status;
-  return {
+  if (run.status === "queued" || run.status === "running") {
+    throw new Error(`Agent run ${run.id} is not terminal`);
+  }
+
+  const base = {
     promptLength: run.prompt.length,
     runtime: run.runtime ?? "claude",
     configured: run.status !== "skipped",
     model: run.model ?? "unknown",
-    status,
     runId: run.id,
     events: run.events.map((item) => item.event),
-    ...(run.output ? { output: run.output } : {}),
-    ...(run.reason ? { reason: run.reason } : {}),
     ...(run.sessionId ? { sessionId: run.sessionId } : {}),
   };
+
+  if (run.status === "completed") {
+    return {
+      ...base,
+      status: run.status,
+      output: requireTerminalValue(run, "output"),
+    };
+  }
+  return {
+    ...base,
+    status: run.status,
+    reason: requireTerminalValue(run, "reason"),
+  };
+}
+
+function requireTerminalValue(run: StoredAgentRun, field: "output" | "reason") {
+  const value = run[field];
+  if (value !== null) return value;
+  throw new Error(`Agent run ${run.id} ${run.status} is missing ${field}`);
 }
 
 function toSnapshot(run: StoredAgentRun): AgentRunSnapshot {

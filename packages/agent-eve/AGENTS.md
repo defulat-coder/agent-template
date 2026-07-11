@@ -25,6 +25,8 @@
 - Toolbox 通过 `agent/connections/toolbox.ts` 的 `defineMcpClientConnection` 直连；URL、Bearer token 与 Tool allowlist 读取 `@agent-template/toolbox-config`。
 - Eve 的 Toolbox 工具使用官方 `defineDynamic` 在 `session.started` 按 `AGENT_CAPABILITY_PROFILE` 解析；profile 由部署环境选择，不从模型输入或普通请求参数读取。
 - Eve stream 事件需要转换成 shared `AgentRunEvent`，至少覆盖 `message.completed`、`actions.requested`、`action.result` 和失败事件，保证 API Chat SSE 与前端 timeline 可用。
+- `actions.requested` / `action.result` 必须投影同一 `callId/toolName`；缺失关联字段时输出 `unknown`，不要伪造 Tool identity。
+- Eve 本地生成的 `.eve/`、`.output/` 和 `.workflow-data/` 不提交，也不能进入 Vitest 扫描面。
 - `eve` 依赖的 package spec 保持 `latest`，不要改成固定版本、`^x.y.z` 或 major range；该框架迭代快，按用户要求跟随 npm latest tag。
 - 开发 Eve runtime、authored surface 或相关测试前，先使用 `.codex/skills/eve`。
 - 涉及 API 细节时必须读取当前安装版本的 `node_modules/eve/docs/README.md` 和相关文档。

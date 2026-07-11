@@ -14,6 +14,7 @@
 - 传给 Claude Agent SDK subprocess 的 `env` 必须合并 `process.env`，不要替换掉 `PATH`、`HOME` 等运行时变量。
 - Toolbox 通过 Claude Agent SDK 的 HTTP MCP server 配置直连；读取 `@agent-template/toolbox-config`，不要 import `apps/toolbox/tools.yaml`，不要把 `TOOLBOX_AUTH_TOKEN` 下发给 Claude Code subprocess env。
 - Claude 实际可见的 MCP 工具必须由 `AGENT_CAPABILITY_PROFILE` 对应的 Host capability profile 生成 SDK `allowedTools`；不要在 runtime 内再维护一份硬编码全量名单。
+- SDK `tool_use.id` 与后续 `tool_result.tool_use_id` 必须在 adapter 内关联，再输出 shared `callId/toolName` event。
 - 项目级业务 Skill 放在根目录 `.claude/skills/`；Claude Agent SDK 必须启用 project setting source 和 skills，Skill 调用 `mcp__toolbox__*`。
 - 电商业务 Skill 由根目录的 Toolbox 官方生成器同步，不手工维护两份副本，也不安装官方生成的数据库直连脚本。
 

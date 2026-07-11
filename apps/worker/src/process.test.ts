@@ -62,6 +62,7 @@ describe("createAgentWorkerProcess", () => {
           runtime: "claude",
           configured: false,
           model: "kimi-for-coding",
+          reason: "runtime not configured",
           status: "skipped",
         };
       },
@@ -74,6 +75,7 @@ describe("createAgentWorkerProcess", () => {
       runtime: "claude",
       configured: false,
       model: "kimi-for-coding",
+      reason: "runtime not configured",
       status: "skipped",
     });
     capturedOnCompleted?.({ id: "job-1", name: "agent.run", data: payload });

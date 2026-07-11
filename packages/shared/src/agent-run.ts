@@ -14,18 +14,37 @@ export const AgentRunStatusSchema = z.enum([
   "cancelled",
 ]);
 
-export const AgentRunResultSchema = z.object({
+const AgentRunResultBaseSchema = z.object({
   promptLength: z.number().int().nonnegative(),
   runtime: z.enum(["claude", "eve"]),
   configured: z.boolean(),
   model: z.string(),
-  status: z.enum(["skipped", "completed", "failed", "cancelled"]),
-  events: z.array(AgentRunEventSchema).optional(),
-  output: z.string().optional(),
-  reason: z.string().optional(),
   runId: z.string().optional(),
   sessionId: z.string().optional(),
 });
+
+export const AgentRunResultSchema = z.discriminatedUnion("status", [
+  AgentRunResultBaseSchema.extend({
+    status: z.literal("completed"),
+    events: z.array(AgentRunEventSchema),
+    output: z.string(),
+  }),
+  AgentRunResultBaseSchema.extend({
+    status: z.literal("failed"),
+    events: z.array(AgentRunEventSchema),
+    reason: z.string().min(1),
+  }),
+  AgentRunResultBaseSchema.extend({
+    status: z.literal("skipped"),
+    reason: z.string().min(1),
+    events: z.array(AgentRunEventSchema).optional(),
+  }),
+  AgentRunResultBaseSchema.extend({
+    status: z.literal("cancelled"),
+    events: z.array(AgentRunEventSchema),
+    reason: z.string().min(1),
+  }),
+]);
 
 export const AgentRunSnapshotSchema = z.object({
   id: z.string(),

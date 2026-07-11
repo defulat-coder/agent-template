@@ -60,7 +60,7 @@ export function AgentConsole() {
       });
 
       setResult(chatResult);
-      setStreamedOutput(chatResult.output ?? chatResult.reason ?? "");
+      setStreamedOutput(getAgentRunResultText(chatResult));
       setStatus(
         chatResult.status === "skipped" ? "skipped" : chatResult.status,
       );
@@ -139,8 +139,7 @@ export function AgentConsole() {
               <div className="flex flex-col gap-3 break-words text-sm text-slate-950">
                 <AgentMarkdown>
                   {streamedOutput ||
-                    result?.output ||
-                    result?.reason ||
+                    (result ? getAgentRunResultText(result) : "") ||
                     "Agent 未返回内容。"}
                 </AgentMarkdown>
               </div>
@@ -160,6 +159,10 @@ export function AgentConsole() {
 }
 
 type AgentMessagePart = { kind: "text"; text: string };
+
+function getAgentRunResultText(result: AgentRunResult) {
+  return result.status === "completed" ? result.output : result.reason;
+}
 
 function buildAgentMessageParts(events: AgentRunEvent[]) {
   const parts: AgentMessagePart[] = [];

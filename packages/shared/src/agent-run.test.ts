@@ -23,4 +23,27 @@ describe("AgentRunResultSchema", () => {
       status: "completed",
     });
   });
+
+  it("rejects terminal results that omit their status-specific invariant", () => {
+    expect(() =>
+      AgentRunResultSchema.parse({
+        configured: true,
+        events: [],
+        model: "kimi-for-coding",
+        promptLength: 9,
+        runtime: "claude",
+        status: "completed",
+      }),
+    ).toThrow();
+    expect(() =>
+      AgentRunResultSchema.parse({
+        configured: true,
+        events: [],
+        model: "kimi-for-coding",
+        promptLength: 9,
+        runtime: "claude",
+        status: "failed",
+      }),
+    ).toThrow();
+  });
 });

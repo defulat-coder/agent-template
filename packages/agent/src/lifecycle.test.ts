@@ -83,6 +83,7 @@ describe("Agent run lifecycle", () => {
     await lifecycle.cancel(queued.id);
 
     await expect(running).resolves.toMatchObject({
+      events: [{ kind: "cancelled", reason: "Agent run was cancelled" }],
       runId: queued.id,
       status: "cancelled",
     });
@@ -106,6 +107,12 @@ describe("Agent run lifecycle", () => {
 
     await lifecycle.cancel(queued.id);
     await expect(lifecycle.resume(queued.id, {})).resolves.toMatchObject({
+      events: [
+        {
+          kind: "cancelled",
+          reason: "Agent run was cancelled before execution",
+        },
+      ],
       runId: queued.id,
       status: "cancelled",
     });

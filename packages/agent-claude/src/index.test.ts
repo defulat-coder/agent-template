@@ -300,6 +300,22 @@ describe("Claude Agent runtime", () => {
                   type: "assistant",
                 } as unknown as SDKMessage;
                 yield {
+                  message: {
+                    content: [
+                      {
+                        content: "Found 1 run",
+                        tool_use_id: "toolu-1",
+                        type: "tool_result",
+                      },
+                    ],
+                    role: "user",
+                  },
+                  parent_tool_use_id: null,
+                  session_id: "claude-session-1",
+                  type: "user",
+                  uuid: "user-tool-result-1",
+                } as unknown as SDKMessage;
+                yield {
                   duration_api_ms: 0,
                   duration_ms: 0,
                   is_error: false,
@@ -322,9 +338,15 @@ describe("Claude Agent runtime", () => {
     ).resolves.toMatchObject({
       events: [
         {
-          input: '{"limit":3}',
+          callId: "toolu-1",
+          input: { limit: 3 },
           kind: "tool-call",
-          tool: "mcp__toolbox__list-agent-runs",
+          toolName: "mcp__toolbox__list-agent-runs",
+        },
+        {
+          callId: "toolu-1",
+          kind: "tool-result",
+          toolName: "mcp__toolbox__list-agent-runs",
         },
         { kind: "done", result: "Found recent runs" },
       ],

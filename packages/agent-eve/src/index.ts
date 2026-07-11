@@ -230,8 +230,10 @@ function formatEveAgentEvents(event: unknown): AgentRunEvent[] {
   }
 
   if (event.type === "action.result" && isRecord(event.data)) {
-    const tool = readEveActionResultToolName(event.data.result);
-    return tool ? [{ kind: "tool-result", tool }] : [];
+    const tool = readEveActionResult(event.data.result);
+    return tool
+      ? [{ kind: "tool-result", ...tool }]
+      : [{ kind: "unknown", text: formatEveOutput(event.data.result) }];
   }
 
   if (
@@ -252,11 +254,16 @@ function formatEveActionRequest(action: unknown): AgentRunEvent {
     return { kind: "unknown", text: formatEveOutput(action) };
   }
 
-  return {
-    kind: "tool-call",
-    tool: readEveActionRequestToolName(action),
-    input: formatEveOutput(action.input ?? {}),
-  };
+  const callId = readNonEmptyString(action.callId);
+  const toolName = readEveActionRequestToolName(action);
+  return callId
+    ? {
+        kind: "tool-call",
+        callId,
+        toolName,
+        input: toJsonValue(action.input ?? {}),
+      }
+    : { kind: "unknown", text: formatEveOutput(action) };
 }
 
 function readEveActionRequestToolName(action: Record<string, unknown>): string {
@@ -281,27 +288,45 @@ function readEveActionRequestToolName(action: Record<string, unknown>): string {
   return "eve:load-skill";
 }
 
-function readEveActionResultToolName(result: unknown): string | undefined {
+function readEveActionResult(
+  result: unknown,
+): { callId: string; toolName: string } | undefined {
   if (!isRecord(result)) {
     return undefined;
   }
 
+  const callId = readNonEmptyString(result.callId);
+  if (!callId) return undefined;
+
   if (result.kind === "tool-result" && typeof result.toolName === "string") {
-    return result.toolName;
+    return { callId, toolName: result.toolName };
   }
 
   if (
     result.kind === "subagent-result" &&
     typeof result.subagentName === "string"
   ) {
-    return `eve:subagent:${result.subagentName}`;
+    return { callId, toolName: `eve:subagent:${result.subagentName}` };
   }
 
   if (result.kind === "load-skill-result") {
-    return "eve:load-skill";
+    return { callId, toolName: "eve:load-skill" };
   }
 
   return undefined;
+}
+
+function readNonEmptyString(value: unknown) {
+  return typeof value === "string" && value ? value : undefined;
+}
+
+function toJsonValue(
+  value: unknown,
+): Extract<AgentRunEvent, { kind: "tool-call" }>["input"] {
+  return JSON.parse(JSON.stringify(value)) as Extract<
+    AgentRunEvent,
+    { kind: "tool-call" }
+  >["input"];
 }
 
 function findEveFailure(events: unknown[]): string | undefined {

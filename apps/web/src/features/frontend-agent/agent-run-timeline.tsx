@@ -31,14 +31,22 @@ export function AgentRunTimeline({ events }: { events: AgentRunEvent[] }) {
 function AgentRunEventRow({ event }: { event: AgentRunEvent }) {
   if (event.kind === "tool-call") {
     return (
-      <LogRow label={`Tool call: ${event.tool}`} tone="blue">
-        {event.input}
+      <LogRow
+        label={`Tool call: ${event.toolName} (${event.callId})`}
+        tone="blue"
+      >
+        {JSON.stringify(event.input, null, 2)}
       </LogRow>
     );
   }
 
   if (event.kind === "tool-result") {
-    return <LogRow label={`Tool result: ${event.tool}`} tone="green" />;
+    return (
+      <LogRow
+        label={`Tool result: ${event.toolName} (${event.callId})`}
+        tone="green"
+      />
+    );
   }
 
   if (event.kind === "text") {
@@ -57,6 +65,14 @@ function AgentRunEventRow({ event }: { event: AgentRunEvent }) {
     return (
       <LogRow label="Run failed" tone="red">
         {event.message}
+      </LogRow>
+    );
+  }
+
+  if (event.kind === "cancelled") {
+    return (
+      <LogRow label="运行已取消" tone="slate">
+        {event.reason}
       </LogRow>
     );
   }

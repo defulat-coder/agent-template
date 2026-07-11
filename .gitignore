@@ -1,6 +1,8 @@
 node_modules
 .turbo
 .eve
+/packages/agent-eve/.output
+/packages/agent-eve/.workflow-data
 .next
 dist
 coverage

@@ -165,15 +165,29 @@ export async function runAgent(
           eventOptions,
         );
 
-  return {
+  const resultBase = {
     promptLength: parsed.prompt.length,
     runtime: agentState.runtime,
     configured: agentState.configured,
     model: agentState.model,
-    status: run.status,
-    ...("events" in run ? { events: [...run.events] } : {}),
-    ...("output" in run ? { output: run.output } : {}),
-    ...("reason" in run ? { reason: run.reason } : {}),
     ...("sessionId" in run ? { sessionId: run.sessionId } : {}),
   };
+
+  if (run.status === "completed") {
+    return {
+      ...resultBase,
+      status: run.status,
+      events: [...run.events],
+      output: run.output,
+    };
+  }
+  if (run.status === "failed") {
+    return {
+      ...resultBase,
+      status: run.status,
+      events: [...run.events],
+      reason: run.reason,
+    };
+  }
+  return { ...resultBase, status: run.status, reason: run.reason };
 }

@@ -204,6 +204,7 @@ export async function runClaudeAgent(
   let sessionId: string | undefined;
   let partialText = "";
   let lastPartialTextEventLength = 0;
+  const toolNamesByCallId = new Map<string, string>();
 
   for await (const message of sdk.query({
     prompt: input.prompt,
@@ -229,7 +230,10 @@ export async function runClaudeAgent(
       sessionId = message.session_id;
     }
 
-    const progressEvents = formatClaudeAgentProgressEvent(message);
+    const progressEvents = formatClaudeAgentProgressEvent(
+      message,
+      toolNamesByCallId,
+    );
 
     if (isClaudePartialTextStart(message)) {
       partialText = "";
@@ -318,7 +322,10 @@ function shouldEmitPartialTextEvent(text: string, lastEventLength: number) {
   );
 }
 
-function formatClaudeAgentProgressEvent(message: SDKMessage): AgentRunEvent[] {
+function formatClaudeAgentProgressEvent(
+  message: SDKMessage,
+  toolNamesByCallId: Map<string, string>,
+): AgentRunEvent[] {
   if (
     message.type === "result" ||
     message.type === "system" ||
@@ -328,11 +335,11 @@ function formatClaudeAgentProgressEvent(message: SDKMessage): AgentRunEvent[] {
   }
 
   if (message.type === "assistant") {
-    return formatClaudeAssistantMessage(message);
+    return formatClaudeAssistantMessage(message, toolNamesByCallId);
   }
 
   if (message.type === "user") {
-    return formatClaudeUserMessage(message);
+    return formatClaudeUserMessage(message, toolNamesByCallId);
   }
 
   return [
@@ -367,6 +374,7 @@ function isClaudePartialTextStart(message: SDKMessage) {
 
 function formatClaudeAssistantMessage(
   message: Extract<SDKMessage, { type: "assistant" }>,
+  toolNamesByCallId: Map<string, string>,
 ): AgentRunEvent[] {
   const content = message.message.content;
 
@@ -382,10 +390,12 @@ function formatClaudeAssistantMessage(
     }
 
     if (item.type === "tool_use") {
+      toolNamesByCallId.set(item.id, item.name);
       events.push({
         kind: "tool-call",
-        tool: item.name,
-        input: JSON.stringify(item.input ?? {}),
+        callId: item.id,
+        toolName: item.name,
+        input: toJsonValue(item.input ?? {}),
       });
     }
   }
@@ -395,6 +405,7 @@ function formatClaudeAssistantMessage(
 
 function formatClaudeUserMessage(
   message: Extract<SDKMessage, { type: "user" }>,
+  toolNamesByCallId: Map<string, string>,
 ): AgentRunEvent[] {
   const content = message.message.content;
 
@@ -406,14 +417,32 @@ function formatClaudeUserMessage(
 
   for (const item of content) {
     if (item.type === "tool_result") {
-      events.push({
-        kind: "tool-result",
-        tool: item.tool_use_id,
-      });
+      const toolName = toolNamesByCallId.get(item.tool_use_id);
+      events.push(
+        toolName
+          ? {
+              kind: "tool-result",
+              callId: item.tool_use_id,
+              toolName,
+            }
+          : {
+              kind: "unknown",
+              text: `Tool result for unobserved call ${item.tool_use_id}`,
+            },
+      );
     }
   }
 
   return events;
+}
+
+function toJsonValue(
+  value: unknown,
+): Extract<AgentRunEvent, { kind: "tool-call" }>["input"] {
+  return JSON.parse(JSON.stringify(value)) as Extract<
+    AgentRunEvent,
+    { kind: "tool-call" }
+  >["input"];
 }
 
 function createClaudeAgentSubprocessEnv(config: ClaudeAgentConfig) {

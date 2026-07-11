@@ -6,19 +6,26 @@ describe("AgentRunEventSchema", () => {
     expect(
       AgentRunEventSchema.parse({
         kind: "tool-call",
-        tool: "search",
-        input: '{"q":"agentcn"}',
+        callId: "call-1",
+        toolName: "search",
+        input: { q: "agentcn" },
       }),
     ).toEqual({
       kind: "tool-call",
-      tool: "search",
-      input: '{"q":"agentcn"}',
+      callId: "call-1",
+      toolName: "search",
+      input: { q: "agentcn" },
     });
     expect(
-      AgentRunEventSchema.parse({ kind: "tool-result", tool: "search" }),
+      AgentRunEventSchema.parse({
+        kind: "tool-result",
+        callId: "call-1",
+        toolName: "search",
+      }),
     ).toEqual({
       kind: "tool-result",
-      tool: "search",
+      callId: "call-1",
+      toolName: "search",
     });
     expect(AgentRunEventSchema.parse({ kind: "text", text: "hello" })).toEqual({
       kind: "text",
@@ -41,6 +48,9 @@ describe("AgentRunEventSchema", () => {
     expect(
       AgentRunEventSchema.parse({ kind: "error", message: "failed" }),
     ).toEqual({ kind: "error", message: "failed" });
+    expect(
+      AgentRunEventSchema.parse({ kind: "cancelled", reason: "user request" }),
+    ).toEqual({ kind: "cancelled", reason: "user request" });
     expect(artifacts).toEqual({
       kind: "artifacts",
       tabs: [

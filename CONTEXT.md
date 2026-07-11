@@ -33,7 +33,7 @@ A durable request to stop an Agent run. A queued run becomes cancelled before ex
 _Avoid_: Job deletion, process kill
 
 **Agent run event**:
-An event emitted while an Agent runtime executes an Agent run.
+An ordered, runtime-neutral event emitted while an Agent run executes. Tool events correlate one invocation by `callId` and name the capability by `toolName`.
 _Avoid_: UI timeline item, log line
 
 **Agent message part**:

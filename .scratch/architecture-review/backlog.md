@@ -37,6 +37,7 @@
 | completed | 恢复 Toolbox 执行级时间窗护栏              | Strong          | PostgreSQL 统一拒绝反向或超过 31 天的窗口，原生 MCP 验收穿过真实 seam                 |
 | completed | 建立持久化 Agent run lifecycle             | Strong          | Chat/Queue 共用状态机与 PostgreSQL record，BullMQ 只投递 `runId`                      |
 | completed | 建立所选 Agent runtime readiness           | Strong          | Claude 校验 MCP capability，Eve 使用官方 health；API 只聚合 shared state              |
+| completed | 收紧 Agent run event/result 协议不变量     | Strong          | Tool event 关联 call/name；terminal result 按 status 强制必需字段                      |
 | completed | 同步 Toolbox 生成产物                      | Strong          | production 配置、官方原始 Skill 与 runtime Skill 均由同一事实源生成并通过 stale gate |
 | completed | 固定 Toolbox UTC 日桶                      | Strong          | 销售日显式按 UTC 转换，不再依赖 PostgreSQL session timezone                          |
 | completed | 规范化 Toolbox MCP URL                    | Worth exploring | `/mcp/` 与 `/mcp` 归一为一个 MCP path，Claude/Eve 共享 parser 不再重复追加            |
@@ -50,6 +51,14 @@
 - 每轮完成后用中文 Conventional Commit 提交。
 
 ## 已完成
+
+### 收紧 Agent run event/result 协议不变量
+
+- 日期：2026-07-11
+- locality：Claude/Eve 私有事件在各自 adapter 内关联；shared package 只发布 `callId/toolName` 与 status-discriminated result，Web/DB 不解释 runtime 原始字段。
+- deletion test：单一 `tool` 字段无法同时表达 invocation id 与 Tool name，所有 terminal 字段可选会把无 output/reason 的非法状态传播到 UI，因此协议不变量属于必要 interface。
+- leverage：SSE、PostgreSQL event store、Web timeline 和两套 runtime 共用同一可验证协议；queued/running cancellation 使用专用 event，不再冒充 error。
+- 聚焦验证：shared/Claude/Eve/Agent/API/Worker/Web lint、typecheck、test；本机 migration deploy 与 `pnpm agent-runs:verify:local`，未使用 Docker。
 
 ### 建立所选 Agent runtime readiness
 

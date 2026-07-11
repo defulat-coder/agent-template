@@ -50,6 +50,12 @@ async function main() {
     const cancellation = await lifecycle.cancel(cancelled.id);
     assert.equal(cancellation?.status, "cancelled");
     assert.ok(cancellation?.cancelRequestedAt);
+    assert.deepEqual(cancellation?.events, [
+      {
+        kind: "cancelled",
+        reason: "Agent run was cancelled before execution",
+      },
+    ]);
     await assert.doesNotReject(() => lifecycle.resume(cancelled.id, {}));
 
     console.log(
