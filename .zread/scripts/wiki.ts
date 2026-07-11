@@ -9,7 +9,10 @@ import {
 } from "node:fs/promises";
 import path from "node:path";
 import {
+  extractZReadSourceCitations,
   isSafeZReadPathSegment,
+  type ZReadSourceCitation,
+  type ZReadSourceIndex,
   ZReadWikiManifestSchema,
   type ZReadManifestPage,
   type ZReadWikiManifest,
@@ -40,6 +43,10 @@ export async function stageCurrentZReadWiki(
   assertSafeText(manifestContent, "ZRead wiki manifest");
   const manifest = parseManifest(manifestContent, id);
   const snapshot = createSnapshot(manifest);
+  const sourceCitations = new Map<
+    string,
+    Map<string, ZReadSourceCitation>
+  >();
 
   await mkdir(path.join(destinationWiki, "versions", id), { recursive: true });
   await writeFile(path.join(destinationWiki, "current"), `${id}\n`, "utf8");
@@ -57,6 +64,11 @@ export async function stageCurrentZReadWiki(
     if (/^\s*[-*+]\s+[-*+]\s+/mu.test(content)) {
       throw new Error(`ZRead generated malformed list markers in ${page.file}`);
     }
+    for (const citation of extractZReadSourceCitations(content)) {
+      const ranges = sourceCitations.get(citation.path) ?? new Map();
+      ranges.set(`${citation.startLine}:${citation.endLine}`, citation);
+      sourceCitations.set(citation.path, ranges);
+    }
 
     const destinationPage = path.join(
       destinationWiki,
@@ -68,7 +80,61 @@ export async function stageCurrentZReadWiki(
     await cp(sourcePage, destinationPage);
   }
 
+  const sourceIndex = await createSourceIndex(
+    id,
+    path.resolve(sourceWiki, "../.."),
+    sourceCitations,
+    assertSafeText,
+  );
+  await writeFile(
+    path.join(destinationWiki, "versions", id, "sources.json"),
+    `${JSON.stringify(sourceIndex, null, 2)}\n`,
+    "utf8",
+  );
+
   return snapshot;
+}
+
+async function createSourceIndex(
+  id: string,
+  repositoryRoot: string,
+  citations: ReadonlyMap<string, ReadonlyMap<string, ZReadSourceCitation>>,
+  assertSafeText: (content: string, label: string) => void,
+): Promise<ZReadSourceIndex> {
+  const sources: ZReadSourceIndex["sources"] = [];
+  for (const sourcePath of [...citations.keys()].sort()) {
+    const sourceFile = path.join(repositoryRoot, sourcePath);
+    await assertRegularSource(repositoryRoot, sourceFile, sourcePath);
+    const content = await readFile(sourceFile, "utf8");
+    if (content.includes("\0")) {
+      throw new Error(`ZRead cited source file is not text: ${sourcePath}`);
+    }
+    assertSafeText(content, `ZRead cited source ${sourcePath}`);
+    const lineCount = content.split("\n").length;
+    const canonicalRanges = new Map<string, { end: number; start: number }>();
+    for (const citation of citations.get(sourcePath)?.values() ?? []) {
+      if (citation.startLine > lineCount) {
+        throw new Error(
+          `ZRead source start ${sourcePath}#L${citation.startLine} exceeds ${lineCount} lines`,
+        );
+      }
+      const range = {
+        end: Math.min(citation.endLine, lineCount),
+        start: citation.startLine,
+      };
+      canonicalRanges.set(`${range.start}:${range.end}`, range);
+    }
+    const ranges = [...canonicalRanges.values()].sort(
+      (left, right) => left.start - right.start || left.end - right.end,
+    );
+    if (ranges.length === 0) {
+      throw new Error(
+        `ZRead cited source has no valid ranges: ${sourcePath}`,
+      );
+    }
+    sources.push({ path: sourcePath, ranges });
+  }
+  return { id, sources };
 }
 
 function parseCurrentVersionId(current: string): string {
@@ -162,6 +228,36 @@ async function assertRegularPage(
   } catch (error) {
     if (isFileNotFoundError(error)) {
       throw new Error(`ZRead page file is missing: ${relativeFile}`, {
+        cause: error,
+      });
+    }
+    throw error;
+  }
+}
+
+async function assertRegularSource(
+  repositoryRoot: string,
+  file: string,
+  relativeFile: string,
+): Promise<void> {
+  try {
+    const [resolvedRoot, resolvedFile, fileStat] = await Promise.all([
+      realpath(repositoryRoot),
+      realpath(file),
+      stat(file),
+    ]);
+    const relative = path.relative(resolvedRoot, resolvedFile);
+    if (
+      !fileStat.isFile() ||
+      relative === ".." ||
+      relative.startsWith(`..${path.sep}`) ||
+      path.isAbsolute(relative)
+    ) {
+      throw new Error(`Invalid ZRead cited source file: ${relativeFile}`);
+    }
+  } catch (error) {
+    if (isFileNotFoundError(error)) {
+      throw new Error(`ZRead cited source file is missing: ${relativeFile}`, {
         cause: error,
       });
     }

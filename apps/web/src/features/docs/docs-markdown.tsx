@@ -8,11 +8,13 @@ export function DocsMarkdown({
   currentSlug,
   indexSlug,
   knownSlugs,
+  knownSourcePaths,
 }: {
   children: string;
   currentSlug: readonly string[];
   indexSlug: string;
   knownSlugs: ReadonlySet<string>;
+  knownSourcePaths: ReadonlySet<string>;
 }) {
   return (
     <ReactMarkdown
@@ -23,6 +25,7 @@ export function DocsMarkdown({
             href,
             indexSlug,
             knownSlugs,
+            knownSourcePaths,
           );
           const external = /^[a-z][a-z\d+.-]*:/iu.test(resolvedHref);
           return (

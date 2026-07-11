@@ -80,6 +80,56 @@ test("rewrites extensionless ZRead slugs without treating source Markdown as Wik
   );
 });
 
+test("rewrites ZRead source citations to local source routes", () => {
+  const knownSourcePaths = new Set([
+    "packages/agent/src/index.ts",
+    "README.md",
+  ]);
+  assert.equal(
+    resolveZReadHref(
+      [],
+      "packages/agent/src/index.ts#L1-L321",
+      "1-xiang-mu-gai-lan",
+      new Set(["1-xiang-mu-gai-lan"]),
+      knownSourcePaths,
+    ),
+    "/docs/source/packages/agent/src/index.ts#L1",
+  );
+  assert.equal(
+    resolveZReadHref(
+      [],
+      "README.md#L1-L147",
+      "1-xiang-mu-gai-lan",
+      new Set(["1-xiang-mu-gai-lan"]),
+      knownSourcePaths,
+    ),
+    "/docs/source/README.md#L1",
+  );
+  assert.equal(
+    resolveZReadHref(
+      [],
+      "README.md",
+      "1-xiang-mu-gai-lan",
+      new Set(["1-xiang-mu-gai-lan"]),
+      knownSourcePaths,
+    ),
+    "/docs/source/README.md",
+  );
+});
+
+test("does not expose source paths that were not cited by the active Wiki", () => {
+  assert.equal(
+    resolveZReadHref(
+      [],
+      ".env#L1-L2",
+      "overview",
+      new Set(["overview"]),
+      new Set(["README.md"]),
+    ),
+    ".env#L1-L2",
+  );
+});
+
 test("does not turn traversal outside the wiki into an application route", () => {
   assert.equal(
     resolveZReadHref([], "../README.md", "overview", new Set()),

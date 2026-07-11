@@ -8,6 +8,7 @@ import {
   type ZReadCatalogEntry,
 } from "@/lib/zread-catalog";
 import { findZReadWikiRoot } from "@/lib/zread-root";
+import { listZReadSourcePaths } from "@/lib/zread-sources";
 
 type DocsPageProps = {
   params: Promise<{ slug?: string[] }>;
@@ -37,9 +38,10 @@ export async function generateMetadata({
 export default async function DocsPage({ params }: DocsPageProps) {
   const { slug = [] } = await params;
   const root = await findZReadWikiRoot();
-  const [catalog, document] = await Promise.all([
+  const [catalog, document, sourcePaths] = await Promise.all([
     listZReadDocuments(root),
     readZReadDocument(root, slug),
+    listZReadSourcePaths(root),
   ]);
 
   if (!document) {
@@ -109,6 +111,7 @@ export default async function DocsPage({ params }: DocsPageProps) {
               currentSlug={document.slug}
               indexSlug={catalog[0]?.sourceSlug ?? "overview"}
               knownSlugs={new Set(catalog.map((entry) => entry.sourceSlug))}
+              knownSourcePaths={new Set(sourcePaths)}
             >
               {document.content}
             </DocsMarkdown>

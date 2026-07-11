@@ -1,0 +1,3365 @@
+{
+  "id": "2026-07-11-222406",
+  "sources": [
+    {
+      "path": ".agents/skills/agents-md/SKILL.md",
+      "ranges": [
+        {
+          "end": 7,
+          "start": 1
+        },
+        {
+          "end": 41,
+          "start": 32
+        }
+      ]
+    },
+    {
+      "path": ".agents/skills/find-skills/SKILL.md",
+      "ranges": [
+        {
+          "end": 5,
+          "start": 1
+        },
+        {
+          "end": 95,
+          "start": 34
+        }
+      ]
+    },
+    {
+      "path": ".agents/skills/improve-codebase-architecture/SKILL.md",
+      "ranges": [
+        {
+          "end": 5,
+          "start": 1
+        },
+        {
+          "end": 53,
+          "start": 17
+        },
+        {
+          "end": 61,
+          "start": 57
+        }
+      ]
+    },
+    {
+      "path": ".agents/skills/setup-matt-pocock-skills/SKILL.md",
+      "ranges": [
+        {
+          "end": 5,
+          "start": 1
+        },
+        {
+          "end": 14,
+          "start": 11
+        }
+      ]
+    },
+    {
+      "path": ".env.example",
+      "ranges": [
+        {
+          "end": 38,
+          "start": 1
+        },
+        {
+          "end": 4,
+          "start": 3
+        },
+        {
+          "end": 5,
+          "start": 3
+        },
+        {
+          "end": 23,
+          "start": 20
+        },
+        {
+          "end": 32,
+          "start": 28
+        },
+        {
+          "end": 36,
+          "start": 28
+        },
+        {
+          "end": 37,
+          "start": 28
+        }
+      ]
+    },
+    {
+      "path": ".github/workflows/zread-update.yml",
+      "ranges": [
+        {
+          "end": 31,
+          "start": 1
+        },
+        {
+          "end": 48,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": ".nvmrc",
+      "ranges": [
+        {
+          "end": 2,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": ".zread/README.md",
+      "ranges": [
+        {
+          "end": 8,
+          "start": 1
+        },
+        {
+          "end": 42,
+          "start": 1
+        },
+        {
+          "end": 12,
+          "start": 9
+        },
+        {
+          "end": 20,
+          "start": 14
+        },
+        {
+          "end": 30,
+          "start": 25
+        },
+        {
+          "end": 42,
+          "start": 32
+        }
+      ]
+    },
+    {
+      "path": ".zread/config/index.yaml",
+      "ranges": [
+        {
+          "end": 5,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": ".zread/scripts/config.test.ts",
+      "ranges": [
+        {
+          "end": 136,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": ".zread/scripts/config.ts",
+      "ranges": [
+        {
+          "end": 82,
+          "start": 44
+        },
+        {
+          "end": 78,
+          "start": 73
+        },
+        {
+          "end": 134,
+          "start": 96
+        },
+        {
+          "end": 219,
+          "start": 145
+        }
+      ]
+    },
+    {
+      "path": ".zread/scripts/policy.test.ts",
+      "ranges": [
+        {
+          "end": 46,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": ".zread/scripts/policy.ts",
+      "ranges": [
+        {
+          "end": 42,
+          "start": 4
+        }
+      ]
+    },
+    {
+      "path": ".zread/scripts/publication.test.ts",
+      "ranges": [
+        {
+          "end": 63,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": ".zread/scripts/publication.ts",
+      "ranges": [
+        {
+          "end": 66,
+          "start": 21
+        }
+      ]
+    },
+    {
+      "path": ".zread/scripts/update.ts",
+      "ranges": [
+        {
+          "end": 121,
+          "start": 1
+        },
+        {
+          "end": 24,
+          "start": 19
+        },
+        {
+          "end": 121,
+          "start": 27
+        }
+      ]
+    },
+    {
+      "path": ".zread/scripts/wiki.test.ts",
+      "ranges": [
+        {
+          "end": 175,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": ".zread/scripts/wiki.ts",
+      "ranges": [
+        {
+          "end": 69,
+          "start": 26
+        }
+      ]
+    },
+    {
+      "path": ".zread/scripts/zread-cli.test.ts",
+      "ranges": [
+        {
+          "end": 110,
+          "start": 1
+        },
+        {
+          "end": 158,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": ".zread/scripts/zread-cli.ts",
+      "ranges": [
+        {
+          "end": 56,
+          "start": 39
+        },
+        {
+          "end": 135,
+          "start": 72
+        },
+        {
+          "end": 172,
+          "start": 156
+        }
+      ]
+    },
+    {
+      "path": "AGENTS.md",
+      "ranges": [
+        {
+          "end": 7,
+          "start": 1
+        },
+        {
+          "end": 17,
+          "start": 1
+        },
+        {
+          "end": 63,
+          "start": 1
+        },
+        {
+          "end": 7,
+          "start": 3
+        },
+        {
+          "end": 6,
+          "start": 5
+        },
+        {
+          "end": 18,
+          "start": 8
+        },
+        {
+          "end": 27,
+          "start": 8
+        },
+        {
+          "end": 15,
+          "start": 13
+        },
+        {
+          "end": 17,
+          "start": 13
+        },
+        {
+          "end": 18,
+          "start": 17
+        },
+        {
+          "end": 27,
+          "start": 19
+        },
+        {
+          "end": 35,
+          "start": 19
+        },
+        {
+          "end": 33,
+          "start": 28
+        },
+        {
+          "end": 36,
+          "start": 28
+        },
+        {
+          "end": 42,
+          "start": 38
+        },
+        {
+          "end": 48,
+          "start": 44
+        },
+        {
+          "end": 52,
+          "start": 44
+        },
+        {
+          "end": 52,
+          "start": 49
+        },
+        {
+          "end": 62,
+          "start": 54
+        },
+        {
+          "end": 63,
+          "start": 54
+        }
+      ]
+    },
+    {
+      "path": "CLAUDE.md",
+      "ranges": [
+        {
+          "end": 63,
+          "start": 54
+        }
+      ]
+    },
+    {
+      "path": "CONTEXT.md",
+      "ranges": [
+        {
+          "end": 28,
+          "start": 1
+        },
+        {
+          "end": 110,
+          "start": 1
+        },
+        {
+          "end": 14,
+          "start": 7
+        },
+        {
+          "end": 26,
+          "start": 15
+        },
+        {
+          "end": 26,
+          "start": 23
+        },
+        {
+          "end": 30,
+          "start": 27
+        },
+        {
+          "end": 42,
+          "start": 31
+        },
+        {
+          "end": 46,
+          "start": 43
+        },
+        {
+          "end": 54,
+          "start": 51
+        },
+        {
+          "end": 62,
+          "start": 55
+        },
+        {
+          "end": 74,
+          "start": 63
+        },
+        {
+          "end": 82,
+          "start": 75
+        },
+        {
+          "end": 98,
+          "start": 83
+        }
+      ]
+    },
+    {
+      "path": "Dockerfile",
+      "ranges": [
+        {
+          "end": 26,
+          "start": 1
+        },
+        {
+          "end": 23,
+          "start": 23
+        }
+      ]
+    },
+    {
+      "path": "README.md",
+      "ranges": [
+        {
+          "end": 9,
+          "start": 1
+        },
+        {
+          "end": 147,
+          "start": 1
+        },
+        {
+          "end": 9,
+          "start": 5
+        },
+        {
+          "end": 21,
+          "start": 11
+        },
+        {
+          "end": 22,
+          "start": 11
+        },
+        {
+          "end": 15,
+          "start": 13
+        },
+        {
+          "end": 21,
+          "start": 13
+        },
+        {
+          "end": 24,
+          "start": 13
+        },
+        {
+          "end": 15,
+          "start": 14
+        },
+        {
+          "end": 19,
+          "start": 17
+        },
+        {
+          "end": 23,
+          "start": 23
+        },
+        {
+          "end": 24,
+          "start": 23
+        },
+        {
+          "end": 33,
+          "start": 23
+        },
+        {
+          "end": 33,
+          "start": 25
+        },
+        {
+          "end": 52,
+          "start": 35
+        },
+        {
+          "end": 74,
+          "start": 54
+        },
+        {
+          "end": 93,
+          "start": 82
+        },
+        {
+          "end": 147,
+          "start": 95
+        },
+        {
+          "end": 123,
+          "start": 101
+        },
+        {
+          "end": 116,
+          "start": 106
+        },
+        {
+          "end": 143,
+          "start": 126
+        }
+      ]
+    },
+    {
+      "path": "apps/api/AGENTS.md",
+      "ranges": [
+        {
+          "end": 5,
+          "start": 1
+        },
+        {
+          "end": 20,
+          "start": 1
+        },
+        {
+          "end": 42,
+          "start": 34
+        }
+      ]
+    },
+    {
+      "path": "apps/api/eslint.config.mjs",
+      "ranges": [
+        {
+          "end": 9,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "apps/api/package.json",
+      "ranges": [
+        {
+          "end": 12,
+          "start": 1
+        },
+        {
+          "end": 27,
+          "start": 1
+        },
+        {
+          "end": 32,
+          "start": 1
+        },
+        {
+          "end": 7,
+          "start": 5
+        },
+        {
+          "end": 12,
+          "start": 5
+        }
+      ]
+    },
+    {
+      "path": "apps/api/src/agent-api-v1.ts",
+      "ranges": [
+        {
+          "end": 200,
+          "start": 1
+        },
+        {
+          "end": 174,
+          "start": 31
+        },
+        {
+          "end": 120,
+          "start": 87
+        },
+        {
+          "end": 133,
+          "start": 123
+        },
+        {
+          "end": 192,
+          "start": 123
+        },
+        {
+          "end": 162,
+          "start": 140
+        },
+        {
+          "end": 174,
+          "start": 170
+        },
+        {
+          "end": 226,
+          "start": 201
+        },
+        {
+          "end": 270,
+          "start": 228
+        },
+        {
+          "end": 319,
+          "start": 296
+        },
+        {
+          "end": 315,
+          "start": 299
+        },
+        {
+          "end": 348,
+          "start": 321
+        }
+      ]
+    },
+    {
+      "path": "apps/api/src/agent-job-intake.ts",
+      "ranges": [
+        {
+          "end": 63,
+          "start": 1
+        },
+        {
+          "end": 62,
+          "start": 31
+        },
+        {
+          "end": 58,
+          "start": 53
+        }
+      ]
+    },
+    {
+      "path": "apps/api/src/app.ts",
+      "ranges": [
+        {
+          "end": 56,
+          "start": 1
+        },
+        {
+          "end": 85,
+          "start": 1
+        },
+        {
+          "end": 142,
+          "start": 1
+        },
+        {
+          "end": 50,
+          "start": 24
+        },
+        {
+          "end": 42,
+          "start": 41
+        },
+        {
+          "end": 58,
+          "start": 42
+        },
+        {
+          "end": 46,
+          "start": 44
+        },
+        {
+          "end": 57,
+          "start": 46
+        },
+        {
+          "end": 68,
+          "start": 68
+        },
+        {
+          "end": 123,
+          "start": 76
+        }
+      ]
+    },
+    {
+      "path": "apps/api/src/env.ts",
+      "ranges": [
+        {
+          "end": 39,
+          "start": 1
+        },
+        {
+          "end": 40,
+          "start": 1
+        },
+        {
+          "end": 25,
+          "start": 5
+        },
+        {
+          "end": 24,
+          "start": 17
+        },
+        {
+          "end": 25,
+          "start": 17
+        },
+        {
+          "end": 29,
+          "start": 21
+        }
+      ]
+    },
+    {
+      "path": "apps/api/src/health.ts",
+      "ranges": [
+        {
+          "end": 163,
+          "start": 1
+        },
+        {
+          "end": 100,
+          "start": 94
+        },
+        {
+          "end": 162,
+          "start": 124
+        }
+      ]
+    },
+    {
+      "path": "apps/api/src/queue.ts",
+      "ranges": [
+        {
+          "end": 50,
+          "start": 1
+        },
+        {
+          "end": 49,
+          "start": 17
+        },
+        {
+          "end": 49,
+          "start": 38
+        }
+      ]
+    },
+    {
+      "path": "apps/api/src/server.ts",
+      "ranges": [
+        {
+          "end": 13,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "apps/api/src/sse.ts",
+      "ranges": [
+        {
+          "end": 24,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "apps/api/tsup.config.ts",
+      "ranges": [
+        {
+          "end": 19,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "apps/api/vitest.config.ts",
+      "ranges": [
+        {
+          "end": 8,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "apps/cli/AGENTS.md",
+      "ranges": [
+        {
+          "end": 33,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "apps/cli/package.json",
+      "ranges": [
+        {
+          "end": 19,
+          "start": 1
+        },
+        {
+          "end": 30,
+          "start": 1
+        },
+        {
+          "end": 38,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "apps/cli/src/bin.ts",
+      "ranges": [
+        {
+          "end": 4,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "apps/cli/src/cli.test.ts",
+      "ranges": [
+        {
+          "end": 114,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "apps/cli/src/cli.ts",
+      "ranges": [
+        {
+          "end": 22,
+          "start": 1
+        },
+        {
+          "end": 16,
+          "start": 8
+        },
+        {
+          "end": 182,
+          "start": 23
+        },
+        {
+          "end": 130,
+          "start": 91
+        },
+        {
+          "end": 180,
+          "start": 128
+        },
+        {
+          "end": 182,
+          "start": 136
+        },
+        {
+          "end": 172,
+          "start": 165
+        }
+      ]
+    },
+    {
+      "path": "apps/cli/tsup.config.ts",
+      "ranges": [
+        {
+          "end": 11,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "apps/toolbox/AGENTS.md",
+      "ranges": [
+        {
+          "end": 5,
+          "start": 1
+        },
+        {
+          "end": 22,
+          "start": 1
+        },
+        {
+          "end": 51,
+          "start": 47
+        }
+      ]
+    },
+    {
+      "path": "apps/toolbox/INTELLIGENT_QUERY.md",
+      "ranges": [
+        {
+          "end": 18,
+          "start": 1
+        },
+        {
+          "end": 104,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "apps/toolbox/OBSERVABILITY.md",
+      "ranges": [
+        {
+          "end": 47,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "apps/toolbox/PRODUCTION_AUTH.md",
+      "ranges": [
+        {
+          "end": 70,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "apps/toolbox/README.md",
+      "ranges": [
+        {
+          "end": 176,
+          "start": 1
+        },
+        {
+          "end": 55,
+          "start": 33
+        }
+      ]
+    },
+    {
+      "path": "apps/toolbox/SEMANTIC_LAYER.md",
+      "ranges": [
+        {
+          "end": 80,
+          "start": 1
+        },
+        {
+          "end": 30,
+          "start": 17
+        }
+      ]
+    },
+    {
+      "path": "apps/toolbox/semantic/ecommerce-evaluation.yaml",
+      "ranges": [
+        {
+          "end": 132,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "apps/toolbox/semantic/ecommerce.yaml",
+      "ranges": [
+        {
+          "end": 8,
+          "start": 1
+        },
+        {
+          "end": 470,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "apps/toolbox/tools.yaml",
+      "ranges": [
+        {
+          "end": 874,
+          "start": 1
+        },
+        {
+          "end": 874,
+          "start": 835
+        }
+      ]
+    },
+    {
+      "path": "apps/web-qa/AGENTS.md",
+      "ranges": [
+        {
+          "end": 5,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "apps/web-qa/README.md",
+      "ranges": [
+        {
+          "end": 32,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "apps/web-qa/TEST_PLAN.md",
+      "ranges": [
+        {
+          "end": 32,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "apps/web-qa/flows/p0-home-smoke.md",
+      "ranges": [
+        {
+          "end": 31,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "apps/web-qa/package.json",
+      "ranges": [
+        {
+          "end": 14,
+          "start": 1
+        },
+        {
+          "end": 14,
+          "start": 5
+        }
+      ]
+    },
+    {
+      "path": "apps/web-qa/src/scenarios.ts",
+      "ranges": [
+        {
+          "end": 106,
+          "start": 23
+        }
+      ]
+    },
+    {
+      "path": "apps/web-qa/src/server.ts",
+      "ranges": [
+        {
+          "end": 62,
+          "start": 28
+        }
+      ]
+    },
+    {
+      "path": "apps/web-qa/src/validate-flows.ts",
+      "ranges": [
+        {
+          "end": 88,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "apps/web/AGENTS.md",
+      "ranges": [
+        {
+          "end": 5,
+          "start": 1
+        },
+        {
+          "end": 43,
+          "start": 1
+        },
+        {
+          "end": 36,
+          "start": 30
+        },
+        {
+          "end": 42,
+          "start": 32
+        },
+        {
+          "end": 43,
+          "start": 37
+        }
+      ]
+    },
+    {
+      "path": "apps/web/app/agent/page.tsx",
+      "ranges": [
+        {
+          "end": 6,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "apps/web/app/api/agent/chat/route.ts",
+      "ranges": [
+        {
+          "end": 118,
+          "start": 1
+        },
+        {
+          "end": 119,
+          "start": 1
+        },
+        {
+          "end": 18,
+          "start": 7
+        }
+      ]
+    },
+    {
+      "path": "apps/web/app/api/agent/runs/[runId]/route.ts",
+      "ranges": [
+        {
+          "end": 22,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "apps/web/app/docs/[[...slug]]/page.tsx",
+      "ranges": [
+        {
+          "end": 176,
+          "start": 1
+        },
+        {
+          "end": 35,
+          "start": 18
+        }
+      ]
+    },
+    {
+      "path": "apps/web/app/globals.css",
+      "ranges": [
+        {
+          "end": 82,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "apps/web/app/page.tsx",
+      "ranges": [
+        {
+          "end": 94,
+          "start": 1
+        },
+        {
+          "end": 72,
+          "start": 5
+        }
+      ]
+    },
+    {
+      "path": "apps/web/next.config.ts",
+      "ranges": [
+        {
+          "end": 16,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "apps/web/package.json",
+      "ranges": [
+        {
+          "end": 12,
+          "start": 1
+        },
+        {
+          "end": 24,
+          "start": 1
+        },
+        {
+          "end": 33,
+          "start": 1
+        },
+        {
+          "end": 7,
+          "start": 5
+        },
+        {
+          "end": 8,
+          "start": 6
+        },
+        {
+          "end": 11,
+          "start": 6
+        },
+        {
+          "end": 33,
+          "start": 6
+        }
+      ]
+    },
+    {
+      "path": "apps/web/src/features/docs/docs-markdown.tsx",
+      "ranges": [
+        {
+          "end": 120,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "apps/web/src/features/frontend-agent/agent-console.tsx",
+      "ranges": [
+        {
+          "end": 513,
+          "start": 1
+        },
+        {
+          "end": 186,
+          "start": 23
+        },
+        {
+          "end": 180,
+          "start": 160
+        },
+        {
+          "end": 400,
+          "start": 300
+        },
+        {
+          "end": 513,
+          "start": 401
+        }
+      ]
+    },
+    {
+      "path": "apps/web/src/features/frontend-agent/agent-run-timeline.tsx",
+      "ranges": [
+        {
+          "end": 359,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "apps/web/src/features/frontend-agent/event-history.test.ts",
+      "ranges": [
+        {
+          "end": 58,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "apps/web/src/features/frontend-agent/event-history.ts",
+      "ranges": [
+        {
+          "end": 37,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "apps/web/src/lib/agent-client.test.ts",
+      "ranges": [
+        {
+          "end": 80,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "apps/web/src/lib/agent-client.ts",
+      "ranges": [
+        {
+          "end": 200,
+          "start": 1
+        },
+        {
+          "end": 253,
+          "start": 1
+        },
+        {
+          "end": 35,
+          "start": 31
+        },
+        {
+          "end": 253,
+          "start": 49
+        }
+      ]
+    },
+    {
+      "path": "apps/web/src/lib/zread-catalog.ts",
+      "ranges": [
+        {
+          "end": 120,
+          "start": 1
+        },
+        {
+          "end": 96,
+          "start": 27
+        }
+      ]
+    },
+    {
+      "path": "apps/web/src/lib/zread-root.ts",
+      "ranges": [
+        {
+          "end": 38,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "apps/worker/AGENTS.md",
+      "ranges": [
+        {
+          "end": 5,
+          "start": 1
+        },
+        {
+          "end": 15,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "apps/worker/package.json",
+      "ranges": [
+        {
+          "end": 12,
+          "start": 1
+        },
+        {
+          "end": 21,
+          "start": 1
+        },
+        {
+          "end": 26,
+          "start": 1
+        },
+        {
+          "end": 7,
+          "start": 5
+        },
+        {
+          "end": 12,
+          "start": 5
+        }
+      ]
+    },
+    {
+      "path": "apps/worker/src/env.test.ts",
+      "ranges": [
+        {
+          "end": 18,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "apps/worker/src/env.ts",
+      "ranges": [
+        {
+          "end": 6,
+          "start": 1
+        },
+        {
+          "end": 13,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "apps/worker/src/process.ts",
+      "ranges": [
+        {
+          "end": 91,
+          "start": 1
+        },
+        {
+          "end": 55,
+          "start": 42
+        },
+        {
+          "end": 91,
+          "start": 83
+        }
+      ]
+    },
+    {
+      "path": "apps/worker/src/worker.ts",
+      "ranges": [
+        {
+          "end": 14,
+          "start": 1
+        },
+        {
+          "end": 15,
+          "start": 1
+        },
+        {
+          "end": 13,
+          "start": 6
+        }
+      ]
+    },
+    {
+      "path": "apps/worker/tsup.config.ts",
+      "ranges": [
+        {
+          "end": 10,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "docker-compose.yml",
+      "ranges": [
+        {
+          "end": 4,
+          "start": 1
+        },
+        {
+          "end": 167,
+          "start": 1
+        },
+        {
+          "end": 18,
+          "start": 3
+        },
+        {
+          "end": 19,
+          "start": 3
+        },
+        {
+          "end": 62,
+          "start": 32
+        },
+        {
+          "end": 92,
+          "start": 32
+        },
+        {
+          "end": 163,
+          "start": 32
+        },
+        {
+          "end": 167,
+          "start": 32
+        },
+        {
+          "end": 62,
+          "start": 33
+        },
+        {
+          "end": 167,
+          "start": 63
+        },
+        {
+          "end": 167,
+          "start": 93
+        },
+        {
+          "end": 150,
+          "start": 111
+        }
+      ]
+    },
+    {
+      "path": "docs/adr/0001-separate-agent-runtime-packages.md",
+      "ranges": [
+        {
+          "end": 4,
+          "start": 1
+        },
+        {
+          "end": 8,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "docs/adr/0002-toolbox-server-as-agent-tool-provider.md",
+      "ranges": [
+        {
+          "end": 39,
+          "start": 1
+        },
+        {
+          "end": 40,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "docs/adr/0003-host-managed-mcp.md",
+      "ranges": [
+        {
+          "end": 10,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "docs/adr/0005-render-mcp-apps-in-chat.md",
+      "ranges": [
+        {
+          "end": 7,
+          "start": 1
+        },
+        {
+          "end": 39,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "docs/adr/0006-governed-intelligent-querying.md",
+      "ranges": [
+        {
+          "end": 33,
+          "start": 1
+        },
+        {
+          "end": 34,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "docs/adr/0007-agent-runtime-owned-mcp-clients.md",
+      "ranges": [
+        {
+          "end": 7,
+          "start": 1
+        },
+        {
+          "end": 8,
+          "start": 1
+        },
+        {
+          "end": 8,
+          "start": 7
+        }
+      ]
+    },
+    {
+      "path": "docs/adr/0008-durable-agent-run-lifecycle.md",
+      "ranges": [
+        {
+          "end": 15,
+          "start": 1
+        },
+        {
+          "end": 22,
+          "start": 1
+        },
+        {
+          "end": 13,
+          "start": 7
+        }
+      ]
+    },
+    {
+      "path": "docs/adr/0009-runtime-owned-readiness.md",
+      "ranges": [
+        {
+          "end": 17,
+          "start": 1
+        },
+        {
+          "end": 19,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "docs/adr/0010-correlated-agent-run-protocol.md",
+      "ranges": [
+        {
+          "end": 13,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "docs/adr/0011-deployment-selected-runtime-loading.md",
+      "ranges": [
+        {
+          "end": 13,
+          "start": 1
+        },
+        {
+          "end": 19,
+          "start": 1
+        },
+        {
+          "end": 12,
+          "start": 7
+        },
+        {
+          "end": 18,
+          "start": 7
+        },
+        {
+          "end": 19,
+          "start": 7
+        }
+      ]
+    },
+    {
+      "path": "docs/adr/0012-isolated-ecommerce-fixture-schema.md",
+      "ranges": [
+        {
+          "end": 21,
+          "start": 1
+        },
+        {
+          "end": 13,
+          "start": 7
+        }
+      ]
+    },
+    {
+      "path": "docs/adr/0013-fenced-agent-run-execution-leases.md",
+      "ranges": [
+        {
+          "end": 30,
+          "start": 1
+        },
+        {
+          "end": 31,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "docs/adr/0014-platform-owned-agent-conversations.md",
+      "ranges": [
+        {
+          "end": 33,
+          "start": 1
+        },
+        {
+          "end": 47,
+          "start": 1
+        },
+        {
+          "end": 13,
+          "start": 7
+        }
+      ]
+    },
+    {
+      "path": "docs/adr/0015-package-owned-claude-filesystem-project.md",
+      "ranges": [
+        {
+          "end": 6,
+          "start": 1
+        },
+        {
+          "end": 7,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "docs/adr/0016-bound-agent-stream-memory-and-local-build-load.md",
+      "ranges": [
+        {
+          "end": 46,
+          "start": 1
+        },
+        {
+          "end": 37,
+          "start": 18
+        }
+      ]
+    },
+    {
+      "path": "docs/adr/0016-zread-generated-project-wiki.md",
+      "ranges": [
+        {
+          "end": 6,
+          "start": 1
+        },
+        {
+          "end": 11,
+          "start": 1
+        },
+        {
+          "end": 12,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "docs/agents/domain.md",
+      "ranges": [
+        {
+          "end": 28,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "docs/agents/skills.md",
+      "ranges": [
+        {
+          "end": 15,
+          "start": 1
+        },
+        {
+          "end": 11,
+          "start": 5
+        },
+        {
+          "end": 28,
+          "start": 17
+        }
+      ]
+    },
+    {
+      "path": "generated/toolbox-production/tools.yaml",
+      "ranges": [
+        {
+          "end": 200,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "generated/toolbox-skills/README.md",
+      "ranges": [
+        {
+          "end": 17,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "generated/toolbox-skills/manifest.json",
+      "ranges": [
+        {
+          "end": 35,
+          "start": 1
+        },
+        {
+          "end": 36,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "package.json",
+      "ranges": [
+        {
+          "end": 7,
+          "start": 1
+        },
+        {
+          "end": 44,
+          "start": 1
+        },
+        {
+          "end": 4,
+          "start": 4
+        },
+        {
+          "end": 5,
+          "start": 4
+        },
+        {
+          "end": 7,
+          "start": 4
+        },
+        {
+          "end": 10,
+          "start": 4
+        },
+        {
+          "end": 9,
+          "start": 8
+        },
+        {
+          "end": 10,
+          "start": 8
+        },
+        {
+          "end": 43,
+          "start": 8
+        },
+        {
+          "end": 44,
+          "start": 8
+        },
+        {
+          "end": 17,
+          "start": 14
+        },
+        {
+          "end": 25,
+          "start": 14
+        },
+        {
+          "end": 16,
+          "start": 16
+        },
+        {
+          "end": 19,
+          "start": 18
+        },
+        {
+          "end": 20,
+          "start": 18
+        },
+        {
+          "end": 24,
+          "start": 21
+        },
+        {
+          "end": 41,
+          "start": 21
+        },
+        {
+          "end": 28,
+          "start": 25
+        },
+        {
+          "end": 28,
+          "start": 28
+        },
+        {
+          "end": 42,
+          "start": 32
+        },
+        {
+          "end": 49,
+          "start": 35
+        },
+        {
+          "end": 42,
+          "start": 40
+        },
+        {
+          "end": 64,
+          "start": 64
+        }
+      ]
+    },
+    {
+      "path": "packages/AGENTS.md",
+      "ranges": [
+        {
+          "end": 4,
+          "start": 1
+        },
+        {
+          "end": 17,
+          "start": 5
+        },
+        {
+          "end": 25,
+          "start": 18
+        }
+      ]
+    },
+    {
+      "path": "packages/agent-claude/.claude/skills-manifest.json",
+      "ranges": [
+        {
+          "end": 35,
+          "start": 1
+        },
+        {
+          "end": 36,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "packages/agent-claude/.claude/skills/ecommerce-sales-analysis/SKILL.md",
+      "ranges": [
+        {
+          "end": 22,
+          "start": 19
+        }
+      ]
+    },
+    {
+      "path": "packages/agent-claude/AGENTS.md",
+      "ranges": [
+        {
+          "end": 5,
+          "start": 1
+        },
+        {
+          "end": 15,
+          "start": 13
+        },
+        {
+          "end": 22,
+          "start": 21
+        }
+      ]
+    },
+    {
+      "path": "packages/agent-claude/package.json",
+      "ranges": [
+        {
+          "end": 25,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "packages/agent-claude/src/filesystem-project.test.ts",
+      "ranges": [
+        {
+          "end": 68,
+          "start": 22
+        },
+        {
+          "end": 68,
+          "start": 32
+        }
+      ]
+    },
+    {
+      "path": "packages/agent-claude/src/filesystem-project.ts",
+      "ranges": [
+        {
+          "end": 147,
+          "start": 1
+        },
+        {
+          "end": 32,
+          "start": 20
+        },
+        {
+          "end": 60,
+          "start": 34
+        },
+        {
+          "end": 135,
+          "start": 125
+        }
+      ]
+    },
+    {
+      "path": "packages/agent-claude/src/index.test.ts",
+      "ranges": [
+        {
+          "end": 52,
+          "start": 24
+        },
+        {
+          "end": 189,
+          "start": 118
+        },
+        {
+          "end": 467,
+          "start": 347
+        },
+        {
+          "end": 703,
+          "start": 552
+        }
+      ]
+    },
+    {
+      "path": "packages/agent-claude/src/index.ts",
+      "ranges": [
+        {
+          "end": 28,
+          "start": 27
+        },
+        {
+          "end": 40,
+          "start": 31
+        },
+        {
+          "end": 98,
+          "start": 31
+        },
+        {
+          "end": 84,
+          "start": 61
+        },
+        {
+          "end": 107,
+          "start": 86
+        },
+        {
+          "end": 174,
+          "start": 115
+        },
+        {
+          "end": 259,
+          "start": 207
+        },
+        {
+          "end": 409,
+          "start": 264
+        },
+        {
+          "end": 377,
+          "start": 323
+        },
+        {
+          "end": 453,
+          "start": 411
+        },
+        {
+          "end": 477,
+          "start": 455
+        },
+        {
+          "end": 568,
+          "start": 544
+        },
+        {
+          "end": 624,
+          "start": 595
+        },
+        {
+          "end": 658,
+          "start": 626
+        },
+        {
+          "end": 757,
+          "start": 650
+        },
+        {
+          "end": 711,
+          "start": 677
+        },
+        {
+          "end": 708,
+          "start": 705
+        },
+        {
+          "end": 730,
+          "start": 710
+        },
+        {
+          "end": 720,
+          "start": 713
+        },
+        {
+          "end": 756,
+          "start": 722
+        }
+      ]
+    },
+    {
+      "path": "packages/agent-client/AGENTS.md",
+      "ranges": [
+        {
+          "end": 5,
+          "start": 1
+        },
+        {
+          "end": 22,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "packages/agent-client/src/index.test.ts",
+      "ranges": [
+        {
+          "end": 180,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "packages/agent-client/src/index.ts",
+      "ranges": [
+        {
+          "end": 200,
+          "start": 1
+        },
+        {
+          "end": 427,
+          "start": 1
+        },
+        {
+          "end": 33,
+          "start": 25
+        },
+        {
+          "end": 91,
+          "start": 35
+        },
+        {
+          "end": 180,
+          "start": 92
+        },
+        {
+          "end": 219,
+          "start": 181
+        },
+        {
+          "end": 326,
+          "start": 222
+        },
+        {
+          "end": 328,
+          "start": 327
+        },
+        {
+          "end": 363,
+          "start": 331
+        },
+        {
+          "end": 371,
+          "start": 365
+        },
+        {
+          "end": 407,
+          "start": 391
+        },
+        {
+          "end": 416,
+          "start": 409
+        }
+      ]
+    },
+    {
+      "path": "packages/agent-eve/AGENTS.md",
+      "ranges": [
+        {
+          "end": 5,
+          "start": 1
+        },
+        {
+          "end": 10,
+          "start": 1
+        },
+        {
+          "end": 20,
+          "start": 10
+        },
+        {
+          "end": 26,
+          "start": 24
+        },
+        {
+          "end": 62,
+          "start": 56
+        }
+      ]
+    },
+    {
+      "path": "packages/agent-eve/agent/agent.ts",
+      "ranges": [
+        {
+          "end": 11,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "packages/agent-eve/agent/channels/eve.ts",
+      "ranges": [
+        {
+          "end": 47,
+          "start": 1
+        },
+        {
+          "end": 33,
+          "start": 5
+        }
+      ]
+    },
+    {
+      "path": "packages/agent-eve/agent/connections/toolbox.ts",
+      "ranges": [
+        {
+          "end": 30,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "packages/agent-eve/agent/lib/capability-profile.ts",
+      "ranges": [
+        {
+          "end": 22,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "packages/agent-eve/agent/lib/ecommerce-semantic-catalog.ts",
+      "ranges": [
+        {
+          "end": 2,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "packages/agent-eve/agent/lib/service-auth.ts",
+      "ranges": [
+        {
+          "end": 15,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "packages/agent-eve/agent/sandbox.ts",
+      "ranges": [
+        {
+          "end": 7,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "packages/agent-eve/agent/skills/ecommerce-fulfillment-operations.ts",
+      "ranges": [
+        {
+          "end": 24,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "packages/agent-eve/agent/skills/ecommerce-sales-analysis.ts",
+      "ranges": [
+        {
+          "end": 26,
+          "start": 1
+        },
+        {
+          "end": 27,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "packages/agent-eve/agent/tools/bash.ts",
+      "ranges": [
+        {
+          "end": 4,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "packages/agent-eve/package.json",
+      "ranges": [
+        {
+          "end": 16,
+          "start": 11
+        },
+        {
+          "end": 19,
+          "start": 11
+        },
+        {
+          "end": 15,
+          "start": 14
+        },
+        {
+          "end": 16,
+          "start": 14
+        }
+      ]
+    },
+    {
+      "path": "packages/agent-eve/src/config.ts",
+      "ranges": [
+        {
+          "end": 51,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "packages/agent-eve/src/index.test.ts",
+      "ranges": [
+        {
+          "end": 50,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "packages/agent-eve/src/index.ts",
+      "ranges": [
+        {
+          "end": 113,
+          "start": 86
+        },
+        {
+          "end": 147,
+          "start": 121
+        },
+        {
+          "end": 227,
+          "start": 151
+        },
+        {
+          "end": 240,
+          "start": 151
+        },
+        {
+          "end": 239,
+          "start": 229
+        },
+        {
+          "end": 478,
+          "start": 242
+        }
+      ]
+    },
+    {
+      "path": "packages/agent-eve/src/service-auth.test.ts",
+      "ranges": [
+        {
+          "end": 59,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "packages/agent/AGENTS.md",
+      "ranges": [
+        {
+          "end": 5,
+          "start": 1
+        },
+        {
+          "end": 13,
+          "start": 1
+        },
+        {
+          "end": 40,
+          "start": 1
+        },
+        {
+          "end": 13,
+          "start": 5
+        },
+        {
+          "end": 19,
+          "start": 7
+        }
+      ]
+    },
+    {
+      "path": "packages/agent/src/conversation.ts",
+      "ranges": [
+        {
+          "end": 62,
+          "start": 21
+        },
+        {
+          "end": 112,
+          "start": 86
+        },
+        {
+          "end": 108,
+          "start": 95
+        }
+      ]
+    },
+    {
+      "path": "packages/agent/src/index.test.ts",
+      "ranges": [
+        {
+          "end": 80,
+          "start": 1
+        },
+        {
+          "end": 47,
+          "start": 12
+        }
+      ]
+    },
+    {
+      "path": "packages/agent/src/index.ts",
+      "ranges": [
+        {
+          "end": 15,
+          "start": 1
+        },
+        {
+          "end": 321,
+          "start": 1
+        },
+        {
+          "end": 30,
+          "start": 16
+        },
+        {
+          "end": 45,
+          "start": 40
+        },
+        {
+          "end": 48,
+          "start": 40
+        },
+        {
+          "end": 62,
+          "start": 40
+        },
+        {
+          "end": 58,
+          "start": 43
+        },
+        {
+          "end": 225,
+          "start": 100
+        },
+        {
+          "end": 125,
+          "start": 106
+        },
+        {
+          "end": 168,
+          "start": 106
+        },
+        {
+          "end": 168,
+          "start": 127
+        },
+        {
+          "end": 167,
+          "start": 131
+        },
+        {
+          "end": 225,
+          "start": 170
+        },
+        {
+          "end": 227,
+          "start": 195
+        },
+        {
+          "end": 273,
+          "start": 227
+        },
+        {
+          "end": 300,
+          "start": 275
+        },
+        {
+          "end": 312,
+          "start": 302
+        },
+        {
+          "end": 320,
+          "start": 314
+        }
+      ]
+    },
+    {
+      "path": "packages/agent/src/lifecycle.test.ts",
+      "ranges": [
+        {
+          "end": 65,
+          "start": 9
+        },
+        {
+          "end": 335,
+          "start": 214
+        }
+      ]
+    },
+    {
+      "path": "packages/agent/src/lifecycle.ts",
+      "ranges": [
+        {
+          "end": 50,
+          "start": 21
+        },
+        {
+          "end": 29,
+          "start": 28
+        },
+        {
+          "end": 102,
+          "start": 52
+        },
+        {
+          "end": 156,
+          "start": 115
+        },
+        {
+          "end": 156,
+          "start": 148
+        },
+        {
+          "end": 232,
+          "start": 148
+        },
+        {
+          "end": 157,
+          "start": 150
+        },
+        {
+          "end": 158,
+          "start": 150
+        },
+        {
+          "end": 218,
+          "start": 179
+        },
+        {
+          "end": 218,
+          "start": 197
+        },
+        {
+          "end": 232,
+          "start": 220
+        },
+        {
+          "end": 258,
+          "start": 233
+        },
+        {
+          "end": 378,
+          "start": 270
+        },
+        {
+          "end": 344,
+          "start": 305
+        },
+        {
+          "end": 378,
+          "start": 350
+        },
+        {
+          "end": 390,
+          "start": 381
+        },
+        {
+          "end": 426,
+          "start": 404
+        },
+        {
+          "end": 523,
+          "start": 439
+        },
+        {
+          "end": 594,
+          "start": 560
+        },
+        {
+          "end": 605,
+          "start": 560
+        }
+      ]
+    },
+    {
+      "path": "packages/agent/src/runtime-continuation.ts",
+      "ranges": [
+        {
+          "end": 19,
+          "start": 7
+        }
+      ]
+    },
+    {
+      "path": "packages/db/AGENTS.md",
+      "ranges": [
+        {
+          "end": 5,
+          "start": 1
+        },
+        {
+          "end": 18,
+          "start": 7
+        },
+        {
+          "end": 17,
+          "start": 16
+        },
+        {
+          "end": 50,
+          "start": 35
+        },
+        {
+          "end": 40,
+          "start": 38
+        },
+        {
+          "end": 50,
+          "start": 49
+        }
+      ]
+    },
+    {
+      "path": "packages/db/package.json",
+      "ranges": [
+        {
+          "end": 17,
+          "start": 1
+        },
+        {
+          "end": 13,
+          "start": 9
+        },
+        {
+          "end": 17,
+          "start": 9
+        }
+      ]
+    },
+    {
+      "path": "packages/db/prisma.config.ts",
+      "ranges": [
+        {
+          "end": 18,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "packages/db/prisma/migrations/20260710161434_harden_ecommerce_time_and_refunds/migration.sql",
+      "ranges": [
+        {
+          "end": 31,
+          "start": 29
+        }
+      ]
+    },
+    {
+      "path": "packages/db/prisma/migrations/20260711083000_add_toolbox_time_window_guard/migration.sql",
+      "ranges": [
+        {
+          "end": 29,
+          "start": 1
+        },
+        {
+          "end": 28,
+          "start": 4
+        }
+      ]
+    },
+    {
+      "path": "packages/db/prisma/migrations/20260711084500_add_agent_run_lifecycle/migration.sql",
+      "ranges": [
+        {
+          "end": 14,
+          "start": 1
+        },
+        {
+          "end": 50,
+          "start": 43
+        }
+      ]
+    },
+    {
+      "path": "packages/db/prisma/migrations/20260711103000_add_agent_run_tool_result_correlation_index/migration.sql",
+      "ranges": [
+        {
+          "end": 11,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "packages/db/prisma/migrations/20260711110000_add_agent_conversations/migration.sql",
+      "ranges": [
+        {
+          "end": 34,
+          "start": 24
+        },
+        {
+          "end": 34,
+          "start": 30
+        }
+      ]
+    },
+    {
+      "path": "packages/db/prisma/migrations/20260711170000_add_agent_run_waiting_status/migration.sql",
+      "ranges": [
+        {
+          "end": 2,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "packages/db/prisma/schema.prisma",
+      "ranges": [
+        {
+          "end": 9,
+          "start": 8
+        },
+        {
+          "end": 20,
+          "start": 11
+        },
+        {
+          "end": 89,
+          "start": 11
+        },
+        {
+          "end": 61,
+          "start": 22
+        },
+        {
+          "end": 74,
+          "start": 63
+        },
+        {
+          "end": 89,
+          "start": 76
+        }
+      ]
+    },
+    {
+      "path": "packages/db/src/agent-conversation-repository.ts",
+      "ranges": [
+        {
+          "end": 66,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "packages/db/src/agent-run-repository.ts",
+      "ranges": [
+        {
+          "end": 13,
+          "start": 11
+        },
+        {
+          "end": 156,
+          "start": 35
+        },
+        {
+          "end": 150,
+          "start": 111
+        },
+        {
+          "end": 156,
+          "start": 111
+        },
+        {
+          "end": 157,
+          "start": 111
+        },
+        {
+          "end": 188,
+          "start": 111
+        },
+        {
+          "end": 156,
+          "start": 120
+        },
+        {
+          "end": 188,
+          "start": 158
+        },
+        {
+          "end": 217,
+          "start": 189
+        },
+        {
+          "end": 293,
+          "start": 244
+        },
+        {
+          "end": 326,
+          "start": 294
+        },
+        {
+          "end": 326,
+          "start": 307
+        }
+      ]
+    },
+    {
+      "path": "packages/db/src/config.test.ts",
+      "ranges": [
+        {
+          "end": 15,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "packages/db/src/config.ts",
+      "ranges": [
+        {
+          "end": 7,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "packages/db/src/index.ts",
+      "ranges": [
+        {
+          "end": 21,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "packages/ecommerce-fixture/AGENTS.md",
+      "ranges": [
+        {
+          "end": 5,
+          "start": 1
+        },
+        {
+          "end": 14,
+          "start": 7
+        }
+      ]
+    },
+    {
+      "path": "packages/ecommerce-fixture/package.json",
+      "ranges": [
+        {
+          "end": 17,
+          "start": 1
+        },
+        {
+          "end": 13,
+          "start": 8
+        },
+        {
+          "end": 17,
+          "start": 9
+        }
+      ]
+    },
+    {
+      "path": "packages/ecommerce-fixture/prisma.config.ts",
+      "ranges": [
+        {
+          "end": 18,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "packages/ecommerce-fixture/prisma/schema.prisma",
+      "ranges": [
+        {
+          "end": 9,
+          "start": 8
+        },
+        {
+          "end": 144,
+          "start": 56
+        }
+      ]
+    },
+    {
+      "path": "packages/ecommerce-fixture/scripts/migrate.ts",
+      "ranges": [
+        {
+          "end": 95,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "packages/ecommerce-fixture/scripts/verify-empty-database.ts",
+      "ranges": [
+        {
+          "end": 56,
+          "start": 1
+        },
+        {
+          "end": 148,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "packages/ecommerce-fixture/src/config.test.ts",
+      "ranges": [
+        {
+          "end": 24,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "packages/ecommerce-fixture/src/config.ts",
+      "ranges": [
+        {
+          "end": 15,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "packages/ecommerce-fixture/src/data.ts",
+      "ranges": [
+        {
+          "end": 257,
+          "start": 129
+        }
+      ]
+    },
+    {
+      "path": "packages/logger/AGENTS.md",
+      "ranges": [
+        {
+          "end": 5,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "packages/logger/src/index.ts",
+      "ranges": [
+        {
+          "end": 17,
+          "start": 7
+        }
+      ]
+    },
+    {
+      "path": "packages/shared/AGENTS.md",
+      "ranges": [
+        {
+          "end": 5,
+          "start": 1
+        },
+        {
+          "end": 16,
+          "start": 7
+        }
+      ]
+    },
+    {
+      "path": "packages/shared/src/agent-conversation.ts",
+      "ranges": [
+        {
+          "end": 53,
+          "start": 1
+        },
+        {
+          "end": 52,
+          "start": 44
+        }
+      ]
+    },
+    {
+      "path": "packages/shared/src/agent-job.ts",
+      "ranges": [
+        {
+          "end": 25,
+          "start": 1
+        },
+        {
+          "end": 26,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "packages/shared/src/agent-run-events.ts",
+      "ranges": [
+        {
+          "end": 82,
+          "start": 1
+        },
+        {
+          "end": 63,
+          "start": 38
+        },
+        {
+          "end": 70,
+          "start": 38
+        },
+        {
+          "end": 81,
+          "start": 71
+        }
+      ]
+    },
+    {
+      "path": "packages/shared/src/agent-run.ts",
+      "ranges": [
+        {
+          "end": 9,
+          "start": 1
+        },
+        {
+          "end": 136,
+          "start": 1
+        },
+        {
+          "end": 7,
+          "start": 7
+        },
+        {
+          "end": 22,
+          "start": 14
+        },
+        {
+          "end": 28,
+          "start": 14
+        },
+        {
+          "end": 29,
+          "start": 24
+        },
+        {
+          "end": 117,
+          "start": 86
+        }
+      ]
+    },
+    {
+      "path": "packages/shared/src/agent-runtime.ts",
+      "ranges": [
+        {
+          "end": 2,
+          "start": 1
+        },
+        {
+          "end": 3,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "packages/shared/src/health.ts",
+      "ranges": [
+        {
+          "end": 37,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "packages/shared/src/node.ts",
+      "ranges": [
+        {
+          "end": 5,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "packages/shared/src/queue.ts",
+      "ranges": [
+        {
+          "end": 42,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "packages/shared/src/zread-wiki.ts",
+      "ranges": [
+        {
+          "end": 44,
+          "start": 22
+        }
+      ]
+    },
+    {
+      "path": "packages/toolbox-config/AGENTS.md",
+      "ranges": [
+        {
+          "end": 5,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "packages/toolbox-config/src/index.test.ts",
+      "ranges": [
+        {
+          "end": 89,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "packages/toolbox-config/src/index.ts",
+      "ranges": [
+        {
+          "end": 211,
+          "start": 1
+        },
+        {
+          "end": 95,
+          "start": 47
+        },
+        {
+          "end": 131,
+          "start": 88
+        },
+        {
+          "end": 114,
+          "start": 99
+        }
+      ]
+    },
+    {
+      "path": "packages/ui/AGENTS.md",
+      "ranges": [
+        {
+          "end": 5,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "pnpm-workspace.yaml",
+      "ranges": [
+        {
+          "end": 3,
+          "start": 1
+        },
+        {
+          "end": 4,
+          "start": 1
+        },
+        {
+          "end": 16,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "scripts/check-runtime-bundle-boundary.ts",
+      "ranges": [
+        {
+          "end": 44,
+          "start": 1
+        },
+        {
+          "end": 38,
+          "start": 8
+        }
+      ]
+    },
+    {
+      "path": "scripts/check-toolbox-semantic-layer.ts",
+      "ranges": [
+        {
+          "end": 194,
+          "start": 1
+        },
+        {
+          "end": 757,
+          "start": 1
+        },
+        {
+          "end": 757,
+          "start": 200
+        }
+      ]
+    },
+    {
+      "path": "scripts/generate-toolbox-business-skills.ts",
+      "ranges": [
+        {
+          "end": 200,
+          "start": 1
+        },
+        {
+          "end": 695,
+          "start": 1
+        },
+        {
+          "end": 21,
+          "start": 17
+        },
+        {
+          "end": 78,
+          "start": 35
+        },
+        {
+          "end": 160,
+          "start": 137
+        },
+        {
+          "end": 208,
+          "start": 178
+        },
+        {
+          "end": 305,
+          "start": 275
+        },
+        {
+          "end": 342,
+          "start": 307
+        },
+        {
+          "end": 440,
+          "start": 384
+        },
+        {
+          "end": 491,
+          "start": 468
+        },
+        {
+          "end": 612,
+          "start": 506
+        },
+        {
+          "end": 612,
+          "start": 579
+        },
+        {
+          "end": 680,
+          "start": 614
+        },
+        {
+          "end": 693,
+          "start": 682
+        }
+      ]
+    },
+    {
+      "path": "scripts/generate-toolbox-production-config.ts",
+      "ranges": [
+        {
+          "end": 91,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "scripts/toolbox/local-toolbox-server.ts",
+      "ranges": [
+        {
+          "end": 182,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "scripts/toolbox/verify-ecommerce-toolbox.ts",
+      "ranges": [
+        {
+          "end": 414,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "scripts/toolbox/verify-toolbox-auth-local.ts",
+      "ranges": [
+        {
+          "end": 305,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "scripts/tsc7.mjs",
+      "ranges": [
+        {
+          "end": 16,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "scripts/verify-agent-job-redelivery.ts",
+      "ranges": [
+        {
+          "end": 58,
+          "start": 1
+        },
+        {
+          "end": 35,
+          "start": 11
+        }
+      ]
+    },
+    {
+      "path": "scripts/verify-agent-run-lifecycle.ts",
+      "ranges": [
+        {
+          "end": 175,
+          "start": 1
+        },
+        {
+          "end": 164,
+          "start": 7
+        }
+      ]
+    },
+    {
+      "path": "scripts/verify-agent-runtime-readiness.ts",
+      "ranges": [
+        {
+          "end": 71,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "scripts/verify-database-boundaries.ts",
+      "ranges": [
+        {
+          "end": 82,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "scripts/verify-toolbox-query-plans.ts",
+      "ranges": [
+        {
+          "end": 182,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "skills-lock.json",
+      "ranges": [
+        {
+          "end": 10,
+          "start": 1
+        }
+      ]
+    },
+    {
+      "path": "turbo.json",
+      "ranges": [
+        {
+          "end": 31,
+          "start": 1
+        },
+        {
+          "end": 32,
+          "start": 1
+        },
+        {
+          "end": 7,
+          "start": 4
+        },
+        {
+          "end": 11,
+          "start": 8
+        }
+      ]
+    }
+  ]
+}

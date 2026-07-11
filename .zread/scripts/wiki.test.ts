@@ -43,6 +43,24 @@ test("stages only the active validated ZRead wiki version", async () => {
       ),
     );
     assert.equal(publishedManifest.pages[0].level, "1");
+    const sourceIndex = JSON.parse(
+      await readFile(
+        path.join(
+          fixture.destination,
+          "versions",
+          "2026-07-11_2030_abc123",
+          "sources.json",
+        ),
+        "utf8",
+      ),
+    );
+    assert.deepEqual(sourceIndex, {
+      id: "2026-07-11_2030_abc123",
+      sources: [
+        { path: "README.md", ranges: [{ end: 2, start: 1 }] },
+        { path: "src/app.ts", ranges: [{ end: 2, start: 1 }] },
+      ],
+    });
     await assert.rejects(
       access(path.join(fixture.destination, "versions", "old-version")),
     );
@@ -137,9 +155,59 @@ test("rejects missing pages and malformed generated Markdown", async () => {
   }
 });
 
+test("rejects missing cited sources and normalizes or rejects line ranges", async () => {
+  const fixture = await createWikiFixture();
+  const overview = path.join(
+    fixture.source,
+    "versions",
+    "2026-07-11_2030_abc123",
+    "overview.md",
+  );
+
+  try {
+    await writeFile(overview, "Sources: [missing](src/missing.ts#L1-L2)");
+    await assert.rejects(
+      stageCurrentZReadWiki(fixture.source, fixture.destination),
+      /cited source file is missing/,
+    );
+
+    await writeFile(overview, "Sources: [app](src/app.ts#L1-L99)");
+    await stageCurrentZReadWiki(fixture.source, fixture.destination);
+    const index = JSON.parse(
+      await readFile(
+        path.join(
+          fixture.destination,
+          "versions",
+          "2026-07-11_2030_abc123",
+          "sources.json",
+        ),
+        "utf8",
+      ),
+    );
+    assert.deepEqual(index.sources, [
+      {
+        path: "src/app.ts",
+        ranges: [
+          { end: 2, start: 1 },
+          { end: 3, start: 1 },
+        ],
+      },
+    ]);
+
+    await writeFile(overview, "Sources: [app](src/app.ts#L99-L100)");
+    await assert.rejects(
+      stageCurrentZReadWiki(fixture.source, fixture.destination),
+      /source start .* exceeds 3 lines/,
+    );
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true });
+  }
+});
+
 async function createWikiFixture() {
   const root = await mkdtemp(path.join(tmpdir(), "zread-wiki-test-"));
-  const source = path.join(root, "source");
+  const repository = path.join(root, "repository");
+  const source = path.join(repository, ".zread", "wiki");
   const destination = path.join(root, "destination");
   const activeVersion = path.join(source, "versions", "2026-07-11_2030_abc123");
   await mkdir(path.join(activeVersion, "architecture"), { recursive: true });
@@ -173,10 +241,19 @@ async function createWikiFixture() {
       ],
     }),
   );
-  await writeFile(path.join(activeVersion, "overview.md"), "# 项目概览");
+  await mkdir(path.join(repository, "src"), { recursive: true });
+  await writeFile(path.join(repository, "README.md"), "# 项目\n\n说明");
+  await writeFile(
+    path.join(repository, "src", "app.ts"),
+    "export const app = true;\nexport default app;\n",
+  );
+  await writeFile(
+    path.join(activeVersion, "overview.md"),
+    "# 项目概览\n\nSources: [README](README.md#L1-L2)",
+  );
   await writeFile(
     path.join(activeVersion, "architecture", "runtime.md"),
-    "# Runtime 架构",
+    "# Runtime 架构\n\nSources: [app](src/app.ts#L1-L2)",
   );
   await writeFile(
     path.join(source, "versions", "old-version", "wiki.json"),

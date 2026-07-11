@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { ZReadWikiManifestSchema } from "./zread-wiki";
+import {
+  ZReadSourceIndexSchema,
+  ZReadWikiManifestSchema,
+  extractZReadSourceCitations,
+  isSafeZReadSourcePath,
+  parseZReadSourceHref,
+} from "./zread-wiki";
 
 const validManifest = {
   generated_at: "2026-07-11T12:30:00Z",
@@ -67,4 +73,41 @@ describe("ZReadWikiManifestSchema", () => {
       ).toThrow();
     },
   );
+});
+
+describe("ZRead source citation contract", () => {
+  it("extracts source paths and line ranges", () => {
+    expect(
+      extractZReadSourceCitations(
+        "Sources: [入口](apps/api/src/app.ts#L1-L85) [说明](README.md#L3)",
+      ),
+    ).toEqual([
+      { endLine: 85, path: "apps/api/src/app.ts", startLine: 1 },
+      { endLine: 3, path: "README.md", startLine: 3 },
+    ]);
+    expect(parseZReadSourceHref("apps/api/src/app.ts#L10-L20")).toEqual({
+      endLine: 20,
+      path: "apps/api/src/app.ts",
+      startLine: 10,
+    });
+  });
+
+  it("rejects traversal, secret files and duplicate index entries", () => {
+    expect(isSafeZReadSourcePath(".github/workflows/wiki.yml")).toBe(true);
+    expect(isSafeZReadSourcePath(".env.example")).toBe(true);
+    expect(isSafeZReadSourcePath("../.env")).toBe(false);
+    expect(isSafeZReadSourcePath("apps/web/.env.production")).toBe(false);
+    expect(isSafeZReadSourcePath("packages/a/node_modules/x.js")).toBe(false);
+    expect(isSafeZReadSourcePath("deploy/private.key")).toBe(false);
+
+    expect(() =>
+      ZReadSourceIndexSchema.parse({
+        id: validManifest.id,
+        sources: [
+          { path: "README.md", ranges: [{ end: 2, start: 1 }] },
+          { path: "README.md", ranges: [{ end: 4, start: 3 }] },
+        ],
+      }),
+    ).toThrow();
+  });
 });

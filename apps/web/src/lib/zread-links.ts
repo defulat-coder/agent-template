@@ -1,4 +1,5 @@
 import path from "node:path";
+import { parseZReadSourceHref } from "@agent-template/shared";
 
 export function createZReadHeadingId(title: string): string {
   return title
@@ -15,6 +16,7 @@ export function resolveZReadHref(
   href: string,
   indexSlug: string,
   knownSlugs: ReadonlySet<string>,
+  knownSourcePaths: ReadonlySet<string> = new Set(),
 ): string {
   if (
     href.startsWith("#") ||
@@ -59,6 +61,15 @@ export function resolveZReadHref(
     ? normalized.slice(0, -".md".length)
     : normalized;
   if (!knownSlugs.has(documentSlug)) {
+    const source = parseZReadSourceHref(href);
+    if (source && knownSourcePaths.has(source.path)) {
+      const encodedSourcePath = source.path
+        .split("/")
+        .map(encodeURIComponent)
+        .join("/");
+      const sourceSuffix = source.startLine ? `#L${source.startLine}` : "";
+      return `/docs/source/${encodedSourcePath}${sourceSuffix}`;
+    }
     return href;
   }
   const route = documentSlug === indexSlug ? "/docs" : `/docs/${documentSlug}`;
