@@ -77,9 +77,9 @@ pnpm db:seed
 
 ## 架构规则
 
-- 每个明确任务或需求完成后，提交前必须使用 `improve-codebase-architecture` 做一轮代码架构审查。
-- 架构审查产生的候选问题默认按该 skill 的推荐方案落地；只有涉及产品取舍、破坏性变更、成本明显扩大或外部约束无法判断时才向用户确认。
-- 每个架构候选修复后单独提交，全部候选修复并验证完成后再统一推送。
+- 每个有文件改动的任务完成并验证后，提交前必须使用 `improve-codebase-architecture` 审查本次变更及直接影响模块。
+- 与本次变更直接相关、非破坏性的架构候选默认修复；无关的全仓候选写入 `.scratch/architecture-review/backlog.md`，不扩大当前任务范围。
+- 涉及产品取舍、破坏性变更、成本明显扩大或外部约束无法判断时向用户确认；每个实际修复的候选单独提交，全部验证后统一推送。
 - `apps/*` 只依赖 `@agent-template/agent` 的公共 runtime 边界，不直接依赖具体 runtime package。
 - Agent runtime 只通过 `AGENT_RUNTIME=claude|eve` 选择；不要从 request 或 job payload 覆盖。
 - Kimi Code 接入 Claude 和 Eve 都使用 Anthropic-compatible 协议；API Key 只放本地 `.env` 或部署环境变量。
