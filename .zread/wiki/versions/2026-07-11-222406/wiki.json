@@ -1,0 +1,167 @@
+{
+  "generated_at": "2026-07-11T14:24:06.385868Z",
+  "id": "2026-07-11-222406",
+  "language": "zh",
+  "pages": [
+    {
+      "file": "1-xiang-mu-gai-lan.md",
+      "group": "开始了解",
+      "level": "Beginner",
+      "section": "开始了解",
+      "slug": "1-xiang-mu-gai-lan",
+      "title": "项目概览"
+    },
+    {
+      "file": "2-kuai-su-qi-dong.md",
+      "group": "开始了解",
+      "level": "Beginner",
+      "section": "开始了解",
+      "slug": "2-kuai-su-qi-dong",
+      "title": "快速启动"
+    },
+    {
+      "file": "3-xiang-mu-mu-lu-yu-mo-kuai-zhi-ze.md",
+      "group": "开始了解",
+      "level": "Beginner",
+      "section": "开始了解",
+      "slug": "3-xiang-mu-mu-lu-yu-mo-kuai-zhi-ze",
+      "title": "项目目录与模块职责"
+    },
+    {
+      "file": "4-kai-fa-gong-zuo-liu-yu-chang-yong-ming-ling.md",
+      "group": "开始了解",
+      "level": "Beginner",
+      "section": "开始了解",
+      "slug": "4-kai-fa-gong-zuo-liu-yu-chang-yong-ming-ling",
+      "title": "开发工作流与常用命令"
+    },
+    {
+      "file": "5-he-xin-gai-nian-yu-ling-yu-yu-yan.md",
+      "group": "开始了解",
+      "level": "Beginner",
+      "section": "开始了解",
+      "slug": "5-he-xin-gai-nian-yu-ling-yu-yu-yan",
+      "title": "核心概念与领域语言"
+    },
+    {
+      "file": "6-huan-jing-bian-liang-yu-yun-xing-shi-pei-zhi.md",
+      "group": "开始了解",
+      "level": "Intermediate",
+      "section": "开始了解",
+      "slug": "6-huan-jing-bian-liang-yu-yun-xing-shi-pei-zhi",
+      "title": "环境变量与运行时配置"
+    },
+    {
+      "file": "7-zheng-ti-jia-gou-yu-jin-cheng-bian-jie.md",
+      "group": "深入理解",
+      "level": "Intermediate",
+      "section": "深入理解",
+      "slug": "7-zheng-ti-jia-gou-yu-jin-cheng-bian-jie",
+      "title": "整体架构与进程边界"
+    },
+    {
+      "file": "8-agent-run-sheng-ming-zhou-qi-yu-zhi-xing-zu-yue.md",
+      "group": "深入理解",
+      "level": "Advanced",
+      "section": "深入理解",
+      "slug": "8-agent-run-sheng-ming-zhou-qi-yu-zhi-xing-zu-yue",
+      "title": "Agent Run 生命周期与执行租约"
+    },
+    {
+      "file": "9-claude-agent-runtime-gua-pei.md",
+      "group": "运行时适配",
+      "level": "Advanced",
+      "section": "深入理解",
+      "slug": "9-claude-agent-runtime-gua-pei",
+      "title": "Claude Agent Runtime 适配"
+    },
+    {
+      "file": "10-eve-agent-runtime-gua-pei.md",
+      "group": "运行时适配",
+      "level": "Advanced",
+      "section": "深入理解",
+      "slug": "10-eve-agent-runtime-gua-pei",
+      "title": "Eve Agent Runtime 适配"
+    },
+    {
+      "file": "11-toolbox-yu-mcp-gong-ju-gong-gei.md",
+      "group": "深入理解",
+      "level": "Intermediate",
+      "section": "深入理解",
+      "slug": "11-toolbox-yu-mcp-gong-ju-gong-gei",
+      "title": "Toolbox 与 MCP 工具供给"
+    },
+    {
+      "file": "12-shu-ju-ku-mo-xing-yu-chi-jiu-hua-bian-jie.md",
+      "group": "深入理解",
+      "level": "Intermediate",
+      "section": "深入理解",
+      "slug": "12-shu-ju-ku-mo-xing-yu-chi-jiu-hua-bian-jie",
+      "title": "数据库模型与持久化边界"
+    },
+    {
+      "file": "13-api-lu-you-sse-yu-ren-wu-dui-lie.md",
+      "group": "深入理解",
+      "level": "Intermediate",
+      "section": "深入理解",
+      "slug": "13-api-lu-you-sse-yu-ren-wu-dui-lie",
+      "title": "API 路由、SSE 与任务队列"
+    },
+    {
+      "file": "14-web-qian-duan-yu-chat-jie-mian.md",
+      "group": "深入理解",
+      "level": "Intermediate",
+      "section": "深入理解",
+      "slug": "14-web-qian-duan-yu-chat-jie-mian",
+      "title": "Web 前端与 Chat 界面"
+    },
+    {
+      "file": "15-cli-yu-agent-client.md",
+      "group": "深入理解",
+      "level": "Intermediate",
+      "section": "深入理解",
+      "slug": "15-cli-yu-agent-client",
+      "title": "CLI 与 Agent Client"
+    },
+    {
+      "file": "16-ce-shi-men-jin-yu-zhi-liang-yan-zheng.md",
+      "group": "深入理解",
+      "level": "Intermediate",
+      "section": "深入理解",
+      "slug": "16-ce-shi-men-jin-yu-zhi-liang-yan-zheng",
+      "title": "测试、门禁与质量验证"
+    },
+    {
+      "file": "17-docker-bu-shu-yu-sheng-chan-yun-wei.md",
+      "group": "深入理解",
+      "level": "Advanced",
+      "section": "深入理解",
+      "slug": "17-docker-bu-shu-yu-sheng-chan-yun-wei",
+      "title": "Docker 部署与生产运维"
+    },
+    {
+      "file": "18-zread-xiang-mu-wiki-sheng-cheng.md",
+      "group": "深入理解",
+      "level": "Intermediate",
+      "section": "深入理解",
+      "slug": "18-zread-xiang-mu-wiki-sheng-cheng",
+      "title": "ZRead 项目 Wiki 生成"
+    },
+    {
+      "file": "19-jia-gou-jue-ce-ji-lu-adr.md",
+      "group": "深入理解",
+      "level": "Advanced",
+      "section": "深入理解",
+      "slug": "19-jia-gou-jue-ce-ji-lu-adr",
+      "title": "架构决策记录（ADR）"
+    },
+    {
+      "file": "20-agent-skills-yu-xie-zuo-gong-zuo-liu.md",
+      "group": "深入理解",
+      "level": "Advanced",
+      "section": "深入理解",
+      "slug": "20-agent-skills-yu-xie-zuo-gong-zuo-liu",
+      "title": "Agent Skills 与协作工作流"
+    }
+  ]
+}
