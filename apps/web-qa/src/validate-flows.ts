@@ -1,6 +1,6 @@
 import { readdir, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { isScenarioName } from "./scenarios.js";
+import { isScenarioName, supportsScenarioRoute } from "./scenarios.js";
 
 const flowsDirectory = fileURLToPath(new URL("../flows", import.meta.url));
 const files = (await readdir(flowsDirectory))
@@ -23,6 +23,11 @@ for (const file of files) {
   ids.add(id);
   if (!isScenarioName(metadata.scenario)) {
     throw new Error(`${file}: unknown scenario ${metadata.scenario}`);
+  }
+  if (!supportsScenarioRoute(metadata.scenario, metadata.route ?? "")) {
+    throw new Error(
+      `${file}: scenario ${metadata.scenario} does not support route ${metadata.route}`,
+    );
   }
   for (const section of requiredSections) {
     if (!content.includes(`## ${section}`)) {

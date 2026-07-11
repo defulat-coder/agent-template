@@ -7,20 +7,79 @@ import {
   type HealthStatus,
 } from "@agent-template/shared";
 
-export const scenarioNames = [
-  "health-ok",
-  "health-degraded",
-  "chat-completed",
-  "chat-tool-events",
-  "chat-artifacts",
-  "chat-markdown",
-  "chat-slow-cancellable",
-  "chat-failed",
-  "chat-skipped",
-  "chat-disconnected",
-] as const;
+type ScenarioRoute = "/" | "/agent";
+type ChatBehavior =
+  | "completed"
+  | "tool-events"
+  | "artifacts"
+  | "markdown"
+  | "slow-cancellable"
+  | "failed"
+  | "skipped"
+  | "disconnected";
 
-export type ScenarioName = (typeof scenarioNames)[number];
+export const scenarioCatalog = {
+  "health-ok": {
+    health: "ok",
+    chat: "completed",
+    routes: ["/", "/agent"],
+  },
+  "health-degraded": {
+    health: "degraded",
+    chat: null,
+    routes: ["/"],
+  },
+  "chat-completed": {
+    health: "ok",
+    chat: "completed",
+    routes: ["/agent"],
+  },
+  "chat-tool-events": {
+    health: "ok",
+    chat: "tool-events",
+    routes: ["/agent"],
+  },
+  "chat-artifacts": {
+    health: "ok",
+    chat: "artifacts",
+    routes: ["/agent"],
+  },
+  "chat-markdown": {
+    health: "ok",
+    chat: "markdown",
+    routes: ["/agent"],
+  },
+  "chat-slow-cancellable": {
+    health: "ok",
+    chat: "slow-cancellable",
+    routes: ["/agent"],
+  },
+  "chat-failed": {
+    health: "ok",
+    chat: "failed",
+    routes: ["/agent"],
+  },
+  "chat-skipped": {
+    health: "ok",
+    chat: "skipped",
+    routes: ["/agent"],
+  },
+  "chat-disconnected": {
+    health: "ok",
+    chat: "disconnected",
+    routes: ["/agent"],
+  },
+} as const satisfies Record<
+  string,
+  {
+    health: "ok" | "degraded";
+    chat: ChatBehavior | null;
+    routes: readonly ScenarioRoute[];
+  }
+>;
+
+export type ScenarioName = keyof typeof scenarioCatalog;
+export const scenarioNames = Object.keys(scenarioCatalog) as ScenarioName[];
 
 export type ChatScenario = {
   events: AgentRunEvent[];
@@ -35,8 +94,12 @@ export function isScenarioName(value: unknown): value is ScenarioName {
   );
 }
 
+export function supportsScenarioRoute(name: ScenarioName, route: string) {
+  return (scenarioCatalog[name].routes as readonly string[]).includes(route);
+}
+
 export function createScenarioHealth(name: ScenarioName): HealthStatus {
-  const degraded = name === "health-degraded";
+  const degraded = scenarioCatalog[name].health === "degraded";
   return createHealthStatus({
     service: "web-qa-fixture",
     status: degraded ? "degraded" : "ok",
@@ -71,7 +134,12 @@ export function createChatScenario(
   name: ScenarioName,
   promptLength: number,
 ): ChatScenario {
-  if (name === "chat-tool-events") {
+  const behavior = scenarioCatalog[name].chat;
+  if (!behavior) {
+    throw new Error(`Scenario ${name} does not support Agent Chat`);
+  }
+
+  if (behavior === "tool-events") {
     return completedScenario(
       promptLength,
       [
@@ -94,7 +162,7 @@ export function createChatScenario(
     );
   }
 
-  if (name === "chat-artifacts") {
+  if (behavior === "artifacts") {
     return completedScenario(
       promptLength,
       [
@@ -122,7 +190,7 @@ export function createChatScenario(
     );
   }
 
-  if (name === "chat-markdown") {
+  if (behavior === "markdown") {
     const markdown = [
       "# QA Markdown",
       "",
@@ -149,7 +217,7 @@ export function createChatScenario(
     );
   }
 
-  if (name === "chat-failed") {
+  if (behavior === "failed") {
     const events = [event({ kind: "error", message: "QA fixture 模拟失败。" })];
     return {
       events,
@@ -166,7 +234,7 @@ export function createChatScenario(
     };
   }
 
-  if (name === "chat-skipped") {
+  if (behavior === "skipped") {
     return {
       events: [],
       result: AgentRunResultSchema.parse({
@@ -181,7 +249,7 @@ export function createChatScenario(
     };
   }
 
-  if (name === "chat-disconnected") {
+  if (behavior === "disconnected") {
     return {
       events: [
         event({ kind: "text", text: "连接将在最终结果前断开。" }),
@@ -189,7 +257,7 @@ export function createChatScenario(
     };
   }
 
-  if (name === "chat-slow-cancellable") {
+  if (behavior === "slow-cancellable") {
     const scenario = completedScenario(
       promptLength,
       [event({ kind: "text", text: "QA fixture 正在等待取消。" })],

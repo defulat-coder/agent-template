@@ -59,7 +59,7 @@
 | completed  | 收窄本地 Toolbox 容器暴露面                | Worth exploring | 宿主机 MCP 端口只绑定 loopback，容器网络访问保持不变                                    |
 | deferred   | 统一 Agent Chat SSE wire protocol          | Strong          | 跨 API、Web、shared 与 QA adapter；另立任务共享 envelope、编解码与 contract tests       |
 | completed  | 深化 Web QA environment lifecycle          | Strong          | fixture、Web 首页与 Agent route 全部 ready 后才开放 Browser interface，失败统一清理     |
-| pending    | 集中 Web QA scenario 目录                  | Worth exploring | 用单一目录声明 health/chat 行为与适用 route，并由 flow validator 校验                    |
+| completed  | 集中 Web QA scenario 目录                  | Worth exploring | 单一目录声明 health/chat 行为与适用 route，flow validator 拒绝不匹配组合                 |
 
 ## 执行规则
 
