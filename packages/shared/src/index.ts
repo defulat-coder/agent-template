@@ -21,10 +21,12 @@ export {
 export {
   AgentRunInputSchema,
   AgentRunResultSchema,
+  AgentRunRecordedEventSchema,
   AgentRunSnapshotSchema,
   AgentRunStatusSchema,
   type AgentRunInput,
   type AgentRunResult,
+  type AgentRunRecordedEvent,
   type AgentRunSnapshot,
   type AgentRunStatus,
 } from "./agent-run";

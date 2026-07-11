@@ -41,20 +41,33 @@ async function main() {
     const stored = await lifecycle.get(queued.id);
     assert.equal(stored?.status, "completed");
     assert.equal(stored?.output, "Done");
-    assert.deepEqual(stored?.events, [
-      { kind: "text", text: "Working" },
-      { kind: "done", result: "Done" },
-    ]);
+    assert.deepEqual(
+      stored?.events.map((item) => item.event),
+      [
+        { kind: "text", text: "Working" },
+        { kind: "done", result: "Done" },
+      ],
+    );
+    assert.deepEqual(
+      stored?.events.map((item) => item.executionAttempt),
+      [1, 1],
+    );
 
     const cancelled = await lifecycle.queue({ prompt: "Cancel before run" });
     createdRunIds.push(cancelled.id);
     const cancellation = await lifecycle.cancel(cancelled.id);
+    assert.ok(cancellation);
     assert.equal(cancellation?.status, "cancelled");
     assert.ok(cancellation?.cancelRequestedAt);
     assert.deepEqual(cancellation?.events, [
       {
-        kind: "cancelled",
-        reason: "Agent run was cancelled before execution",
+        sequence: 0,
+        executionAttempt: null,
+        createdAt: cancellation.events[0]?.createdAt,
+        event: {
+          kind: "cancelled",
+          reason: "Agent run was cancelled before execution",
+        },
       },
     ]);
     await assert.doesNotReject(() => lifecycle.resume(cancelled.id, {}));

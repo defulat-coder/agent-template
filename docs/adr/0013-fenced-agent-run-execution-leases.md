@@ -22,6 +22,7 @@ The BullMQ delivery adapter derives its fixed retry delay from the lifecycle's d
 - If cancellation was requested after a crash, the first post-expiry redelivery finalizes `cancelled` instead of reclaiming execution.
 - Partial events from an expired attempt remain ordered evidence. A reclaimed attempt appends from the next sequence.
 - Every execution event atomically copies the current `executionAttempt`; lifecycle-only cancellation events use `null`. Timeline and Tool call/result correlation include the attempt, preventing cross-attempt callId collisions.
+- Durable `AgentRunSnapshot.events` exposes `sequence`, nullable `executionAttempt`, `createdAt`, and the nested runtime event. Live SSE and `AgentRunResult.events` remain the runtime-neutral event stream without persistence metadata.
 - `executionAttempt`, `heartbeatAt`, and `leaseExpiresAt` are visible in Agent run snapshots and Toolbox observability; the fencing token is never exposed.
 - Lease duration must exceed the heartbeat interval. Temporary database failures fail closed by aborting the current executor rather than allowing unfenced writes.
 - Worker clock skew cannot cause early reclaim or late write acceptance.

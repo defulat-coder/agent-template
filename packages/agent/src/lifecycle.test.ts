@@ -50,9 +50,18 @@ describe("Agent run lifecycle", () => {
       runtime: "claude",
       model: "test-model",
     });
-    expect(stored?.events).toEqual([
+    expect(stored?.events.map((item) => item.event)).toEqual([
       { kind: "text", text: "Working" },
       { kind: "done", result: "Done" },
+    ]);
+    expect(
+      stored?.events.map(({ sequence, executionAttempt }) => ({
+        sequence,
+        executionAttempt,
+      })),
+    ).toEqual([
+      { sequence: 0, executionAttempt: 1 },
+      { sequence: 1, executionAttempt: 1 },
     ]);
   });
 

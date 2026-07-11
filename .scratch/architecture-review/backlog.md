@@ -50,6 +50,7 @@
 | completed  | 持久化 Agent run event attempt provenance  | Strong          | execution event 原子投影 attempt；timeline 与 Tool 配对禁止跨 attempt 关联              |
 | completed  | 收口本地 Toolbox verifier 资源生命周期     | Worth exploring | connect failure close Client；launcher stop/parent exit 清理临时 Toolbox                |
 | completed  | 对齐 AgentRun Toolbox SQL 与生产索引       | Strong          | 先 limit run 再 lateral count；三条访问路径由专用索引和 EXPLAIN gate 锁定               |
+| completed  | 让 AgentRunSnapshot 保留 event provenance  | Worth exploring | durable event envelope 暴露 sequence/attempt/time；SSE runtime event 保持不变           |
 | completed  | 同步 Toolbox 生成产物                      | Strong          | production 配置、官方原始 Skill 与 runtime Skill 均由同一事实源生成并通过 stale gate    |
 | completed  | 固定 Toolbox UTC 日桶                      | Strong          | 销售日显式按 UTC 转换，不再依赖 PostgreSQL session timezone                             |
 | completed  | 规范化 Toolbox MCP URL                     | Worth exploring | `/mcp/` 与 `/mcp` 归一为一个 MCP path，Claude/Eve 共享 parser 不再重复追加              |
@@ -63,6 +64,14 @@
 - 每轮完成后用中文 Conventional Commit 提交。
 
 ## 已完成
+
+### 让 AgentRunSnapshot 保留 event provenance
+
+- 日期：2026-07-11
+- locality：持久化时间线 metadata 只存在 `AgentRunSnapshot` record envelope；runtime result/SSE interface 保持裸 event。
+- deletion test：若 snapshot 丢弃 envelope，API/Web 调用方只能猜测 retry attempt；保留后不需要向 runtime protocol 扩散存储概念。
+- leverage：同一 envelope 支撑 GET run、取消结果、未来 Web 历史时间线和审计，同时保留实时路径兼容性。
+- 聚焦验证：shared schema 拒绝裸 snapshot event；lifecycle unit 与真实 PostgreSQL verifier 断言 sequence、attempt、createdAt 和 nested event。
 
 ### 对齐 AgentRun Toolbox SQL 与生产索引
 

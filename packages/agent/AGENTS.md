@@ -14,6 +14,7 @@
 - 每次 execution claim 使用可续期 lease 和 fencing token；过期 attempt 可 reclaim，旧 executor 不得写 event 或 terminal state。
 - 具体实现通过 dynamic import 委派给 `AGENT_RUNTIME` 选中的 package；同步 state 解析不得触发两套 runtime 加载。
 - runtime adapter 已产生的 Agent run event 按序持久化并通过 `AgentRunResult.events` 透出。
+- durable snapshot 通过 record envelope 暴露 sequence/attempt/time；不要把这些 persistence metadata 注入 runtime adapter 或 Chat SSE event。
 - Toolbox 连接信息只作为 runtime-owned MCP Client 配置透传；不要在公共 selector 内读取 `apps/toolbox/tools.yaml` 或创建 MCP Client。
 
 ## 不应该做

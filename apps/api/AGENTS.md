@@ -12,6 +12,7 @@
 - BullMQ retry policy 必须从 `defaultAgentRunLeaseDurationMs` 派生，并在 lease 后增加 grace；不能使用会在 lease 内耗尽的快速 retry。
 - Agent Chat 通过公共 `AgentRunLifecycle` 启动 run，并用 SSE 返回 event 和最终结果。
 - `GET /agent/runs/:runId` 读取持久化状态；`DELETE /agent/runs/:runId` 请求协作式取消。
+- `GET /agent/runs/:runId` 的 events 返回持久化 envelope；Chat SSE 的 `agent-event` 仍返回裸 runtime event。
 - 任务队列使用 BullMQ，并通过 `@agent-template/shared` 的队列名和 payload schema 保持类型一致。
 - 日志使用 `@agent-template/logger`。
 - Agent run lifecycle 和 runtime selector 通过 `@agent-template/agent` 使用；持久化 adapter 来自 `@agent-template/db`。

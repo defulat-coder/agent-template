@@ -14,6 +14,13 @@ export const AgentRunStatusSchema = z.enum([
   "cancelled",
 ]);
 
+export const AgentRunRecordedEventSchema = z.object({
+  sequence: z.number().int().nonnegative(),
+  executionAttempt: z.number().int().positive().nullable(),
+  createdAt: z.string().datetime(),
+  event: AgentRunEventSchema,
+});
+
 const AgentRunResultBaseSchema = z.object({
   promptLength: z.number().int().nonnegative(),
   runtime: z.enum(["claude", "eve"]),
@@ -62,10 +69,11 @@ export const AgentRunSnapshotSchema = z.object({
   output: z.string().nullable(),
   reason: z.string().nullable(),
   sessionId: z.string().nullable(),
-  events: z.array(AgentRunEventSchema),
+  events: z.array(AgentRunRecordedEventSchema),
 });
 
 export type AgentRunInput = z.infer<typeof AgentRunInputSchema>;
 export type AgentRunResult = z.infer<typeof AgentRunResultSchema>;
+export type AgentRunRecordedEvent = z.infer<typeof AgentRunRecordedEventSchema>;
 export type AgentRunStatus = z.infer<typeof AgentRunStatusSchema>;
 export type AgentRunSnapshot = z.infer<typeof AgentRunSnapshotSchema>;

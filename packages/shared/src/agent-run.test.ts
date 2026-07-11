@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AgentRunResultSchema } from "./agent-run";
+import { AgentRunResultSchema, AgentRunSnapshotSchema } from "./agent-run";
 
 describe("AgentRunResultSchema", () => {
   it("accepts completed Agent runs with run events", () => {
@@ -43,6 +43,42 @@ describe("AgentRunResultSchema", () => {
         promptLength: 9,
         runtime: "claude",
         status: "failed",
+      }),
+    ).toThrow();
+  });
+
+  it("keeps persistence metadata in snapshot event envelopes", () => {
+    const snapshot = {
+      id: "run-1",
+      prompt: "Run",
+      requestedAt: "2026-07-11T00:00:00.000Z",
+      startedAt: "2026-07-11T00:00:01.000Z",
+      completedAt: "2026-07-11T00:00:02.000Z",
+      cancelRequestedAt: null,
+      status: "completed",
+      executionAttempt: 2,
+      leaseExpiresAt: null,
+      heartbeatAt: "2026-07-11T00:00:01.500Z",
+      runtime: "claude",
+      model: "test-model",
+      output: "Done",
+      reason: null,
+      sessionId: null,
+      events: [
+        {
+          sequence: 3,
+          executionAttempt: 2,
+          createdAt: "2026-07-11T00:00:01.500Z",
+          event: { kind: "done", result: "Done" },
+        },
+      ],
+    };
+
+    expect(AgentRunSnapshotSchema.parse(snapshot)).toEqual(snapshot);
+    expect(() =>
+      AgentRunSnapshotSchema.parse({
+        ...snapshot,
+        events: [{ kind: "done", result: "Done" }],
       }),
     ).toThrow();
   });

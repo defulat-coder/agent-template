@@ -500,6 +500,11 @@ function toSnapshot(run: StoredAgentRun): AgentRunSnapshot {
     output: run.output,
     reason: run.reason,
     sessionId: run.sessionId,
-    events: run.events.map((item) => item.event),
+    events: run.events.map((item) => ({
+      sequence: item.sequence,
+      executionAttempt: item.executionAttempt,
+      createdAt: item.createdAt.toISOString(),
+      event: item.event,
+    })),
   };
 }
