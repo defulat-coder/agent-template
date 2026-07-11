@@ -5,6 +5,7 @@
 ## 模块职责
 
 - `web`: Next.js 前端应用。
+- `web-qa`: Codex Browser 测试计划与确定性 HTTP/SSE fixture。
 - `api`: Fastify HTTP API。
 - `worker`: BullMQ 后台任务进程。
 - `toolbox`: MCP Toolbox for Databases 配置目录，提供 Agent 可加载的数据库工具。
