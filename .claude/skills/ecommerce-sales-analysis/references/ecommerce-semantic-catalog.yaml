@@ -148,7 +148,7 @@ metrics:
 dimensions:
   - id: payment_day
     labels: [付款日, 成交日]
-    field: date_trunc('day', EcommerceOrder.paidAt)
+    field: (EcommerceOrder.paidAt AT TIME ZONE 'UTC')::date
     valueSource:
       kind: time-bucket
       description: 由请求的 UTC 时间窗动态生成自然日，不维护静态枚举。

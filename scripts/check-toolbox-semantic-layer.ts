@@ -270,6 +270,15 @@ function validateTool(tool: ToolboxEntry) {
     );
   }
 
+  if (
+    name === "summarize-ecommerce-sales-by-day" &&
+    !statement.includes(`("paidAt" AT TIME ZONE 'UTC')::date`)
+  ) {
+    errors.push(
+      `${name}: UTC day buckets must not depend on the PostgreSQL session timezone`,
+    );
+  }
+
   if (/^list[-_]/.test(name) && !/\bLIMIT\b/i.test(statement)) {
     errors.push(`${name}: list tools must enforce a SQL LIMIT`);
   }

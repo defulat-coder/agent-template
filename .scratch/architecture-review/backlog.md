@@ -36,6 +36,7 @@
 | completed | 阻止 Toolbox token 进入 Claude subprocess  | Strong          | ambient Toolbox env 在创建 Claude subprocess env 时显式删除并有回归测试               |
 | completed | 恢复 Toolbox 执行级时间窗护栏              | Strong          | PostgreSQL 统一拒绝反向或超过 31 天的窗口，原生 MCP 验收穿过真实 seam                 |
 | completed | 同步 Toolbox 生成产物                      | Strong          | production 配置、官方原始 Skill 与 runtime Skill 均由同一事实源生成并通过 stale gate |
+| completed | 固定 Toolbox UTC 日桶                      | Strong          | 销售日显式按 UTC 转换，不再依赖 PostgreSQL session timezone                          |
 
 ## 执行规则
 
@@ -44,6 +45,14 @@
 - 每轮完成后用中文 Conventional Commit 提交。
 
 ## 已完成
+
+### 固定 Toolbox UTC 日桶
+
+- 日期：2026-07-11
+- locality：`summarize-ecommerce-sales-by-day` 在 SQL 内显式将 `paidAt` 转为 UTC 日期，Business semantic catalog 使用同一口径。
+- deletion test：删除该转换会让 session timezone 重新进入业务指标 interface，因此显式 UTC 转换属于查询 module 的必要 implementation。
+- leverage：所有 Claude/Eve 调用方和 production 配置共享同一自然日语义；静态语义门禁阻止回归。
+- 聚焦验证：非 UTC session 对照查询、`pnpm toolbox:check`。
 
 ### 同步 Toolbox 生成产物
 
