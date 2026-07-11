@@ -19,8 +19,9 @@
 ## 设计规则
 
 - shadcn/ui 组件和组合模式使用 `shadcn` Skill。
-- UI 性能规则优先使用 `vercel-react-best-practices` Skill。
-- 高阶视觉打磨使用 `impeccable` Skill。
+- UI、样式、交互、动效、无障碍和前端性能任务在编辑前先运行 `pnpm ui:skills start`，再按路由结果运行 `pnpm ui:skills list --category <category>` 和 `pnpm ui:skills get <owner/skill>`。
+- 普通任务动态加载 1 个 UI Skill；广泛审查、重设计或多界面任务最多加载 3 个。不把动态 Skill 安装进项目。
+- 本文件、项目既有技术栈和组件模式优先于动态 UI Skill；未经要求不得迁移框架、组件库或动画库。
 
 ## 验证
 

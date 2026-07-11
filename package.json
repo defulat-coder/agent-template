@@ -36,6 +36,7 @@
     "toolbox:verify:docker": "tsx scripts/toolbox/verify-ecommerce-toolbox.ts --docker",
     "skills:generate:toolbox": "pnpm toolbox:check:semantic && tsx scripts/generate-toolbox-business-skills.ts",
     "skills:check:toolbox": "pnpm toolbox:check:semantic && tsx scripts/generate-toolbox-business-skills.ts --check",
+    "ui:skills": "npx --yes ui-skills@0.2.3",
     "format": "prettier --write ."
   },
   "devDependencies": {
