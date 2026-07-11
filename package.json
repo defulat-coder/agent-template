@@ -17,6 +17,7 @@
     "db:seed": "pnpm --filter @agent-template/db db:seed && pnpm --filter @agent-template/ecommerce-fixture db:seed",
     "db:verify:boundaries": "tsx scripts/verify-database-boundaries.ts",
     "db:verify:fixture:empty": "pnpm --filter @agent-template/ecommerce-fixture exec tsx scripts/verify-empty-database.ts",
+    "db:verify:fixture:partial": "pnpm --filter @agent-template/ecommerce-fixture exec tsx scripts/verify-empty-database.ts --partial",
     "db:verify:migrations:empty": "pnpm --filter @agent-template/ecommerce-fixture exec tsx scripts/verify-empty-database.ts --full",
     "agent-runs:verify:local": "pnpm --filter @agent-template/db exec prisma migrate deploy --schema prisma/schema.prisma && tsx scripts/verify-agent-run-lifecycle.ts",
     "agent-runtime:verify:local": "tsx scripts/verify-agent-runtime-readiness.ts",

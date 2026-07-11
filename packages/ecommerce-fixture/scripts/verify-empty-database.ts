@@ -5,6 +5,7 @@ import { getEcommerceFixtureDatabaseUrl } from "../src/config.js";
 
 const repositoryRoot = fileURLToPath(new URL("../../..", import.meta.url));
 const fullDatabase = process.argv.includes("--full");
+const partialDatabase = process.argv.includes("--partial");
 const databaseName = `agent_template_fixture_verify_${process.pid}`;
 const configuredUrl = new URL(getEcommerceFixtureDatabaseUrl());
 const adminUrl = new URL(configuredUrl);
@@ -22,6 +23,39 @@ async function main() {
 
   try {
     await admin.query(`CREATE DATABASE ${quoteIdentifier(databaseName)}`);
+    if (partialDatabase) {
+      const fixture = new Client({ connectionString: temporaryUrl.toString() });
+      await fixture.connect();
+      try {
+        await fixture.query(`CREATE SCHEMA ecommerce_fixture`);
+        await fixture.query(
+          `CREATE TABLE ecommerce_fixture."EcommerceOrder" (id text PRIMARY KEY)`,
+        );
+      } finally {
+        await fixture.end();
+      }
+
+      let rejected = false;
+      try {
+        runPnpm([
+          "--filter",
+          "@agent-template/ecommerce-fixture",
+          "db:migrate",
+        ]);
+      } catch {
+        rejected = true;
+      }
+      if (!rejected) {
+        throw new Error(
+          "Partial ecommerce_fixture schema was incorrectly baselined",
+        );
+      }
+      console.log(
+        "Partial-database fixture verification passed: incomplete ecommerce_fixture state was rejected before baselining.",
+      );
+      return;
+    }
+
     if (fullDatabase) {
       runPnpm(["db:deploy"]);
       runPnpm(["db:seed"]);

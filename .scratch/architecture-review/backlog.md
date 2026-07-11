@@ -42,6 +42,7 @@
 | completed  | 修正 ADR 与模块规则的 Host 漂移            | Strong          | superseded ADR 仅保留历史；当前规则统一指向 runtime-owned MCP 与 Toolbox 授权           |
 | completed  | 隔离平台数据库与 Ecommerce fixture         | Strong          | 平台留在 `public`；fixture 独立 package/schema/migration/seed，Tool SQL 显式限定 schema |
 | completed  | 收紧 Agent job queue payload seam          | Strong          | BullMQ 只携带 `runId`；Worker process 强制注入 lifecycle resume，不保留 runtime 旁路    |
+| completed  | 收紧 Ecommerce baseline eligibility        | Strong          | 五张 fixture 表必须全有或全无；部分 schema drift fail closed，并有真实数据库负向验证    |
 | completed  | 同步 Toolbox 生成产物                      | Strong          | production 配置、官方原始 Skill 与 runtime Skill 均由同一事实源生成并通过 stale gate    |
 | completed  | 固定 Toolbox UTC 日桶                      | Strong          | 销售日显式按 UTC 转换，不再依赖 PostgreSQL session timezone                             |
 | completed  | 规范化 Toolbox MCP URL                     | Worth exploring | `/mcp/` 与 `/mcp` 归一为一个 MCP path，Claude/Eve 共享 parser 不再重复追加              |
@@ -55,6 +56,14 @@
 - 每轮完成后用中文 Conventional Commit 提交。
 
 ## 已完成
+
+### 收紧 Ecommerce baseline eligibility
+
+- 日期：2026-07-11
+- locality：已有库 baseline eligibility 集中在 fixture migration runner，明确验证五张业务表的完整集合。
+- deletion test：单表哨兵无法封装迁移前置条件；删除它并吸收为完整 inventory 检查后，迁移状态与数据库状态重新同源。
+- leverage：同一 fail-closed seam 同时保护本地、CI 和生产 deploy；部分 schema 不会被误标为已完成。
+- 聚焦验证：临时 PostgreSQL 数据库构造单表残留，`pnpm db:verify:fixture:partial` 必须观察到 migration 拒绝 baseline；空库和完整旧库路径继续通过。
 
 ### 收紧 Agent job queue payload seam
 

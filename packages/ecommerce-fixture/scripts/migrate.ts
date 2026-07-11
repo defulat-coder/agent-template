@@ -6,6 +6,13 @@ import { Client } from "pg";
 import { getEcommerceFixtureDatabaseUrl } from "../src/config.js";
 
 const baseline = "0_ecommerce_fixture_baseline";
+const requiredBusinessTables = [
+  "EcommerceCustomer",
+  "EcommerceProduct",
+  "EcommerceOrder",
+  "EcommerceOrderItem",
+  "EcommercePayment",
+] as const;
 const packageRoot = fileURLToPath(new URL("..", import.meta.url));
 const require = createRequire(import.meta.url);
 const prismaPackageJson = require.resolve("prisma/package.json");
@@ -21,8 +28,13 @@ async function main() {
   await client.connect();
 
   try {
-    const businessTable = await client.query<{ table_name: string | null }>(
-      `SELECT to_regclass('ecommerce_fixture."EcommerceOrder"')::text AS table_name`,
+    const businessTables = await client.query<{ tablename: string }>(
+      `SELECT tablename
+       FROM pg_catalog.pg_tables
+       WHERE schemaname = 'ecommerce_fixture'
+         AND tablename = ANY($1::text[])
+       ORDER BY tablename`,
+      [[...requiredBusinessTables]],
     );
     const migrationsTable = await client.query<{
       table_name: string | null;
@@ -40,8 +52,23 @@ async function main() {
         )
       : undefined;
 
+    const existingTables = new Set(
+      businessTables.rows.map((row) => row.tablename),
+    );
     if (
-      businessTable.rows[0]?.table_name &&
+      existingTables.size > 0 &&
+      existingTables.size < requiredBusinessTables.length
+    ) {
+      const missingTables = requiredBusinessTables.filter(
+        (table) => !existingTables.has(table),
+      );
+      throw new Error(
+        `Refusing to baseline partial ecommerce_fixture schema; missing tables: ${missingTables.join(", ")}`,
+      );
+    }
+
+    if (
+      existingTables.size === requiredBusinessTables.length &&
       !baselineApplied?.rows[0]?.applied
     ) {
       runPrisma(["migrate", "resolve", "--applied", baseline]);
