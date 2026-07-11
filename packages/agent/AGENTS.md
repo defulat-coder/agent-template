@@ -10,7 +10,8 @@
 - `getAgentRuntimeStateFromEnv` 返回当前 runtime、配置状态和模型。
 - `checkAgentRuntimeReadinessFromEnv` 只探测部署选择的 runtime，并以短超时返回 shared dependency state。
 - `runAgent` 是 Chat SSE 和 Worker 共同调用的 Agent run execution seam，负责 run input validation、runtime dispatch 和 execution result assembly。
-- `createAgentRunLifecycle` 负责 create/start/event/terminal/cancel 状态机；存储只通过 `AgentRunRepository` interface。
+- `createAgentRunLifecycle` 负责 create/claim/heartbeat/event/terminal/cancel 状态机；存储只通过 `AgentRunRepository` interface。
+- 每次 execution claim 使用可续期 lease 和 fencing token；过期 attempt 可 reclaim，旧 executor 不得写 event 或 terminal state。
 - 具体实现通过 dynamic import 委派给 `AGENT_RUNTIME` 选中的 package；同步 state 解析不得触发两套 runtime 加载。
 - runtime adapter 已产生的 Agent run event 按序持久化并通过 `AgentRunResult.events` 透出。
 - Toolbox 连接信息只作为 runtime-owned MCP Client 配置透传；不要在公共 selector 内读取 `apps/toolbox/tools.yaml` 或创建 MCP Client。

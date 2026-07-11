@@ -10,6 +10,7 @@
 - `prisma.config.ts` 管理 Prisma 7 datasource 配置。
 - `prisma/seed.ts` 只写入确定性的 Agent 平台 `TemplateEvent`；电商验证数据属于 `packages/ecommerce-fixture`。
 - `src/index.ts` 导出 Prisma Client 和 `AgentRunRepository` adapter。
+- Agent run claim、heartbeat、execution event 和 terminal update 必须以 PostgreSQL 原子条件实现 fencing；不能先读 token 再无条件写。
 - 默认数据库连接使用 `localhost:15432`，避免和本机默认 PostgreSQL 冲突。
 - Prisma 目录内的 schema、migration、seed 规则见 `prisma/AGENTS.md`。
 

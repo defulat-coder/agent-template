@@ -10,6 +10,8 @@ Accepted.
 
 The lifecycle creates a run before execution or enqueue, atomically transitions `queued -> running`, persists events in sequence order, and writes exactly one terminal state. API and Worker assemble the same lifecycle with the Prisma repository. Runtime adapters receive cooperative cancellation through `AbortController`.
 
+Execution is protected by the renewable, fenced lease defined in [ADR 0013](./0013-fenced-agent-run-execution-leases.md), so an expired `running` attempt can be reclaimed without allowing the old executor to write late events or terminal state.
+
 ## Consequences
 
 - `POST /agent/chat` and `POST /agent/jobs` create durable run records.

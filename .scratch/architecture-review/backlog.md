@@ -44,6 +44,7 @@
 | completed  | 收紧 Agent job queue payload seam          | Strong          | BullMQ 只携带 `runId`；Worker process 强制注入 lifecycle resume，不保留 runtime 旁路    |
 | completed  | 收紧 Ecommerce baseline eligibility        | Strong          | 五张 fixture 表必须全有或全无；部分 schema drift fail closed，并有真实数据库负向验证    |
 | completed  | 让 Agent run Tool 读取 durable record      | Strong          | 生命周期、失败与 Tool 调用统计改查 AgentRun/Event；TemplateEvent 只保留样例巡检         |
+| completed  | 建立 Agent run execution lease 与 fencing  | Strong          | 过期 running 可 reclaim；attempt/token/heartbeat 原子保护 event 与 terminal write       |
 | completed  | 同步 Toolbox 生成产物                      | Strong          | production 配置、官方原始 Skill 与 runtime Skill 均由同一事实源生成并通过 stale gate    |
 | completed  | 固定 Toolbox UTC 日桶                      | Strong          | 销售日显式按 UTC 转换，不再依赖 PostgreSQL session timezone                             |
 | completed  | 规范化 Toolbox MCP URL                     | Worth exploring | `/mcp/` 与 `/mcp` 归一为一个 MCP path，Claude/Eve 共享 parser 不再重复追加              |
@@ -57,6 +58,14 @@
 - 每轮完成后用中文 Conventional Commit 提交。
 
 ## 已完成
+
+### 建立 Agent run execution lease 与 fencing
+
+- 日期：2026-07-11
+- locality：claim、heartbeat、reclaim、event 与 terminal fencing 集中在 `AgentRunLifecycle` interface 和 PostgreSQL adapter，不依赖 BullMQ 状态推断。
+- deletion test：删除 execution lease 会把崩溃恢复、重复执行和迟到写防护散落到 Worker、Queue 与人工运维，且无法保住 source of truth。
+- leverage：同一 fenced seam 同时保护 queued redelivery、Chat/Worker execution、取消竞争和 Toolbox 观测；数据库是唯一仲裁者。
+- 聚焦验证：unit adapter 覆盖 attempt/reclaim；真实 PostgreSQL 验证过期前拒绝、过期后 reclaim、旧 token event/terminal 拒绝、新 token 完成及崩溃后取消终结。
 
 ### 让 Agent run Tool 读取 durable record
 

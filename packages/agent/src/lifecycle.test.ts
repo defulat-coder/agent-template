@@ -118,6 +118,126 @@ describe("Agent run lifecycle", () => {
     });
     expect(executions).toBe(0);
   });
+
+  it("reclaims an expired execution and fences the stale executor", async () => {
+    const repository = createInMemoryRepository();
+    const requestedAt = new Date("2026-07-11T00:00:00.000Z");
+    await repository.create({
+      id: "run-lease",
+      prompt: "Recover",
+      requestedAt,
+    });
+
+    const first = await repository.claim("run-lease", {
+      executionToken: "execution-1",
+      runtime: "claude",
+      model: "test-model",
+      claimedAt: requestedAt,
+      leaseExpiresAt: new Date("2026-07-11T00:00:10.000Z"),
+    });
+    expect(first?.executionAttempt).toBe(1);
+    await expect(
+      repository.claim("run-lease", {
+        executionToken: "execution-2",
+        runtime: "claude",
+        model: "test-model",
+        claimedAt: new Date("2026-07-11T00:00:09.000Z"),
+        leaseExpiresAt: new Date("2026-07-11T00:00:19.000Z"),
+      }),
+    ).resolves.toBeUndefined();
+    await expect(
+      repository.heartbeat("run-lease", {
+        executionToken: "execution-1",
+        heartbeatAt: new Date("2026-07-11T00:00:11.000Z"),
+        leaseExpiresAt: new Date("2026-07-11T00:00:21.000Z"),
+      }),
+    ).resolves.toBe("lost");
+
+    const reclaimed = await repository.claim("run-lease", {
+      executionToken: "execution-2",
+      runtime: "claude",
+      model: "test-model",
+      claimedAt: new Date("2026-07-11T00:00:11.000Z"),
+      leaseExpiresAt: new Date("2026-07-11T00:00:21.000Z"),
+    });
+    expect(reclaimed?.executionAttempt).toBe(2);
+    await expect(
+      repository.appendExecutionEvent("run-lease", {
+        executionToken: "execution-1",
+        sequence: 0,
+        event: { kind: "text", text: "stale" },
+        createdAt: new Date("2026-07-11T00:00:12.000Z"),
+      }),
+    ).resolves.toBe(false);
+    await expect(
+      repository.finishExecution("run-lease", {
+        executionToken: "execution-1",
+        status: "completed",
+        completedAt: new Date("2026-07-11T00:00:12.000Z"),
+        output: "stale",
+      }),
+    ).resolves.toBeUndefined();
+    await expect(
+      repository.appendExecutionEvent("run-lease", {
+        executionToken: "execution-2",
+        sequence: 0,
+        event: { kind: "done", result: "recovered" },
+        createdAt: new Date("2026-07-11T00:00:13.000Z"),
+      }),
+    ).resolves.toBe(true);
+    await expect(
+      repository.finishExecution("run-lease", {
+        executionToken: "execution-2",
+        status: "completed",
+        completedAt: new Date("2026-07-11T00:00:14.000Z"),
+        output: "recovered",
+      }),
+    ).resolves.toMatchObject({
+      executionAttempt: 2,
+      output: "recovered",
+      status: "completed",
+    });
+  });
+
+  it("finalizes cancellation when a crashed execution lease expires", async () => {
+    const repository = createInMemoryRepository();
+    const requestedAt = new Date("2026-07-11T00:00:00.000Z");
+    const lifecycle = createAgentRunLifecycle({
+      repository,
+      execute: async () => {
+        throw new Error("must not execute after cancellation");
+      },
+      now: () => new Date("2026-07-11T00:00:11.000Z"),
+    });
+    await repository.create({
+      id: "run-cancelled-crash",
+      prompt: "Cancel crashed run",
+      requestedAt,
+    });
+    await repository.claim("run-cancelled-crash", {
+      executionToken: "execution-1",
+      runtime: "claude",
+      model: "test-model",
+      claimedAt: requestedAt,
+      leaseExpiresAt: new Date("2026-07-11T00:00:10.000Z"),
+    });
+    await repository.requestCancellation(
+      "run-cancelled-crash",
+      new Date("2026-07-11T00:00:05.000Z"),
+    );
+
+    await expect(
+      lifecycle.resume("run-cancelled-crash", {}),
+    ).resolves.toMatchObject({
+      events: [
+        {
+          kind: "cancelled",
+          reason: "Agent run was cancelled after its execution lease expired",
+        },
+      ],
+      status: "cancelled",
+    });
+  });
 });
 
 function createInMemoryRepository(): AgentRunRepository {
@@ -130,6 +250,10 @@ function createInMemoryRepository(): AgentRunRepository {
         completedAt: null,
         cancelRequestedAt: null,
         status: "queued",
+        executionAttempt: 0,
+        executionToken: null,
+        leaseExpiresAt: null,
+        heartbeatAt: null,
         runtime: null,
         model: null,
         output: null,
@@ -143,20 +267,98 @@ function createInMemoryRepository(): AgentRunRepository {
     async find(id) {
       return runs.get(id);
     },
-    async tryStart(id, input) {
+    async claim(id, input) {
       const run = runs.get(id);
-      if (!run || run.status !== "queued" || run.cancelRequestedAt)
+      const reclaimable =
+        run?.status === "running" &&
+        run.leaseExpiresAt !== null &&
+        run.leaseExpiresAt <= input.claimedAt;
+      if (run && reclaimable && run.cancelRequestedAt) {
+        Object.assign(run, {
+          status: "cancelled" as const,
+          completedAt: input.claimedAt,
+          reason: "Agent run was cancelled after its execution lease expired",
+          executionToken: null,
+          leaseExpiresAt: null,
+        });
         return undefined;
-      Object.assign(run, input, { status: "running" as const });
+      }
+      if (
+        !run ||
+        (run.status !== "queued" && !reclaimable) ||
+        run.cancelRequestedAt
+      )
+        return undefined;
+      Object.assign(run, {
+        ...input,
+        executionAttempt: run.executionAttempt + 1,
+        heartbeatAt: input.claimedAt,
+        startedAt: run.startedAt ?? input.claimedAt,
+        status: "running" as const,
+      });
       return run;
     },
-    async appendEvent(id, event) {
-      runs.get(id)?.events.push(event);
+    async heartbeat(id, input) {
+      const run = runs.get(id);
+      if (
+        !run ||
+        run.status !== "running" ||
+        run.executionToken !== input.executionToken ||
+        !run.leaseExpiresAt ||
+        run.leaseExpiresAt <= input.heartbeatAt
+      ) {
+        return "lost";
+      }
+      if (run.cancelRequestedAt) return "cancelled";
+      run.heartbeatAt = input.heartbeatAt;
+      run.leaseExpiresAt = input.leaseExpiresAt;
+      return "active";
     },
-    async finish(id, input) {
+    async appendExecutionEvent(id, input) {
+      const run = runs.get(id);
+      if (
+        !run ||
+        run.status !== "running" ||
+        run.executionToken !== input.executionToken ||
+        !run.leaseExpiresAt ||
+        run.leaseExpiresAt <= input.createdAt ||
+        run.events.some((event) => event.sequence === input.sequence)
+      ) {
+        return false;
+      }
+      run.events.push(input);
+      return true;
+    },
+    async appendLifecycleEvent(id, input) {
+      const run = runs.get(id);
+      if (!run || run.status !== "cancelled") throw new Error("missing run");
+      if (!run.events.some((event) => event.sequence === input.sequence)) {
+        run.events.push(input);
+      }
+    },
+    async finishExecution(id, input) {
+      const run = runs.get(id);
+      if (
+        !run ||
+        run.status !== "running" ||
+        run.executionToken !== input.executionToken ||
+        !run.leaseExpiresAt ||
+        run.leaseExpiresAt <= input.completedAt
+      ) {
+        return undefined;
+      }
+      Object.assign(run, input, {
+        executionToken: null,
+        leaseExpiresAt: null,
+      });
+      return run;
+    },
+    async failQueued(id, input) {
       const run = runs.get(id);
       if (!run) throw new Error("missing run");
-      Object.assign(run, input);
+      if (run.status === "queued") {
+        Object.assign(run, input, { status: "failed" as const });
+      }
       return run;
     },
     async requestCancellation(id, requestedAt) {
@@ -169,9 +371,6 @@ function createInMemoryRepository(): AgentRunRepository {
         run.reason = "Agent run was cancelled before execution";
       }
       return run;
-    },
-    async isCancellationRequested(id) {
-      return Boolean(runs.get(id)?.cancelRequestedAt);
     },
   };
 }

@@ -5,8 +5,9 @@ import { createPrismaAgentRunRepository, prisma } from "@agent-template/db";
 const createdRunIds: string[] = [];
 
 async function main() {
+  const repository = createPrismaAgentRunRepository(prisma);
   const lifecycle = createAgentRunLifecycle({
-    repository: createPrismaAgentRunRepository(prisma),
+    repository,
     async execute(input, _env, options) {
       options.onEvent?.({ kind: "text", text: "Working" });
       options.onEvent?.({ kind: "done", result: "Done" });
@@ -58,8 +59,99 @@ async function main() {
     ]);
     await assert.doesNotReject(() => lifecycle.resume(cancelled.id, {}));
 
+    const recoverable = await lifecycle.queue({
+      prompt: "Recover crashed run",
+    });
+    createdRunIds.push(recoverable.id);
+    const claimedAt = new Date();
+    const firstClaim = await repository.claim(recoverable.id, {
+      executionToken: "local-verifier-execution-1",
+      runtime: "claude",
+      model: "local-verifier",
+      claimedAt,
+      leaseExpiresAt: new Date(claimedAt.getTime() + 1_000),
+    });
+    assert.equal(firstClaim?.executionAttempt, 1);
+    const earlyClaim = await repository.claim(recoverable.id, {
+      executionToken: "local-verifier-execution-2",
+      runtime: "claude",
+      model: "local-verifier",
+      claimedAt: new Date(claimedAt.getTime() + 500),
+      leaseExpiresAt: new Date(claimedAt.getTime() + 1_500),
+    });
+    assert.equal(earlyClaim, undefined);
+    assert.equal(
+      await repository.heartbeat(recoverable.id, {
+        executionToken: "local-verifier-execution-1",
+        heartbeatAt: new Date(claimedAt.getTime() + 1_001),
+        leaseExpiresAt: new Date(claimedAt.getTime() + 2_001),
+      }),
+      "lost",
+    );
+    const reclaimed = await repository.claim(recoverable.id, {
+      executionToken: "local-verifier-execution-2",
+      runtime: "claude",
+      model: "local-verifier",
+      claimedAt: new Date(claimedAt.getTime() + 1_001),
+      leaseExpiresAt: new Date(claimedAt.getTime() + 2_001),
+    });
+    assert.equal(reclaimed?.executionAttempt, 2);
+    assert.equal(
+      await repository.appendExecutionEvent(recoverable.id, {
+        executionToken: "local-verifier-execution-1",
+        sequence: 0,
+        event: { kind: "text", text: "stale" },
+        createdAt: new Date(claimedAt.getTime() + 1_100),
+      }),
+      false,
+    );
+    assert.equal(
+      await repository.finishExecution(recoverable.id, {
+        executionToken: "local-verifier-execution-1",
+        status: "completed",
+        completedAt: new Date(claimedAt.getTime() + 1_200),
+        output: "stale",
+      }),
+      undefined,
+    );
+    assert.equal(
+      await repository.appendExecutionEvent(recoverable.id, {
+        executionToken: "local-verifier-execution-2",
+        sequence: 0,
+        event: { kind: "done", result: "recovered" },
+        createdAt: new Date(claimedAt.getTime() + 1_300),
+      }),
+      true,
+    );
+    const recovered = await repository.finishExecution(recoverable.id, {
+      executionToken: "local-verifier-execution-2",
+      status: "completed",
+      completedAt: new Date(claimedAt.getTime() + 1_400),
+      output: "recovered",
+    });
+    assert.equal(recovered?.status, "completed");
+    assert.equal(recovered?.executionAttempt, 2);
+    assert.equal(recovered?.events[0]?.event.kind, "done");
+
+    const cancelledCrash = await lifecycle.queue({
+      prompt: "Cancel crashed execution",
+    });
+    createdRunIds.push(cancelledCrash.id);
+    const expiredClaimedAt = new Date(Date.now() - 2_000);
+    await repository.claim(cancelledCrash.id, {
+      executionToken: "local-verifier-cancelled-execution",
+      runtime: "claude",
+      model: "local-verifier",
+      claimedAt: expiredClaimedAt,
+      leaseExpiresAt: new Date(expiredClaimedAt.getTime() + 1_000),
+    });
+    await repository.requestCancellation(cancelledCrash.id, new Date());
+    const finalizedCancellation = await lifecycle.resume(cancelledCrash.id, {});
+    assert.equal(finalizedCancellation.status, "cancelled");
+    assert.equal(finalizedCancellation.events[0]?.kind, "cancelled");
+
     console.log(
-      "Local Agent run lifecycle verification passed: queued, running, persisted events, completed result, lookup, and pre-run cancellation.",
+      "Local Agent run lifecycle verification passed: persistence, cancellation, expired-lease reclaim, stale-executor fencing, and crashed-run cancellation.",
     );
   } finally {
     await prisma.agentRun.deleteMany({ where: { id: { in: createdRunIds } } });

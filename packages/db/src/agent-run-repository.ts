@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   AgentRunEventSchema,
   type AgentRunEvent as SharedAgentRunEvent,
@@ -46,40 +47,145 @@ export function createPrismaAgentRunRepository(client: PrismaClient) {
       );
     },
     find,
-    async tryStart(
+    async claim(
       id: string,
       input: {
+        executionToken: string;
         runtime: "claude" | "eve";
         model: string;
-        startedAt: Date;
+        claimedAt: Date;
+        leaseExpiresAt: Date;
+      },
+    ) {
+      await client.agentRun.updateMany({
+        where: {
+          id,
+          status: "RUNNING",
+          cancelRequestedAt: { not: null },
+          leaseExpiresAt: { lte: input.claimedAt },
+        },
+        data: {
+          status: "CANCELLED",
+          completedAt: input.claimedAt,
+          reason: "Agent run was cancelled after its execution lease expired",
+          executionToken: null,
+          leaseExpiresAt: null,
+        },
+      });
+      const updated = await client.$executeRaw`
+        UPDATE public."AgentRun"
+        SET
+          status = 'running',
+          "executionAttempt" = "executionAttempt" + 1,
+          "executionToken" = ${input.executionToken},
+          "leaseExpiresAt" = ${input.leaseExpiresAt},
+          "heartbeatAt" = ${input.claimedAt},
+          runtime = ${input.runtime},
+          model = ${input.model},
+          "startedAt" = COALESCE("startedAt", ${input.claimedAt}),
+          "updatedAt" = ${input.claimedAt}
+        WHERE id = ${id}
+          AND "cancelRequestedAt" IS NULL
+          AND (
+            status = 'queued'
+            OR (
+              status = 'running'
+              AND "leaseExpiresAt" <= ${input.claimedAt}
+            )
+          )
+      `;
+      return updated === 1 ? find(id) : undefined;
+    },
+    async heartbeat(
+      id: string,
+      input: {
+        executionToken: string;
+        heartbeatAt: Date;
+        leaseExpiresAt: Date;
       },
     ) {
       const updated = await client.agentRun.updateMany({
-        where: { id, status: "QUEUED", cancelRequestedAt: null },
-        data: { ...input, status: "RUNNING" },
-      });
-      return updated.count === 1 ? find(id) : undefined;
-    },
-    async appendEvent(
-      runId: string,
-      input: { sequence: number; event: SharedAgentRunEvent; createdAt: Date },
-    ) {
-      const payload = input.event as Prisma.InputJsonValue;
-      await client.agentRunEvent.upsert({
-        where: { runId_sequence: { runId, sequence: input.sequence } },
-        create: {
-          runId,
-          sequence: input.sequence,
-          kind: input.event.kind,
-          payload,
-          createdAt: input.createdAt,
+        where: {
+          id,
+          status: "RUNNING",
+          executionToken: input.executionToken,
+          cancelRequestedAt: null,
+          leaseExpiresAt: { gt: input.heartbeatAt },
         },
-        update: { kind: input.event.kind, payload },
+        data: {
+          heartbeatAt: input.heartbeatAt,
+          leaseExpiresAt: input.leaseExpiresAt,
+        },
       });
+      if (updated.count === 1) return "active" as const;
+
+      const current = await client.agentRun.findUnique({
+        where: { id },
+        select: { status: true, executionToken: true, cancelRequestedAt: true },
+      });
+      return current?.status === "RUNNING" &&
+        current.executionToken === input.executionToken &&
+        current.cancelRequestedAt
+        ? ("cancelled" as const)
+        : ("lost" as const);
     },
-    async finish(
+    async appendExecutionEvent(
+      runId: string,
+      input: {
+        executionToken: string;
+        sequence: number;
+        event: SharedAgentRunEvent;
+        createdAt: Date;
+      },
+    ) {
+      const inserted = await client.$executeRaw`
+        INSERT INTO public."AgentRunEvent"
+          (id, "runId", sequence, kind, payload, "createdAt")
+        SELECT
+          ${randomUUID()},
+          ${runId},
+          ${input.sequence},
+          ${input.event.kind},
+          ${JSON.stringify(input.event)}::jsonb,
+          ${input.createdAt}
+        FROM public."AgentRun"
+        WHERE id = ${runId}
+          AND status = 'running'
+          AND "executionToken" = ${input.executionToken}
+          AND "leaseExpiresAt" > ${input.createdAt}
+        ON CONFLICT ("runId", sequence) DO NOTHING
+      `;
+      return inserted === 1;
+    },
+    async appendLifecycleEvent(runId: string, input: StoredRunEventInput) {
+      const inserted = await client.$executeRaw`
+        INSERT INTO public."AgentRunEvent"
+          (id, "runId", sequence, kind, payload, "createdAt")
+        SELECT
+          ${randomUUID()},
+          ${runId},
+          ${input.sequence},
+          ${input.event.kind},
+          ${JSON.stringify(input.event)}::jsonb,
+          ${input.createdAt}
+        FROM public."AgentRun"
+        WHERE id = ${runId}
+          AND status = 'cancelled'
+        ON CONFLICT ("runId", sequence) DO NOTHING
+      `;
+      if (inserted !== 1) {
+        const existing = await client.agentRunEvent.findUnique({
+          where: { runId_sequence: { runId, sequence: input.sequence } },
+        });
+        if (!existing) {
+          throw new Error(`Agent run ${runId} lifecycle event was rejected`);
+        }
+      }
+    },
+    async finishExecution(
       id: string,
       input: {
+        executionToken: string;
         status: Exclude<SharedAgentRunStatus, "queued" | "running">;
         completedAt: Date;
         output?: string;
@@ -87,14 +193,35 @@ export function createPrismaAgentRunRepository(client: PrismaClient) {
         sessionId?: string;
       },
     ) {
-      await client.agentRun.updateMany({
-        where: { id, status: { in: ["QUEUED", "RUNNING"] } },
+      const updated = await client.agentRun.updateMany({
+        where: {
+          id,
+          status: "RUNNING",
+          executionToken: input.executionToken,
+          leaseExpiresAt: { gt: input.completedAt },
+        },
         data: {
           status: toPrismaStatus[input.status],
           completedAt: input.completedAt,
           output: input.output ?? null,
           reason: input.reason ?? null,
           sessionId: input.sessionId ?? null,
+          executionToken: null,
+          leaseExpiresAt: null,
+        },
+      });
+      if (updated.count !== 1) return undefined;
+      const run = await find(id);
+      if (!run) throw new Error(`Agent run ${id} was not found`);
+      return run;
+    },
+    async failQueued(id: string, input: { completedAt: Date; reason: string }) {
+      await client.agentRun.updateMany({
+        where: { id, status: "QUEUED" },
+        data: {
+          status: "FAILED",
+          completedAt: input.completedAt,
+          reason: input.reason,
         },
       });
       const run = await find(id);
@@ -121,17 +248,14 @@ export function createPrismaAgentRunRepository(client: PrismaClient) {
       if (!run) throw new Error(`Agent run ${id} was not found`);
       return run;
     },
-    async isCancellationRequested(id: string) {
-      const run = await client.agentRun.findUnique({
-        where: { id },
-        select: { cancelRequestedAt: true, status: true },
-      });
-      return Boolean(
-        run && (run.cancelRequestedAt || run.status === "CANCELLED"),
-      );
-    },
   };
 }
+
+type StoredRunEventInput = {
+  sequence: number;
+  event: SharedAgentRunEvent;
+  createdAt: Date;
+};
 
 function mapStoredRun(
   run: Prisma.AgentRunGetPayload<{ include: typeof storedRunInclude }>,
@@ -144,6 +268,10 @@ function mapStoredRun(
     completedAt: run.completedAt,
     cancelRequestedAt: run.cancelRequestedAt,
     status: fromPrismaStatus[run.status],
+    executionAttempt: run.executionAttempt,
+    executionToken: run.executionToken,
+    leaseExpiresAt: run.leaseExpiresAt,
+    heartbeatAt: run.heartbeatAt,
     runtime:
       run.runtime === "claude"
         ? ("claude" as const)

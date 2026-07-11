@@ -21,6 +21,10 @@ export type StoredAgentRun = {
   completedAt: Date | null;
   cancelRequestedAt: Date | null;
   status: AgentRunStatus;
+  executionAttempt: number;
+  executionToken: string | null;
+  leaseExpiresAt: Date | null;
+  heartbeatAt: Date | null;
   runtime: "claude" | "eve" | null;
   model: string | null;
   output: string | null;
@@ -36,23 +40,45 @@ export type AgentRunRepository = {
     requestedAt: Date;
   }): Promise<StoredAgentRun>;
   find(id: string): Promise<StoredAgentRun | undefined>;
-  tryStart(
-    id: string,
-    input: { runtime: "claude" | "eve"; model: string; startedAt: Date },
-  ): Promise<StoredAgentRun | undefined>;
-  appendEvent(id: string, input: StoredAgentRunEvent): Promise<void>;
-  finish(
+  claim(
     id: string,
     input: {
+      executionToken: string;
+      runtime: "claude" | "eve";
+      model: string;
+      claimedAt: Date;
+      leaseExpiresAt: Date;
+    },
+  ): Promise<StoredAgentRun | undefined>;
+  heartbeat(
+    id: string,
+    input: {
+      executionToken: string;
+      heartbeatAt: Date;
+      leaseExpiresAt: Date;
+    },
+  ): Promise<"active" | "cancelled" | "lost">;
+  appendExecutionEvent(
+    id: string,
+    input: StoredAgentRunEvent & { executionToken: string },
+  ): Promise<boolean>;
+  appendLifecycleEvent(id: string, input: StoredAgentRunEvent): Promise<void>;
+  finishExecution(
+    id: string,
+    input: {
+      executionToken: string;
       status: Exclude<AgentRunStatus, "queued" | "running">;
       completedAt: Date;
       output?: string;
       reason?: string;
       sessionId?: string;
     },
+  ): Promise<StoredAgentRun | undefined>;
+  failQueued(
+    id: string,
+    input: { completedAt: Date; reason: string },
   ): Promise<StoredAgentRun>;
   requestCancellation(id: string, requestedAt: Date): Promise<StoredAgentRun>;
-  isCancellationRequested(id: string): Promise<boolean>;
 };
 
 type ExecuteAgentRun = (
@@ -90,9 +116,11 @@ export function createAgentRunLifecycle(input: {
   repository: AgentRunRepository;
   execute: ExecuteAgentRun;
   cancellationPollMs?: number;
+  leaseDurationMs?: number;
   now?: () => Date;
 }): AgentRunLifecycle {
   const now = input.now ?? (() => new Date());
+  const leaseDurationMs = input.leaseDurationMs ?? 60_000;
 
   async function queue(runInput: unknown) {
     const parsed = AgentRunInputSchema.parse(runInput);
@@ -116,17 +144,35 @@ export function createAgentRunLifecycle(input: {
 
     const runtime = env.AGENT_RUNTIME === "eve" ? "eve" : "claude";
     const model = readRuntimeModel(env, runtime);
-    const started = await input.repository.tryStart(runId, {
+    const executionToken = randomUUID();
+    const claimedAt = now();
+    const started = await input.repository.claim(runId, {
+      executionToken,
       runtime,
       model,
-      startedAt: now(),
+      claimedAt,
+      leaseExpiresAt: addMilliseconds(claimedAt, leaseDurationMs),
     });
 
     if (!started) {
-      const current = await input.repository.find(runId);
+      let current = await input.repository.find(runId);
       if (!current) throw new Error(`Agent run ${runId} was not found`);
       if (current.status === "queued" || current.status === "running") {
         throw new Error(`Agent run ${runId} is already ${current.status}`);
+      }
+      if (
+        current.status === "cancelled" &&
+        !current.events.some((event) => event.event.kind === "cancelled")
+      ) {
+        await input.repository.appendLifecycleEvent(runId, {
+          sequence: current.events.length,
+          event: {
+            kind: "cancelled",
+            reason: current.reason ?? "Agent run was cancelled",
+          },
+          createdAt: now(),
+        });
+        current = (await input.repository.find(runId)) ?? current;
       }
       return resultFromStoredRun(current);
     }
@@ -136,11 +182,14 @@ export function createAgentRunLifecycle(input: {
       options.abortSignal,
       controller,
     );
-    const stopCancellationPoll = pollCancellation(
+    const stopExecutionMonitor = monitorExecution(
       runId,
+      executionToken,
       controller,
       input.repository,
       input.cancellationPollMs ?? 250,
+      leaseDurationMs,
+      now,
     );
     let sequence = started.events.length;
     let eventWrites = Promise.resolve();
@@ -157,39 +206,55 @@ export function createAgentRunLifecycle(input: {
             createdAt: now(),
           };
           sequence += 1;
-          eventWrites = eventWrites.then(() =>
-            input.repository.appendEvent(runId, storedEvent),
-          );
+          eventWrites = eventWrites.then(async () => {
+            const appended = await input.repository.appendExecutionEvent(
+              runId,
+              { ...storedEvent, executionToken },
+            );
+            if (!appended) throw new AgentRunExecutionLeaseLostError(runId);
+          });
           options.onEvent?.(event);
         },
       });
       await eventWrites;
 
       if (controller.signal.aborted) {
+        if (isExecutionLeaseLost(controller.signal.reason)) {
+          throw controller.signal.reason;
+        }
         return finishCancelled(started, emittedEvents);
       }
 
       const completedAt = now();
       const session = result.sessionId ? { sessionId: result.sessionId } : {};
-      const finished = await input.repository.finish(
+      const finished = await input.repository.finishExecution(
         runId,
         result.status === "completed"
           ? {
+              executionToken,
               status: result.status,
               completedAt,
               output: result.output,
               ...session,
             }
           : {
+              executionToken,
               status: result.status,
               completedAt,
               reason: result.reason,
               ...session,
             },
       );
+      if (!finished) throw new AgentRunExecutionLeaseLostError(runId);
       return { ...result, runId: finished.id };
     } catch (error) {
       await eventWrites;
+      if (
+        isExecutionLeaseLost(error) ||
+        isExecutionLeaseLost(controller.signal.reason)
+      ) {
+        throw new AgentRunExecutionLeaseLostError(runId);
+      }
       if (controller.signal.aborted || isAbortError(error)) {
         return finishCancelled(started, emittedEvents);
       }
@@ -198,21 +263,25 @@ export function createAgentRunLifecycle(input: {
         error instanceof Error ? error.message : "Agent run failed";
       const event = { kind: "error", message: reason } satisfies AgentRunEvent;
       emittedEvents.push(event);
-      await input.repository.appendEvent(runId, {
+      const appended = await input.repository.appendExecutionEvent(runId, {
+        executionToken,
         sequence,
         event,
         createdAt: now(),
       });
+      if (!appended) throw new AgentRunExecutionLeaseLostError(runId);
       options.onEvent?.(event);
-      const finished = await input.repository.finish(runId, {
+      const finished = await input.repository.finishExecution(runId, {
+        executionToken,
         status: "failed",
         completedAt: now(),
         reason,
       });
+      if (!finished) throw new AgentRunExecutionLeaseLostError(runId);
       return resultFromStoredRun(finished);
     } finally {
       removeExternalAbort();
-      stopCancellationPoll();
+      stopExecutionMonitor();
     }
 
     async function finishCancelled(
@@ -226,18 +295,22 @@ export function createAgentRunLifecycle(input: {
           (item) => item.kind === "cancelled" && item.reason === reason,
         )
       ) {
-        await input.repository.appendEvent(run.id, {
+        const appended = await input.repository.appendExecutionEvent(run.id, {
+          executionToken,
           sequence,
           event,
           createdAt: now(),
         });
+        if (!appended) throw new AgentRunExecutionLeaseLostError(run.id);
         options.onEvent?.(event);
       }
-      const finished = await input.repository.finish(run.id, {
+      const finished = await input.repository.finishExecution(run.id, {
+        executionToken,
         status: "cancelled",
         completedAt: now(),
         reason,
       });
+      if (!finished) throw new AgentRunExecutionLeaseLostError(run.id);
       return resultFromStoredRun(finished);
     }
   }
@@ -264,7 +337,7 @@ export function createAgentRunLifecycle(input: {
         cancelled.status === "cancelled" &&
         !cancelled.events.some((event) => event.event.kind === "cancelled")
       ) {
-        await input.repository.appendEvent(runId, {
+        await input.repository.appendLifecycleEvent(runId, {
           sequence: cancelled.events.length,
           event: {
             kind: "cancelled",
@@ -279,8 +352,7 @@ export function createAgentRunLifecycle(input: {
     },
     async failQueued(runId, reason) {
       return toSnapshot(
-        await input.repository.finish(runId, {
-          status: "failed",
+        await input.repository.failQueued(runId, {
           completedAt: now(),
           reason,
         }),
@@ -324,20 +396,36 @@ function forwardAbortSignal(
   return () => signal.removeEventListener("abort", abort);
 }
 
-function pollCancellation(
+function monitorExecution(
   runId: string,
+  executionToken: string,
   controller: AbortController,
   repository: AgentRunRepository,
   intervalMs: number,
+  leaseDurationMs: number,
+  now: () => Date,
 ) {
   let checking = false;
   const interval = setInterval(() => {
     if (checking || controller.signal.aborted) return;
     checking = true;
+    const heartbeatAt = now();
     void repository
-      .isCancellationRequested(runId)
-      .then((requested) => {
-        if (requested) controller.abort("Agent run cancellation requested");
+      .heartbeat(runId, {
+        executionToken,
+        heartbeatAt,
+        leaseExpiresAt: addMilliseconds(heartbeatAt, leaseDurationMs),
+      })
+      .then((state) => {
+        if (state === "cancelled") {
+          controller.abort("Agent run cancellation requested");
+        }
+        if (state === "lost") {
+          controller.abort(new AgentRunExecutionLeaseLostError(runId));
+        }
+      })
+      .catch(() => {
+        controller.abort(new AgentRunExecutionLeaseLostError(runId));
       })
       .finally(() => {
         checking = false;
@@ -345,6 +433,21 @@ function pollCancellation(
   }, intervalMs);
   interval.unref?.();
   return () => clearInterval(interval);
+}
+
+class AgentRunExecutionLeaseLostError extends Error {
+  constructor(runId: string) {
+    super(`Agent run ${runId} execution lease was lost`);
+    this.name = "AgentRunExecutionLeaseLostError";
+  }
+}
+
+function isExecutionLeaseLost(error: unknown) {
+  return error instanceof AgentRunExecutionLeaseLostError;
+}
+
+function addMilliseconds(date: Date, milliseconds: number) {
+  return new Date(date.getTime() + milliseconds);
 }
 
 function isAbortError(error: unknown) {
@@ -395,6 +498,9 @@ function toSnapshot(run: StoredAgentRun): AgentRunSnapshot {
     completedAt: run.completedAt?.toISOString() ?? null,
     cancelRequestedAt: run.cancelRequestedAt?.toISOString() ?? null,
     status: run.status,
+    executionAttempt: run.executionAttempt,
+    leaseExpiresAt: run.leaseExpiresAt?.toISOString() ?? null,
+    heartbeatAt: run.heartbeatAt?.toISOString() ?? null,
     runtime: run.runtime,
     model: run.model,
     output: run.output,

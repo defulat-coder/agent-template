@@ -38,6 +38,10 @@ model AgentRun {
   completedAt       DateTime?       @db.Timestamptz(3)
   cancelRequestedAt DateTime?       @db.Timestamptz(3)
   status            AgentRunStatus
+  executionAttempt  Int             @default(0)
+  executionToken    String?
+  leaseExpiresAt    DateTime?       @db.Timestamptz(3)
+  heartbeatAt       DateTime?       @db.Timestamptz(3)
   runtime           String?
   model             String?
   output            String?
@@ -48,6 +52,7 @@ model AgentRun {
   events            AgentRunEvent[]
 
   @@index([status, createdAt])
+  @@index([status, leaseExpiresAt])
   @@schema("public")
 }
 

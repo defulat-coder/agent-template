@@ -36,6 +36,10 @@ _Avoid_: Queue job, log record
 A durable request to stop an Agent run. A queued run becomes cancelled before execution; a running run cooperatively stops through its Agent runtime.
 _Avoid_: Job deletion, process kill
 
+**Agent run execution lease**:
+A time-bounded, renewable claim for one execution attempt of an Agent run. Its fencing token prevents an expired or replaced executor from writing events or terminal state.
+_Avoid_: BullMQ lock, Worker heartbeat
+
 **Agent run event**:
 An ordered, runtime-neutral event emitted while an Agent run executes. Tool events correlate one invocation by `callId` and name the capability by `toolName`.
 _Avoid_: UI timeline item, log line
