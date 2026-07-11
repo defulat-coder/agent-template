@@ -14,6 +14,8 @@ PostgreSQL `clock_timestamp()` is the only authority for lease claim, expiry, re
 
 The lifecycle interface owns lease duration and monitoring. The Prisma adapter owns atomic claim, heartbeat, fenced event insert, and fenced finish operations. BullMQ locks and attempt counters remain delivery mechanics, not Agent run state.
 
+The BullMQ delivery adapter derives its fixed retry delay from the lifecycle's default lease duration and adds a grace period. A failed or stalled delivery therefore cannot exhaust rapid retries while the previous database lease is still active.
+
 ## Consequences
 
 - A Worker process crash no longer leaves an Agent run permanently stuck in `running`; normal BullMQ redelivery can reclaim it after expiry.
@@ -23,3 +25,4 @@ The lifecycle interface owns lease duration and monitoring. The Prisma adapter o
 - Lease duration must exceed the heartbeat interval. Temporary database failures fail closed by aborting the current executor rather than allowing unfenced writes.
 - Worker clock skew cannot cause early reclaim or late write acceptance.
 - Local verification covers pre-expiry rejection, post-expiry reclaim, stale event rejection, stale terminal rejection, and successful completion by the new executor.
+- A native Redis/BullMQ verifier proves the second delivery occurs only after the configured lease plus grace period.

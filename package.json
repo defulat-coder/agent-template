@@ -20,6 +20,7 @@
     "db:verify:fixture:partial": "pnpm --filter @agent-template/ecommerce-fixture exec tsx scripts/verify-empty-database.ts --partial",
     "db:verify:migrations:empty": "pnpm --filter @agent-template/ecommerce-fixture exec tsx scripts/verify-empty-database.ts --full",
     "agent-runs:verify:local": "pnpm --filter @agent-template/db exec prisma migrate deploy --schema prisma/schema.prisma && tsx scripts/verify-agent-run-lifecycle.ts",
+    "agent-jobs:verify:local": "tsx scripts/verify-agent-job-redelivery.ts",
     "agent-runtime:verify:local": "tsx scripts/verify-agent-runtime-readiness.ts",
     "agent-runtime:check:bundle": "pnpm --filter @agent-template/api build && pnpm --filter @agent-template/worker build && tsx scripts/check-runtime-bundle-boundary.ts",
     "toolbox:check:semantic": "tsx scripts/check-toolbox-semantic-layer.ts",

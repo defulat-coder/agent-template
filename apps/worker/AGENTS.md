@@ -11,6 +11,7 @@
 - 队列名、任务名和 payload schema 来自 `@agent-template/shared`。
 - Worker 只按 payload 的 `runId` 恢复公共 `AgentRunLifecycle`，不创建第二条 run record。
 - BullMQ 重投只在 PostgreSQL execution lease 过期后 reclaim；BullMQ lock/attempt 不是 Agent run fencing token 或业务状态。
+- delivery backoff 由 API queue adapter 按默认 lease + grace 配置；Worker 不自行复制 lease 时长。
 - Agent runtime selector 和 lifecycle 来自 `@agent-template/agent`，持久化 adapter 来自 `@agent-template/db`。
 - 日志使用 `@agent-template/logger`。
 

@@ -46,6 +46,7 @@
 | completed  | 让 Agent run Tool 读取 durable record      | Strong          | 生命周期、失败与 Tool 调用统计改查 AgentRun/Event；TemplateEvent 只保留样例巡检         |
 | completed  | 建立 Agent run execution lease 与 fencing  | Strong          | 过期 running 可 reclaim；attempt/token/heartbeat 原子保护 event 与 terminal write       |
 | completed  | 统一 execution lease 数据库时钟            | Strong          | claim/heartbeat/event/finish 只用 PostgreSQL clock；Worker 时间只作业务 metadata        |
+| completed  | 对齐 BullMQ redelivery 与 execution lease  | Strong          | 固定 retry delay 由默认 lease + grace 派生，并通过本地 Redis/BullMQ 验证                |
 | completed  | 同步 Toolbox 生成产物                      | Strong          | production 配置、官方原始 Skill 与 runtime Skill 均由同一事实源生成并通过 stale gate    |
 | completed  | 固定 Toolbox UTC 日桶                      | Strong          | 销售日显式按 UTC 转换，不再依赖 PostgreSQL session timezone                             |
 | completed  | 规范化 Toolbox MCP URL                     | Worth exploring | `/mcp/` 与 `/mcp` 归一为一个 MCP path，Claude/Eve 共享 parser 不再重复追加              |
@@ -59,6 +60,14 @@
 - 每轮完成后用中文 Conventional Commit 提交。
 
 ## 已完成
+
+### 对齐 BullMQ redelivery 与 execution lease
+
+- 日期：2026-07-11
+- locality：delivery retry policy 集中在 API queue adapter，并直接引用 Agent lifecycle 默认 lease 常量。
+- deletion test：若删除派生 policy，lease 和 backoff 会在两个 module 人工同步，快速 retry 可在 lease 内耗尽。
+- leverage：同一 policy 覆盖 enqueue 的全部 job；固定 delay 确保首次 retry 已具备 reclaim 资格，额外 attempts 保留故障余量。
+- 聚焦验证：API unit gate 检查 lease + grace；`pnpm agent-jobs:verify:local` 使用真实 Redis/BullMQ 观察失败后的实际 redelivery 时间。
 
 ### 统一 execution lease 数据库时钟
 

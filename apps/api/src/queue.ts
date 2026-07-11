@@ -1,5 +1,6 @@
 import { Queue } from "bullmq";
 import IORedis from "ioredis";
+import { defaultAgentRunLeaseDurationMs } from "@agent-template/agent";
 import { agentQueueName, type AgentJobPayload } from "@agent-template/shared";
 import { createBullMqConnectionOptions } from "@agent-template/shared/node";
 
@@ -22,8 +23,7 @@ export function createAgentQueue(redisUrl: string) {
     name: queue.name,
     add(name: string, payload: AgentJobPayload) {
       return queue.add(name, payload, {
-        attempts: 3,
-        backoff: { type: "exponential", delay: 1_000 },
+        ...createAgentJobRetryPolicy(),
         jobId: payload.runId,
         removeOnComplete: { age: 86_400, count: 1_000 },
         removeOnFail: { age: 604_800, count: 5_000 },
@@ -31,6 +31,19 @@ export function createAgentQueue(redisUrl: string) {
     },
     close() {
       return queue.close();
+    },
+  };
+}
+
+export function createAgentJobRetryPolicy(
+  leaseDurationMs = defaultAgentRunLeaseDurationMs,
+  graceMs = 5_000,
+) {
+  return {
+    attempts: 3,
+    backoff: {
+      type: "fixed" as const,
+      delay: leaseDurationMs + graceMs,
     },
   };
 }
