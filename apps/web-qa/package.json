@@ -1,0 +1,22 @@
+{
+  "name": "@agent-template/web-qa",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/start-web-qa.ts",
+    "fixture": "tsx src/fixture.ts",
+    "scenario": "tsx src/select-scenario.ts",
+    "validate:flows": "tsx src/validate-flows.ts",
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm validate:flows",
+    "lint": "eslint src",
+    "typecheck": "node ../../scripts/tsc7.mjs -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@agent-template/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.1",
+    "vitest": "^4.1.9"
+  }
+}

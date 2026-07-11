@@ -60,7 +60,7 @@ pnpm db:seed
 
 ## 模块地图
 
-- `apps/web`: 用户界面和浏览器端体验。
+- `apps/web`: 用户界面和浏览器端体验；`apps/web-qa`: Codex Browser 测试计划与确定性 HTTP/SSE fixture。
 - `apps/api`: HTTP API、健康检查、Agent job intake、Chat SSE。
 - `apps/worker`: BullMQ 后台任务消费和 Worker runtime 装配。
 - `apps/toolbox`: MCP Toolbox `tools.yaml` 和数据库 Tool provider 配置。
