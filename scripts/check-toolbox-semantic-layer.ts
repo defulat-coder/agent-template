@@ -257,6 +257,19 @@ function validateTool(tool: ToolboxEntry) {
     }
   }
 
+  const parameterNames = new Set(
+    parameters.map((parameter) => readString(parameter.name)),
+  );
+  if (
+    parameterNames.has("from") &&
+    parameterNames.has("to") &&
+    !statement.includes("public.validate_toolbox_time_window")
+  ) {
+    errors.push(
+      `${name}: from/to queries must enforce the database time-window guard`,
+    );
+  }
+
   if (/^list[-_]/.test(name) && !/\bLIMIT\b/i.test(statement)) {
     errors.push(`${name}: list tools must enforce a SQL LIMIT`);
   }

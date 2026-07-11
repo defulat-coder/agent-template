@@ -13,7 +13,7 @@
 ## 设计边界
 
 - 不暴露 `postgres-execute-sql` 或任何通用 SQL tool；每个 `postgres-sql` 都是预定义 statement，并由 Toolbox 以 prepared statement 执行。
-- 所有列表工具都有上限；最近查询固定在 30 天，任意时间窗由运行时校验为 ISO-8601 UTC 的 `[from, to)`，最长 31 天。
+- 所有列表工具都有上限；最近查询固定在 30 天，任意时间窗由 PostgreSQL `validate_toolbox_time_window` 强制为 ISO-8601 UTC 的 `[from, to)`，最长 31 天。该 invariant 不依赖 Agent 是否遵守描述。
 - 所有工具只读；`TemplateEvent` payload 会原样返回的工具仅用于可信的内部运营 Agent，生产接入时仍需最小权限数据库角色。
 - 不使用 `templateParameters`，避免让模型控制表名、列名、排序字段或 SQL 结构。
 - 所有 SQL Tool 显式标注 `readOnlyHint: true`、`destructiveHint: false`、`idempotentHint: true` 和 `openWorldHint: false`。

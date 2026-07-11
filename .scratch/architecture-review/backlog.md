@@ -34,6 +34,7 @@
 | completed | 统一本地验证文档边界                       | Strong          | 根规则与 Toolbox 文档不再把 Docker 描述为默认路径                                     |
 | completed | 由 Agent runtime 持有 MCP Client            | Strong          | Claude/Eve 各自使用框架原生 Client，共享包只持有配置与 schema                         |
 | completed | 阻止 Toolbox token 进入 Claude subprocess  | Strong          | ambient Toolbox env 在创建 Claude subprocess env 时显式删除并有回归测试               |
+| completed | 恢复 Toolbox 执行级时间窗护栏              | Strong          | PostgreSQL 统一拒绝反向或超过 31 天的窗口，原生 MCP 验收穿过真实 seam                 |
 
 ## 执行规则
 
@@ -42,6 +43,14 @@
 - 每轮完成后用中文 Conventional Commit 提交。
 
 ## 已完成
+
+### 恢复 Toolbox 执行级时间窗护栏
+
+- 日期：2026-07-11
+- locality：跨参数时间窗 invariant 集中到 PostgreSQL `validate_toolbox_time_window`，Claude/Eve 原生 MCP Client 无需重复 wrapper。
+- deletion test：删除旧 `packages/shared/src/mcp-toolbox.ts` 后，运行时复杂度没有回到调用方；旧 schema 原本只被验收脚本使用，并未保护真实 Tool 调用。
+- leverage：12 个时间窗 Tool 共享一个数据库 guard；静态语义门禁强制后续 `from/to` Tool 接入同一 seam。
+- 聚焦验证：`pnpm toolbox:check:semantic`、shared lint/typecheck/test、`pnpm toolbox:verify:local`；反向窗口与超过 31 天窗口均由真实 MCP 调用拒绝。
 
 ### 收拢 Toolbox Tool 分类与准入 matrix
 

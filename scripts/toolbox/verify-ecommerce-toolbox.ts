@@ -7,7 +7,6 @@ import {
   parseToolboxAgentConfig,
   toolboxToolNames,
 } from "@agent-template/toolbox-config";
-import { McpToolboxTimeWindowSchema } from "@agent-template/shared";
 import { startLocalToolbox } from "./local-toolbox-server.js";
 
 const repositoryRoot = fileURLToPath(new URL("../..", import.meta.url));
@@ -81,6 +80,21 @@ async function callRows(
     assert.ok(hasText(part));
     return JSON.parse(part.text) as Record<string, unknown>;
   });
+}
+
+async function assertToolCallFails(
+  client: Client,
+  name: string,
+  args: Record<string, unknown>,
+  expectedMessage: RegExp,
+) {
+  try {
+    const result = await client.callTool({ name, arguments: args });
+    assert.equal(result.isError, true, `${name} unexpectedly succeeded`);
+    assert.match(JSON.stringify(result.content), expectedMessage);
+  } catch (error) {
+    assert.match(String(error), expectedMessage);
+  }
 }
 
 async function main() {
@@ -234,11 +248,23 @@ async function main() {
     assert.equal(fulfillment.length, 3);
     assert.equal(fulfillment[0]?.orderNumber, "EC20260601004");
 
-    assert.throws(() =>
-      McpToolboxTimeWindowSchema.parse({
+    await assertToolCallFails(
+      client,
+      "summarize-ecommerce-sales-by-day",
+      {
         from: "2026-06-02T00:00:00Z",
         to: "2026-06-01T00:00:00Z",
-      }),
+      },
+      /from < to/i,
+    );
+    await assertToolCallFails(
+      client,
+      "summarize-ecommerce-sales-by-day",
+      {
+        from: "2026-01-01T00:00:00Z",
+        to: "2026-03-01T00:00:00Z",
+      },
+      /31 days/i,
     );
 
     console.log(
