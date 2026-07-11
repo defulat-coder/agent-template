@@ -1,17 +1,15 @@
 # HTML Report Format
 
-The architectural review is rendered as a single self-contained Chinese HTML file in the OS temp directory. Tailwind and Mermaid both come from CDNs. Mermaid handles graph-shaped diagrams reliably; hand-built divs and inline SVG handle the more editorial visuals (mass diagrams, cross-sections). Mix the two — don't lean on Mermaid for everything, it'll start to look generic.
-
-Default report copy is Chinese: title, section headings, labels, candidate descriptions, and the final question. Keep technical proper nouns and the `/codebase-design` vocabulary terms in English: **module**, **interface**, **depth**, **seam**, **adapter**, **leverage**, **locality**. Recommendation strength values stay exactly `Strong`, `Worth exploring`, or `Speculative`; add Chinese alongside them if useful.
+The architectural review is rendered as a single self-contained HTML file in the OS temp directory. Tailwind and Mermaid both come from CDNs. Mermaid handles graph-shaped diagrams reliably; hand-built divs and inline SVG handle the more editorial visuals (mass diagrams, cross-sections). Mix the two — don't lean on Mermaid for everything, it'll start to look generic.
 
 ## Scaffold
 
 ```html
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>架构评审 — {{repo name}}</title>
+    <title>Architecture review — {{repo name}}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script type="module">
       import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
@@ -37,7 +35,7 @@ Default report copy is Chinese: title, section headings, labels, candidate descr
 
 ## Header
 
-Repo name, date, and a compact legend: 实线框 = module, 虚线 = seam, 红色箭头 = leakage, 深色厚框 = deep module. No introduction paragraph — straight into the candidates.
+Repo name, date, and a compact legend: solid box = module, dashed line = seam, red arrow = leakage, thick dark box = deep module. No introduction paragraph — straight into the candidates.
 
 ## Candidate card
 
@@ -45,13 +43,13 @@ The diagrams carry the weight. Prose is sparse, plain, and uses the glossary ter
 
 Each candidate is one `<article>`:
 
-- **Title** — short Chinese title, names the deepening (e.g. "收拢 Order intake pipeline").
+- **Title** — short, names the deepening (e.g. "Collapse the Order intake pipeline").
 - **Badge row** — recommendation strength (`Strong` = emerald, `Worth exploring` = amber, `Speculative` = slate), plus a tag for the dependency category (`in-process`, `local-substitutable`, `ports & adapters`, `mock`).
-- **文件** — monospaced list, `font-mono text-sm`.
-- **现状 / 目标 diagram** — the centrepiece. Two columns, side by side. See patterns below.
-- **问题** — one Chinese sentence. What hurts.
-- **方案** — one Chinese sentence. What changes.
-- **收益** — bullets, ≤10 Chinese characters where possible. e.g. "测试穿过一个 interface", "Pricing 不再 leakage", "删除 4 个 shallow module".
+- **Files** — monospaced list, `font-mono text-sm`.
+- **Before / After diagram** — the centrepiece. Two columns, side by side. See patterns below.
+- **Problem** — one sentence. What hurts.
+- **Solution** — one sentence. What changes.
+- **Wins** — bullets, ≤6 words each. e.g. "Tests hit one interface", "Pricing logic stops leaking", "Delete 4 shallow wrappers".
 - **ADR callout** (if applicable) — one line in an amber-tinted box.
 
 No paragraphs of explanation. If the diagram needs a paragraph to be understood, redraw the diagram.
@@ -101,13 +99,13 @@ Before: a tree of function calls rendered as nested boxes. After: the same tree 
 - Use `text-xs uppercase tracking-wider` for module labels inside diagrams — they should read as schematic, not as UI.
 - The only scripts are the Tailwind CDN and the Mermaid ESM import. The report is otherwise static — no app code, no interactivity beyond Mermaid's own rendering.
 
-## 优先建议 section
+## Top recommendation section
 
 One larger card. Candidate name, one sentence on why, anchor link to its card. That's it.
 
 ## Tone
 
-Plain Chinese, concise — but the architectural nouns and verbs come straight from the `/codebase-design` skill. Concision is not an excuse to drift.
+Plain English, concise — but the architectural nouns and verbs come straight from the `/codebase-design` skill. Concision is not an excuse to drift.
 
 **Use exactly:** module, interface, implementation, depth, deep, shallow, seam, adapter, leverage, locality.
 
@@ -115,11 +113,11 @@ Plain Chinese, concise — but the architectural nouns and verbs come straight f
 
 **Phrasings that fit the style:**
 
-- "Order intake module 偏 shallow，interface 几乎等于 implementation。"
-- "Pricing 跨 seam leakage。"
-- "加深：一个 interface，一个测试面。"
-- "两个 adapter 才证明 seam 成立：生产 HTTP，测试 in-memory。"
+- "Order intake module is shallow — interface nearly matches the implementation."
+- "Pricing leaks across the seam."
+- "Deepen: one interface, one place to test."
+- "Two adapters justify the seam: HTTP in prod, in-memory in tests."
 
-**收益 bullets** name the gain in glossary terms: *"locality: bug 集中到一个 module"*, *"leverage: 一个 interface，N 个调用方"*, *"interface 变小；implementation 吸收 shallow module"*. Don't write *"更好维护"* or *"代码更干净"* — those terms aren't in the glossary and don't earn their place.
+**Wins bullets** name the gain in glossary terms: *"locality: bugs concentrate in one module"*, *"leverage: one interface, N call sites"*, *"interface shrinks; implementation absorbs the wrappers"*. Don't write *"easier to maintain"* or *"cleaner code"* — those terms aren't in the glossary and don't earn their place.
 
 No hedging, no throat-clearing, no "it's worth noting that…". If a sentence could be a bullet, make it a bullet. If a bullet could be cut, cut it. If a term isn't in the `/codebase-design` glossary, reach for one that is before inventing a new one.
