@@ -1,6 +1,6 @@
 # MCP Toolbox 生产级 SQL 示例
 
-这里使用 Google 的 [MCP Toolbox for Databases](https://mcp-toolbox.dev/) 为 `TemplateEvent` 和合成电商读模型提供生产 Agent 可调用的只读 PostgreSQL 工具。配置入口是 [tools.yaml](./tools.yaml)，默认验证直接启动项目锁定的官方 `1.6.0` 本机二进制；`docker-compose.yml` 只保留为显式容器模式。
+这里使用 Google 的 [MCP Toolbox for Databases](https://mcp-toolbox.dev/) 为真实 `AgentRun` record、`TemplateEvent` 样例事件和合成电商读模型提供生产 Agent 可调用的只读 PostgreSQL 工具。配置入口是 [tools.yaml](./tools.yaml)，默认验证直接启动项目锁定的官方 `1.6.0` 本机二进制；`docker-compose.yml` 只保留为显式容器模式。
 
 [tools.yaml](./tools.yaml) 是 Tool、Toolset 与 MCP annotations 的可执行事实源，[SEMANTIC_LAYER.md](./SEMANTIC_LAYER.md) 记录人类可读的业务指标、时间口径和命名兼容策略。当前 PostgreSQL 项目实现的是 Google Toolbox 的工具语义契约，不是 AlloyDB AI NL 或 Looker 专属语义层。
 
@@ -76,7 +76,7 @@ Toolbox 固定生成的标题、表头和脚本模板保持英文；可配置的
 pnpm toolbox:verify:local
 ```
 
-该命令直接使用 `.env`/默认本地连接，对本机数据库执行 migration 和确定性 seed，启动临时官方 Toolbox 二进制，然后用原生 MCP Client 验证 `tools/list`、10 个业务场景、分页、空结果、部分退款、UTC 边界、非法时间窗与能力 Profile。命令结束后临时 Toolbox 自动退出，不使用 Docker。
+该命令直接使用 `.env`/默认本地连接，对本机数据库执行 migration 和确定性 seed，写入临时真实 Agent run record，启动官方 Toolbox 二进制，然后用原生 MCP Client 验证 `tools/list`、10 个电商场景、5 个 Agent run 观测场景、分页、空结果、部分退款、UTC 边界、非法时间窗与能力 Profile。临时 run 与 Toolbox 进程在结束时自动清理，不使用 Docker。
 
 `pnpm db:verify:boundaries` 可单独验证平台表只在 `public`，五张合成业务表只在 `ecommerce_fixture`。
 
@@ -109,19 +109,19 @@ docker compose exec toolbox /toolbox --config /app/tools.yaml invoke get-ecommer
 docker compose exec toolbox /toolbox --config /app/tools.yaml invoke list-ecommerce-fulfillment-exceptions '{"from":"2026-06-01T00:00:00Z","to":"2026-07-01T00:00:00Z","limit":20}'
 ```
 
-## Agent 运行观测示例（兼容）
+## Agent 运行观测示例
 
-| Tool                                | 适用场景                   | 保护措施                                |
-| ----------------------------------- | -------------------------- | --------------------------------------- |
-| `list-template-events`              | 最近 30 天事件巡检         | 结果最大 100 行                         |
-| `get-template-event`                | 按事件 ID 定位             | 精确主键查询                            |
-| `list-template-events-in-window`    | 限定时间窗的事件排障       | `[from, to)` + 最大 100 行              |
-| `summarize-template-events-by-type` | 事件量与 run 覆盖度概览    | 时间窗聚合，不返回 payload              |
-| `list-agent-runs`                   | 最近 30 天 run 面板        | 结果最大 100 行                         |
-| `get-agent-run-summary`             | 某个 run 的生命周期摘要    | 精确 `runId` 查询                       |
-| `list-agent-run-timeline`           | 某个 run 的有界时间线      | 精确 `runId` + 最大 200 行              |
-| `list-failed-agent-runs-in-window`  | 故障分诊                   | 固定失败事件类型 + 时间窗 + 最大 100 行 |
-| `summarize-tool-invocations`        | MCP Tool 使用量与 P95 延迟 | 固定调用事件类型 + 时间窗 + 最大 100 组 |
+| Tool                                | 适用场景                   | 保护措施                            |
+| ----------------------------------- | -------------------------- | ----------------------------------- |
+| `list-template-events`              | 最近 30 天事件巡检         | 结果最大 100 行                     |
+| `get-template-event`                | 按事件 ID 定位             | 精确主键查询                        |
+| `list-template-events-in-window`    | 限定时间窗的事件排障       | `[from, to)` + 最大 100 行          |
+| `summarize-template-events-by-type` | 事件量与 run 覆盖度概览    | 时间窗聚合，不返回 payload          |
+| `list-agent-runs`                   | 最近 30 天 run 面板        | 结果最大 100 行                     |
+| `get-agent-run-summary`             | 某个 run 的生命周期摘要    | 精确 `runId` 查询                   |
+| `list-agent-run-timeline`           | 某个 run 的有界时间线      | 精确 `runId` + 最大 200 行          |
+| `list-failed-agent-runs-in-window`  | 故障分诊                   | 固定失败状态 + 时间窗 + 最大 100 行 |
+| `summarize-tool-invocations`        | MCP Tool 使用量与 P95 延迟 | 配对 callId + 时间窗 + 最大 100 组  |
 
 ## Agent 工具示例
 
@@ -152,11 +152,11 @@ docker compose exec toolbox /toolbox --config /app/tools.yaml invoke get-agent-r
 docker compose exec toolbox /toolbox --config /app/tools.yaml invoke list-agent-run-timeline '{"runId":"run_invoice_001","limit":100}'
 ```
 
-`terminalEvent` 始终取该 run 最后一个 `agent.run.completed` 或 `agent.run.failed` 事件；因此“失败后重试成功”会正确显示为 completed，而失败事件查询仍保留原始故障证据。
+Agent run 相关 Tool 直接读取 `public."AgentRun"` 与 `public."AgentRunEvent"`。`TemplateEvent` 只保留样例事件巡检职责，不再作为 run 生命周期、终态或 Tool 调用统计的间接投影。
 
 ## 索引与上线要求
 
-`TemplateEvent` 的常用观察路径由 `createdAt`、`(type, createdAt)` 和 `(payload->>'runId', createdAt)` 索引支持；最后一个是 Prisma schema 目前无法表达的 PostgreSQL expression index，因此保留在已提交 migration 中。电商读模型为订单时间、状态/付款时间、客户/付款时间、订单项外键建索引；已结算订单另有部分覆盖索引，避免把取消和待支付订单放入日销售、渠道和商品排行的访问路径。商品净销售会把订单级退款按 `refundedTotal / paidTotal` 比例分摊到订单项，保证全额与部分退款和日销售、渠道销售的净额口径一致。
+`TemplateEvent` 的样例巡检路径由 `createdAt` 与 `(type, createdAt)` 索引支持；Agent run 由 `(status, createdAt)`、`(runId, sequence)` 和 `(runId, createdAt)` 支持真实生命周期与时间线查询。电商读模型为订单时间、状态/付款时间、客户/付款时间、订单项外键建索引；已结算订单另有部分覆盖索引，避免把取消和待支付订单放入日销售、渠道和商品排行的访问路径。商品净销售会把订单级退款按 `refundedTotal / paidTotal` 比例分摊到订单项，保证全额与部分退款和日销售、渠道销售的净额口径一致。
 
 实际多租户项目不得直接复用当前模板的跨组织查询。应先将稳定的 `tenantId` / `organizationId` 提升为一等列，使用受限数据库角色和 RLS，再为每个 Tool 强制注入可信身份范围；不要把租户范围交给模型提供的 `templateParameters`。
 

@@ -63,6 +63,13 @@ const expectedToolsets: Record<string, string[]> = {
   ],
 };
 const ecommerceBusinessTools = new Set(Object.values(expectedToolsets).flat());
+const agentRunRecordTools = new Set([
+  "list-agent-runs",
+  "get-agent-run-summary",
+  "list-agent-run-timeline",
+  "list-failed-agent-runs-in-window",
+  "summarize-tool-invocations",
+]);
 const semanticDescriptionRequirements: Record<string, string[]> = {
   "get-ecommerce-order-detail": ["orderNumber", "合成业务属性"],
   "list-ecommerce-fulfillment-exceptions": [
@@ -294,6 +301,21 @@ function validateTool(tool: ToolboxEntry) {
     !statement.includes('public."TemplateEvent"')
   ) {
     errors.push(`${name}: platform queries must qualify the public schema`);
+  }
+
+  if (
+    agentRunRecordTools.has(name) &&
+    !statement.includes('public."AgentRun')
+  ) {
+    errors.push(
+      `${name}: Agent run observability must query the durable public.AgentRun record`,
+    );
+  }
+
+  if (agentRunRecordTools.has(name) && statement.includes('"TemplateEvent"')) {
+    errors.push(
+      `${name}: Agent run observability must not use synthetic TemplateEvent projections`,
+    );
   }
 
   if (/^list[-_]/.test(name) && !/\bLIMIT\b/i.test(statement)) {

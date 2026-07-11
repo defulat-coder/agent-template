@@ -43,6 +43,7 @@
 | completed  | 隔离平台数据库与 Ecommerce fixture         | Strong          | 平台留在 `public`；fixture 独立 package/schema/migration/seed，Tool SQL 显式限定 schema |
 | completed  | 收紧 Agent job queue payload seam          | Strong          | BullMQ 只携带 `runId`；Worker process 强制注入 lifecycle resume，不保留 runtime 旁路    |
 | completed  | 收紧 Ecommerce baseline eligibility        | Strong          | 五张 fixture 表必须全有或全无；部分 schema drift fail closed，并有真实数据库负向验证    |
+| completed  | 让 Agent run Tool 读取 durable record      | Strong          | 生命周期、失败与 Tool 调用统计改查 AgentRun/Event；TemplateEvent 只保留样例巡检         |
 | completed  | 同步 Toolbox 生成产物                      | Strong          | production 配置、官方原始 Skill 与 runtime Skill 均由同一事实源生成并通过 stale gate    |
 | completed  | 固定 Toolbox UTC 日桶                      | Strong          | 销售日显式按 UTC 转换，不再依赖 PostgreSQL session timezone                             |
 | completed  | 规范化 Toolbox MCP URL                     | Worth exploring | `/mcp/` 与 `/mcp` 归一为一个 MCP path，Claude/Eve 共享 parser 不再重复追加              |
@@ -56,6 +57,14 @@
 - 每轮完成后用中文 Conventional Commit 提交。
 
 ## 已完成
+
+### 让 Agent run Tool 读取 durable record
+
+- 日期：2026-07-11
+- locality：Agent run 状态、终态、时间线与 Tool invocation 都从 `AgentRun` / `AgentRunEvent` 读取，和 API、Worker 共用一个 source of truth。
+- deletion test：删除 `TemplateEvent` 对真实 run 的模拟职责不会移动复杂度；反而删除了两套状态语义。
+- leverage：同一持久化 interface 同时服务恢复、HTTP 查询和 Toolbox 观测；Tool latency 由关联 `callId` 的真实事件时间计算。
+- 聚焦验证：语义门禁禁止 run Tool 回退到 `TemplateEvent`；本地 verifier 写入并清理真实 run，原生 MCP 断言 5 个平台观测场景。
 
 ### 收紧 Ecommerce baseline eligibility
 

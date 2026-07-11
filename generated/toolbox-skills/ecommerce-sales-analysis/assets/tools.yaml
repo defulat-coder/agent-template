@@ -585,8 +585,8 @@ name: list-agent-runs
 type: postgres-sql
 source: agent-template-postgres
 description: |
-  从模板事件中汇总最近 30 天的 Agent run，返回首末事件时间、事件数和最终终止事件。
-  terminalEvent 取该 run 最后一个 agent.run.completed 或 agent.run.failed。
+  从持久化 Agent run record 返回最近 30 天的运行摘要。
+  status、runtime、model、终态输出和事件数均来自平台 source of truth。
 annotations:
   readOnlyHint: true
   destructiveHint: false
@@ -594,17 +594,21 @@ annotations:
   openWorldHint: false
 statement: |
   SELECT
-    payload->>'runId' AS "runId",
-    MIN("createdAt") AS "firstEventAt",
-    MAX("createdAt") AS "lastEventAt",
-    COUNT(*)::int AS "eventCount",
-    (ARRAY_AGG(type ORDER BY "createdAt" DESC, id DESC)
-      FILTER (WHERE type IN ('agent.run.completed', 'agent.run.failed')))[1] AS "terminalEvent"
-  FROM public."TemplateEvent"
-  WHERE payload->>'runId' IS NOT NULL
-    AND "createdAt" >= NOW() - INTERVAL '30 days'
-  GROUP BY payload->>'runId'
-  ORDER BY MAX("createdAt") DESC
+    runs.id AS "runId",
+    runs.status,
+    runs.runtime,
+    runs.model,
+    runs."requestedAt",
+    runs."startedAt",
+    runs."completedAt",
+    runs.output,
+    runs.reason,
+    COUNT(events.id)::int AS "eventCount"
+  FROM public."AgentRun" AS runs
+  LEFT JOIN public."AgentRunEvent" AS events ON events."runId" = runs.id
+  WHERE runs."requestedAt" >= NOW() - INTERVAL '30 days'
+  GROUP BY runs.id
+  ORDER BY runs."requestedAt" DESC, runs.id DESC
   LIMIT $1;
 parameters:
   - name: limit
@@ -619,8 +623,7 @@ name: get-agent-run-summary
 type: postgres-sql
 source: agent-template-postgres
 description: |
-  通过明确的 runId 返回一个 Agent run 的只读生命周期摘要。
-  terminalEvent 取该 run 最后一个 agent.run.completed 或 agent.run.failed。
+  通过明确的 runId 返回持久化 Agent run record 的只读生命周期摘要。
 annotations:
   readOnlyHint: true
   destructiveHint: false
@@ -628,15 +631,23 @@ annotations:
   openWorldHint: false
 statement: |
   SELECT
-    payload->>'runId' AS "runId",
-    MIN("createdAt") AS "firstEventAt",
-    MAX("createdAt") AS "lastEventAt",
-    COUNT(*)::int AS "eventCount",
-    (ARRAY_AGG(type ORDER BY "createdAt" DESC, id DESC)
-      FILTER (WHERE type IN ('agent.run.completed', 'agent.run.failed')))[1] AS "terminalEvent"
-  FROM public."TemplateEvent"
-  WHERE payload->>'runId' = $1
-  GROUP BY payload->>'runId'
+    runs.id AS "runId",
+    runs.prompt,
+    runs.status,
+    runs.runtime,
+    runs.model,
+    runs."requestedAt",
+    runs."startedAt",
+    runs."completedAt",
+    runs."cancelRequestedAt",
+    runs.output,
+    runs.reason,
+    runs."sessionId",
+    COUNT(events.id)::int AS "eventCount"
+  FROM public."AgentRun" AS runs
+  LEFT JOIN public."AgentRunEvent" AS events ON events."runId" = runs.id
+  WHERE runs.id = $1
+  GROUP BY runs.id
   LIMIT 1;
 parameters:
   - name: runId
@@ -656,10 +667,10 @@ annotations:
   idempotentHint: true
   openWorldHint: false
 statement: |
-  SELECT id, type, payload, "createdAt"
-  FROM public."TemplateEvent"
-  WHERE payload->>'runId' = $1
-  ORDER BY "createdAt" ASC, id ASC
+  SELECT id, sequence, kind, payload, "createdAt"
+  FROM public."AgentRunEvent"
+  WHERE "runId" = $1
+  ORDER BY sequence ASC
   LIMIT $2;
 parameters:
   - name: runId
@@ -677,8 +688,8 @@ name: list-failed-agent-runs-in-window
 type: postgres-sql
 source: agent-template-postgres
 description: |
-  返回明确 UTC [from, to) 时间窗内的 agent.run.failed 事件，用于只读故障分诊。
-  结果仅包含 runId、reason、retryable 和 failedAt，不接受任意事件类型过滤。
+  返回明确 UTC [from, to) 时间窗内的持久化失败 Agent run，用于只读故障分诊。
+  结果仅包含 runId、runtime、model、reason 和 failedAt，不接受任意状态过滤。
 annotations:
   readOnlyHint: true
   destructiveHint: false
@@ -689,20 +700,17 @@ statement: |
     SELECT * FROM public.validate_toolbox_time_window($1::timestamptz, $2::timestamptz)
   )
   SELECT
-    payload->>'runId' AS "runId",
-    payload->>'reason' AS reason,
-    CASE payload->>'retryable'
-      WHEN 'true' THEN true
-      WHEN 'false' THEN false
-      ELSE NULL
-    END AS retryable,
-    "createdAt" AS "failedAt"
-  FROM public."TemplateEvent"
+    runs.id AS "runId",
+    runs.runtime,
+    runs.model,
+    runs.reason,
+    runs."completedAt" AS "failedAt"
+  FROM public."AgentRun" AS runs
   CROSS JOIN toolbox_window
-  WHERE type = 'agent.run.failed'
-    AND "createdAt" >= toolbox_window.window_from
-    AND "createdAt" < toolbox_window.window_to
-  ORDER BY "createdAt" DESC, id DESC
+  WHERE runs.status = 'failed'
+    AND runs."completedAt" >= toolbox_window.window_from
+    AND runs."completedAt" < toolbox_window.window_to
+  ORDER BY runs."completedAt" DESC, runs.id DESC
   LIMIT $3;
 parameters:
   - name: from
@@ -723,8 +731,8 @@ name: summarize-tool-invocations
 type: postgres-sql
 source: agent-template-postgres
 description: |
-  按 toolName 汇总明确 UTC [from, to) 时间窗内的 Toolbox 调用量、平均延迟和 P95 延迟。
-  仅计算可解析为非负数字的 latencyMs，用于只读 MCP Tool 可靠性和性能调查。
+  按 toolName 汇总明确 UTC [from, to) 时间窗内的 Agent Tool 调用量、平均延迟和 P95 延迟。
+  延迟由同一 run/callId 的 tool-call 与 tool-result 持久化时间差计算。
 annotations:
   readOnlyHint: true
   destructiveHint: false
@@ -734,25 +742,41 @@ statement: |
   WITH toolbox_window AS MATERIALIZED (
     SELECT * FROM public.validate_toolbox_time_window($1::timestamptz, $2::timestamptz)
   ),
-  invocation_events AS (
+  call_events AS (
     SELECT
+      "runId",
+      payload->>'callId' AS "callId",
       payload->>'toolName' AS "toolName",
-      CASE
-        WHEN payload->>'latencyMs' ~ '^[0-9]+$' THEN (payload->>'latencyMs')::numeric
-        ELSE NULL
-      END AS "latencyMs"
-    FROM public."TemplateEvent"
+      "createdAt" AS "calledAt"
+    FROM public."AgentRunEvent"
     CROSS JOIN toolbox_window
-    WHERE type = 'toolbox.tool.invoked'
+    WHERE kind = 'tool-call'
       AND "createdAt" >= toolbox_window.window_from
       AND "createdAt" < toolbox_window.window_to
+  ),
+  result_events AS (
+    SELECT
+      "runId",
+      payload->>'callId' AS "callId",
+      "createdAt" AS "resultAt"
+    FROM public."AgentRunEvent"
+    WHERE kind = 'tool-result'
+  ),
+  invocations AS (
+    SELECT
+      calls."toolName",
+      EXTRACT(EPOCH FROM (results."resultAt" - calls."calledAt")) * 1000 AS "latencyMs"
+    FROM call_events AS calls
+    LEFT JOIN result_events AS results
+      ON results."runId" = calls."runId"
+      AND results."callId" = calls."callId"
   )
   SELECT
     "toolName",
     COUNT(*)::int AS "invocationCount",
     ROUND(AVG("latencyMs"))::int AS "averageLatencyMs",
     ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY "latencyMs"))::int AS "p95LatencyMs"
-  FROM invocation_events
+  FROM invocations
   WHERE "toolName" IS NOT NULL
   GROUP BY "toolName"
   ORDER BY "invocationCount" DESC, "toolName" ASC

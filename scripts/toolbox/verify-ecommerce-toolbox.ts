@@ -7,6 +7,7 @@ import {
   parseToolboxAgentConfig,
   toolboxToolNames,
 } from "@agent-template/toolbox-config";
+import { prisma } from "@agent-template/db";
 import { startLocalToolbox } from "./local-toolbox-server.js";
 
 const repositoryRoot = fileURLToPath(new URL("../..", import.meta.url));
@@ -19,6 +20,15 @@ const databaseUrl =
 const timeWindow = {
   from: "2026-06-01T00:00:00Z",
   to: "2026-07-01T00:00:00Z",
+};
+const verificationRunIds = [
+  `toolbox-verify-completed-${process.pid}`,
+  `toolbox-verify-failed-${process.pid}`,
+];
+const verificationNow = new Date();
+const agentWindow = {
+  from: new Date(verificationNow.getTime() - 86_400_000).toISOString(),
+  to: new Date(verificationNow.getTime() + 86_400_000).toISOString(),
 };
 
 function run(command: string, args: string[]) {
@@ -75,7 +85,11 @@ async function callRows(
   args: Record<string, unknown>,
 ) {
   const result = await client.callTool({ name, arguments: args });
-  assert.equal(result.isError, undefined, `${name} returned an MCP error`);
+  assert.equal(
+    result.isError,
+    undefined,
+    `${name} returned an MCP error: ${JSON.stringify(result.content)}`,
+  );
   return result.content.map((part) => {
     assert.ok(hasText(part));
     return JSON.parse(part.text) as Record<string, unknown>;
@@ -103,6 +117,7 @@ async function main() {
   run("pnpm", ["db:generate"]);
   run("pnpm", ["db:deploy"]);
   run("pnpm", ["db:seed"]);
+  await seedAgentRunVerificationData();
   if (dockerMode) {
     run("docker", ["compose", "up", "-d", "--force-recreate", "toolbox"]);
   }
@@ -239,6 +254,49 @@ async function main() {
     assert.equal(fulfillment.length, 3);
     assert.equal(fulfillment[0]?.orderNumber, "EC20260601004");
 
+    const agentRuns = await callRows(client, "list-agent-runs", { limit: 100 });
+    const completedRun = agentRuns.find(
+      (row) => row.runId === verificationRunIds[0],
+    );
+    assert.equal(completedRun?.status, "completed");
+    assert.equal(completedRun?.eventCount, 3);
+
+    const runSummary = await callRows(client, "get-agent-run-summary", {
+      runId: verificationRunIds[0],
+    });
+    assert.equal(runSummary[0]?.prompt, "Verify Toolbox Agent run read model");
+    assert.equal(runSummary[0]?.output, "Toolbox read model verified");
+
+    const runTimeline = await callRows(client, "list-agent-run-timeline", {
+      runId: verificationRunIds[0],
+      limit: 20,
+    });
+    assert.deepEqual(
+      runTimeline.map((row) => row.kind),
+      ["tool-call", "tool-result", "done"],
+    );
+
+    const failedRuns = await callRows(
+      client,
+      "list-failed-agent-runs-in-window",
+      { ...agentWindow, limit: 20 },
+    );
+    assert.equal(
+      failedRuns.find((row) => row.runId === verificationRunIds[1])?.reason,
+      "Synthetic verifier failure",
+    );
+
+    const toolInvocations = await callRows(
+      client,
+      "summarize-tool-invocations",
+      { ...agentWindow, limit: 20 },
+    );
+    const invocation = toolInvocations.find(
+      (row) => row.toolName === "get-template-event",
+    );
+    assert.equal(invocation?.invocationCount, 1);
+    assert.equal(invocation?.averageLatencyMs, 42);
+
     await assertToolCallFails(
       client,
       "summarize-ecommerce-sales-by-day",
@@ -259,12 +317,86 @@ async function main() {
     );
 
     console.log(
-      `Ecommerce MCP ${dockerMode ? "Docker" : "local"} verification passed: 18 tools listed and 10 direct MCP business scenarios verified.`,
+      `Toolbox MCP ${dockerMode ? "Docker" : "local"} verification passed: 18 tools listed, 10 Ecommerce scenarios, and 5 durable Agent run scenarios verified.`,
     );
   } finally {
     await client?.close();
     await localToolbox?.stop();
+    await prisma.agentRun.deleteMany({
+      where: { id: { in: verificationRunIds } },
+    });
+    await prisma.$disconnect();
   }
+}
+
+async function seedAgentRunVerificationData() {
+  await prisma.agentRun.deleteMany({
+    where: { id: { in: verificationRunIds } },
+  });
+  const requestedAt = new Date(verificationNow.getTime() - 60_000);
+  const startedAt = new Date(requestedAt.getTime() + 1_000);
+  const toolCalledAt = new Date(startedAt.getTime() + 1_000);
+  const toolReturnedAt = new Date(toolCalledAt.getTime() + 42);
+  const completedAt = new Date(toolReturnedAt.getTime() + 1_000);
+
+  await prisma.agentRun.create({
+    data: {
+      id: verificationRunIds[0],
+      prompt: "Verify Toolbox Agent run read model",
+      requestedAt,
+      startedAt,
+      completedAt,
+      status: "COMPLETED",
+      runtime: "claude",
+      model: "local-verifier",
+      output: "Toolbox read model verified",
+      events: {
+        create: [
+          {
+            sequence: 0,
+            kind: "tool-call",
+            payload: {
+              kind: "tool-call",
+              callId: "call-1",
+              toolName: "get-template-event",
+              input: { eventId: "evt-1" },
+            },
+            createdAt: toolCalledAt,
+          },
+          {
+            sequence: 1,
+            kind: "tool-result",
+            payload: {
+              kind: "tool-result",
+              callId: "call-1",
+              toolName: "get-template-event",
+            },
+            createdAt: toolReturnedAt,
+          },
+          {
+            sequence: 2,
+            kind: "done",
+            payload: { kind: "done", result: "Toolbox read model verified" },
+            createdAt: completedAt,
+          },
+        ],
+      },
+    },
+  });
+
+  await prisma.agentRun.create({
+    data: {
+      id: verificationRunIds[1],
+      prompt: "Verify failed Agent run read model",
+      requestedAt: new Date(requestedAt.getTime() + 5_000),
+      startedAt: new Date(startedAt.getTime() + 5_000),
+      completedAt: new Date(completedAt.getTime() + 5_000),
+      status: "FAILED",
+      runtime: "eve",
+      model: "local-verifier",
+      reason: "Synthetic verifier failure",
+    },
+  });
 }
 
 main().catch((error: unknown) => {
