@@ -2,6 +2,10 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseAllDocuments, stringify } from "yaml";
+import {
+  toolboxToolScopes,
+  type ToolboxToolName,
+} from "@agent-template/toolbox-config";
 
 type ToolboxEntry = Record<string, unknown>;
 
@@ -31,21 +35,6 @@ const entries = documents.map((document, index) => {
   return value;
 });
 
-const businessTools = new Set(
-  entries
-    .filter(
-      (entry) =>
-        entry.kind === "toolset" &&
-        typeof entry.name === "string" &&
-        entry.name.startsWith("ecommerce-"),
-    )
-    .flatMap((entry) =>
-      Array.isArray(entry.tools)
-        ? entry.tools.filter((tool): tool is string => typeof tool === "string")
-        : [],
-    ),
-);
-
 const productionEntries: ToolboxEntry[] = [
   {
     audience: "${TOOLBOX_OIDC_AUDIENCE}",
@@ -56,19 +45,7 @@ const productionEntries: ToolboxEntry[] = [
     scopesRequired: ["mcp:tools"],
     type: "generic",
   },
-  ...entries.map((entry) =>
-    entry.kind === "tool"
-      ? {
-          ...entry,
-          authRequired: [authServiceName],
-          scopesRequired: [
-            businessTools.has(String(entry.name))
-              ? "ecommerce:read"
-              : "agent-template:observe",
-          ],
-        }
-      : entry,
-  ),
+  ...entries.map(addProductionAuthorization),
 ];
 
 const output = [
@@ -95,4 +72,19 @@ if (checkOnly) {
 
 function isRecord(value: unknown): value is ToolboxEntry {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function addProductionAuthorization(entry: ToolboxEntry): ToolboxEntry {
+  if (entry.kind !== "tool") return entry;
+
+  const name = String(entry.name);
+  if (!Object.hasOwn(toolboxToolScopes, name)) {
+    throw new Error(`Toolbox production scope is not classified for ${name}`);
+  }
+
+  return {
+    ...entry,
+    authRequired: [authServiceName],
+    scopesRequired: [toolboxToolScopes[name as ToolboxToolName]],
+  };
 }

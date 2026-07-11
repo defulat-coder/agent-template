@@ -23,6 +23,7 @@ pnpm toolbox:check:production
 ```
 
 生成配置要求 JWT 至少有 `mcp:tools`，调用电商 Tool 还需要 `ecommerce:read`，调用平台观测 Tool 需要 `agent-template:observe`。
+Tool 与 scope 的穷尽映射维护在 `@agent-template/toolbox-config` 的 `toolboxToolScopes`；生成器遇到未分类 Tool 时直接失败，不从 Toolset 名称推断授权。`pnpm toolbox:verify:auth:local` 会分别使用最小电商 scope 与平台观测 scope，验证允许调用和跨 scope 拒绝。
 
 ## 本地启动生产认证配置
 

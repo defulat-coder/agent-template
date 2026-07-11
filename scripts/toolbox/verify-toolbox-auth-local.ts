@@ -37,9 +37,11 @@ async function main() {
     },
   });
   let client: Client | undefined;
+  let ecommerceClient: Client | undefined;
+  let observeClient: Client | undefined;
 
   try {
-    client = await waitForAuthorizedToolbox(toolbox.url, oidc.token);
+    client = await waitForAuthorizedToolbox(toolbox.url, oidc.tokens.all);
     await assertUnauthenticatedRequestIsRejected(toolbox.url);
 
     const tools = await client.listTools();
@@ -67,13 +69,70 @@ async function main() {
     assert.equal(result.isError, undefined);
     assert.ok(result.content.length > 0);
 
+    ecommerceClient = await connectClient(
+      toolbox.url,
+      oidc.tokens.ecommerceRead,
+    );
+    const ecommerceResult = await ecommerceClient.callTool({
+      name: "summarize_sales_by_region",
+      arguments: {
+        from: "2026-06-01T00:00:00Z",
+        to: "2026-07-01T00:00:00Z",
+      },
+    });
+    assert.equal(ecommerceResult.isError, undefined);
+    await assertToolCallIsForbidden(
+      ecommerceClient,
+      "list-template-events",
+      { limit: 1 },
+      "agent-template:observe",
+    );
+
+    observeClient = await connectClient(toolbox.url, oidc.tokens.observe);
+    const observeResult = await observeClient.callTool({
+      name: "list-template-events",
+      arguments: { limit: 1 },
+    });
+    assert.equal(observeResult.isError, undefined);
+    await assertToolCallIsForbidden(
+      observeClient,
+      "summarize_sales_by_region",
+      {
+        from: "2026-06-01T00:00:00Z",
+        to: "2026-07-01T00:00:00Z",
+      },
+      "ecommerce:read",
+    );
+
     console.log(
-      `Local Toolbox OIDC verification passed: unauthenticated MCP rejected, 18 scoped tools listed, ${Object.keys(toolboxCapabilityProfiles).length} Agent capability profiles matched live tools, and an authenticated business query succeeded through a direct MCP client.`,
+      `Local Toolbox OIDC verification passed: unauthenticated MCP rejected, 18 scoped tools listed, ${Object.keys(toolboxCapabilityProfiles).length} Agent capability profiles matched live tools, and ecommerce/observe minimum-scope clients passed positive and negative Tool calls.`,
     );
   } finally {
+    await observeClient?.close();
+    await ecommerceClient?.close();
     await client?.close();
     await toolbox.stop();
     await closeServer(oidc.server);
+  }
+}
+
+async function assertToolCallIsForbidden(
+  client: Client,
+  name: string,
+  args: Record<string, unknown>,
+  requiredScope: string,
+) {
+  const forbiddenPattern = new RegExp(
+    `403|forbidden|insufficient scopes|${requiredScope}`,
+    "i",
+  );
+
+  try {
+    const result = await client.callTool({ name, arguments: args });
+    assert.equal(result.isError, true, `${name} unexpectedly succeeded`);
+    assert.match(JSON.stringify(result.content), forbiddenPattern);
+  } catch (error) {
+    assert.match(String(error), forbiddenPattern);
   }
 }
 
@@ -158,21 +217,28 @@ async function startLocalOidcIssuer(aud: string) {
     response.end(JSON.stringify({ error: "not_found" }));
   });
 
-  return {
-    issuer,
-    server,
-    token: signJwt(
+  const createToken = (scope: string) =>
+    signJwt(
       {
         aud,
         exp: Math.floor(Date.now() / 1000) + 300,
         iat: Math.floor(Date.now() / 1000),
         iss: issuer,
-        scope: "mcp:tools ecommerce:read agent-template:observe",
+        scope,
         sub: "local-verifier",
       },
       privateKey,
       keyId,
-    ),
+    );
+
+  return {
+    issuer,
+    server,
+    tokens: {
+      all: createToken("mcp:tools ecommerce:read agent-template:observe"),
+      ecommerceRead: createToken("mcp:tools ecommerce:read"),
+      observe: createToken("mcp:tools agent-template:observe"),
+    },
   };
 }
 

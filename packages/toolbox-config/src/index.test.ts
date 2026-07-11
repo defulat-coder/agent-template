@@ -3,6 +3,7 @@ import {
   parseToolboxAgentConfig,
   toolboxCapabilityProfiles,
   toolboxToolNames,
+  toolboxToolScopes,
 } from "./index.js";
 
 describe("Toolbox Agent config", () => {
@@ -43,6 +44,16 @@ describe("Toolbox Agent config", () => {
       expect(tools.length).toBeGreaterThan(0);
       expect(tools.every((tool) => knownTools.has(tool))).toBe(true);
     }
+  });
+
+  it("classifies every Toolbox tool into one explicit production scope", () => {
+    expect(Object.keys(toolboxToolScopes).sort()).toEqual(
+      [...toolboxToolNames].sort(),
+    );
+    expect(toolboxToolScopes["list-agent-runs"]).toBe("agent-template:observe");
+    expect(toolboxToolScopes["summarize-ecommerce-sales-by-day"]).toBe(
+      "ecommerce:read",
+    );
   });
 
   it("rejects unknown deployment profiles", () => {

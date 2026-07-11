@@ -23,6 +23,29 @@ export const toolboxToolNames = [
 
 export type ToolboxToolName = (typeof toolboxToolNames)[number];
 
+export const toolboxToolScopes = {
+  "list-template-events": "agent-template:observe",
+  "get-template-event": "agent-template:observe",
+  "list-template-events-in-window": "agent-template:observe",
+  "summarize-template-events-by-type": "agent-template:observe",
+  "list-agent-runs": "agent-template:observe",
+  "get-agent-run-summary": "agent-template:observe",
+  "list-agent-run-timeline": "agent-template:observe",
+  "list-failed-agent-runs-in-window": "agent-template:observe",
+  "summarize-tool-invocations": "agent-template:observe",
+  "summarize-ecommerce-sales-by-day": "ecommerce:read",
+  "summarize-ecommerce-sales-by-channel": "ecommerce:read",
+  summarize_sales_by_region: "ecommerce:read",
+  summarize_sales_by_customer_segment: "ecommerce:read",
+  "list-ecommerce-top-products": "ecommerce:read",
+  summarize_merchandise_by_category: "ecommerce:read",
+  "list-ecommerce-orders-in-window": "ecommerce:read",
+  "get-ecommerce-order-detail": "ecommerce:read",
+  "list-ecommerce-fulfillment-exceptions": "ecommerce:read",
+} as const satisfies Record<ToolboxToolName, ToolboxToolScope>;
+
+export type ToolboxToolScope = "agent-template:observe" | "ecommerce:read";
+
 export const toolboxCapabilityProfiles = {
   "development-all": toolboxToolNames,
   "platform-observability": toolboxToolNames.slice(0, 9),
