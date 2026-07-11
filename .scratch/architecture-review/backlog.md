@@ -66,6 +66,14 @@
 
 ## 已完成
 
+### 最终复审候选清零
+
+- 日期：2026-07-11
+- 结论：最终只读扫描为 0 个 Strong / Worth exploring 候选；本轮所有可执行候选均已按推荐方案修复并分别验证、提交。
+- 已闭环：数据库业务 fixture 隔离、Agent run durable lifecycle、数据库时钟与 execution fencing、BullMQ lease-aware redelivery、event provenance、Toolbox durable read model、完整 Tool call/result access path、临时 MCP 资源生命周期。
+- 条件性 deferred：Queue runtime knowledge 当前只有两个装配点，继续抽象会形成 shallow module；Health display locality 等出现第二个真实复用点后再评估。两项都没有当前 deletion test，不属于未解决问题。
+- 最终建议：保持现有 deep module 与 interface，不再新增 seam 或 adapter；后续以现有本地验证门禁守住 depth、leverage 与 locality。
+
 ### 补齐 Tool result 关联访问路径
 
 - 日期：2026-07-11
