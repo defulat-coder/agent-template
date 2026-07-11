@@ -51,6 +51,7 @@
 | completed  | 收口本地 Toolbox verifier 资源生命周期     | Worth exploring | connect failure close Client；launcher stop/parent exit 清理临时 Toolbox                |
 | completed  | 对齐 AgentRun Toolbox SQL 与生产索引       | Strong          | 先 limit run 再 lateral count；三条访问路径由专用索引和 EXPLAIN gate 锁定               |
 | completed  | 让 AgentRunSnapshot 保留 event provenance  | Worth exploring | durable event envelope 暴露 sequence/attempt/time；SSE runtime event 保持不变           |
+| completed  | 补齐 Tool result 关联访问路径              | Worth exploring | partial expression index 覆盖 run/attempt/callId；完整 SQL 计划验证使用生产型数据分布   |
 | completed  | 同步 Toolbox 生成产物                      | Strong          | production 配置、官方原始 Skill 与 runtime Skill 均由同一事实源生成并通过 stale gate    |
 | completed  | 固定 Toolbox UTC 日桶                      | Strong          | 销售日显式按 UTC 转换，不再依赖 PostgreSQL session timezone                             |
 | completed  | 规范化 Toolbox MCP URL                     | Worth exploring | `/mcp/` 与 `/mcp` 归一为一个 MCP path，Claude/Eve 共享 parser 不再重复追加              |
@@ -64,6 +65,14 @@
 - 每轮完成后用中文 Conventional Commit 提交。
 
 ## 已完成
+
+### 补齐 Tool result 关联访问路径
+
+- 日期：2026-07-11
+- locality：`tool-result` 的 `runId + executionAttempt + callId` 关联 access path 集中在 PostgreSQL partial expression index；Tool SQL 不承担历史结果全表扫描。
+- deletion test：删除该索引后，近期 `tool-call` 与全部历史 `tool-result` 的关联只能退化为增长型扫描；复杂度不会消失，只会回到每次统计查询。
+- leverage：一个覆盖 `createdAt` 的索引支撑所有 Agent Tool latency 聚合；完整 SQL 的 query-plan gate 同时锁定 call 时间窗和 result 关联两侧。
+- 聚焦验证：事务内构造 100 个近期调用和 9,900 个历史调用，`ANALYZE` 后 `EXPLAIN` 必须同时命中 call 时间窗索引与 result partial expression index，随后回滚全部验证数据；空库迁移与原生 MCP 全场景继续通过。
 
 ### 让 AgentRunSnapshot 保留 event provenance
 
