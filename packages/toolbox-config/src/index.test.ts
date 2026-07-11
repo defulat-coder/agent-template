@@ -71,4 +71,18 @@ describe("Toolbox Agent config", () => {
       }),
     ).toThrow();
   });
+
+  it("requires an explicit least-visibility profile for authenticated connections", () => {
+    for (const profile of [undefined, "development-all"]) {
+      expect(() =>
+        parseToolboxAgentConfig({
+          AGENT_CAPABILITY_PROFILE: profile,
+          TOOLBOX_AUTH_TOKEN: "service-token",
+          TOOLBOX_URL: "https://toolbox.example.com",
+        }),
+      ).toThrow(
+        /authenticated Toolbox connections require an explicit profile/,
+      );
+    }
+  });
 });

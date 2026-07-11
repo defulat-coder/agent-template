@@ -8,6 +8,7 @@
 
 - 不创建 MCP Client，不管理 connection lifecycle，不代理 Tool call。
 - `TOOLBOX_AUTH_TOKEN` 只作为 runtime connection credential，不进入模型参数、Tool schema 或对话历史。
+- 配置 `TOOLBOX_AUTH_TOKEN` 时必须显式选择非 `development-all` 的 capability profile；认证连接不允许 fail-open。
 - capability profile 只限制模型可见工具；Toolbox OIDC/scope 与 PostgreSQL 权限负责真实授权。
 - `toolboxToolScopes` 是 production Tool scope 的穷尽 taxonomy；新增 Tool 必须显式分类，不从 Toolset 名称推断授权。
 - 新增 Toolbox Tool 时同步更新 `toolboxToolNames`、相关 profile、`tools.yaml`、Skills 和语义目录。

@@ -39,6 +39,7 @@
 | completed | 同步 Toolbox 生成产物                      | Strong          | production 配置、官方原始 Skill 与 runtime Skill 均由同一事实源生成并通过 stale gate |
 | completed | 固定 Toolbox UTC 日桶                      | Strong          | 销售日显式按 UTC 转换，不再依赖 PostgreSQL session timezone                          |
 | completed | 规范化 Toolbox MCP URL                    | Worth exploring | `/mcp/` 与 `/mcp` 归一为一个 MCP path，Claude/Eve 共享 parser 不再重复追加            |
+| completed | 收紧认证连接 capability profile           | Strong          | Bearer token 连接必须显式选择岗位 profile，不允许 `development-all` fail-open         |
 
 ## 执行规则
 
@@ -47,6 +48,14 @@
 - 每轮完成后用中文 Conventional Commit 提交。
 
 ## 已完成
+
+### 收紧认证连接 capability profile
+
+- 日期：2026-07-11
+- locality：认证连接的最小可见性 invariant 集中在 `parseToolboxAgentConfig`，Claude/Eve adapter 无需重复判断。
+- deletion test：删除该 invariant 会让漏配 profile 的 Bearer token 连接重新暴露全部 Tool，因此该检查属于共享配置 module 的必要 implementation。
+- leverage：两个 runtime 和所有生产入口同时 fail-closed；无认证本地开发仍保留 `development-all` 默认。
+- 聚焦验证：toolbox-config lint/typecheck/test、Agent/Claude/Eve tests。
 
 ### 规范化 Toolbox MCP URL
 

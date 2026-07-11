@@ -102,13 +102,24 @@ export function parseToolboxAgentConfig(
   const rawUrl = readString(input.TOOLBOX_URL);
   if (!rawUrl) return undefined;
 
+  const authorizationToken = readString(input.TOOLBOX_AUTH_TOKEN);
+  const rawCapabilityProfile = readString(input.AGENT_CAPABILITY_PROFILE);
+  if (
+    authorizationToken &&
+    (!rawCapabilityProfile || rawCapabilityProfile === "development-all")
+  ) {
+    throw new Error(
+      "authenticated Toolbox connections require an explicit profile other than development-all",
+    );
+  }
+
   const capabilityProfile = ToolboxCapabilityProfileSchema.parse(
-    readString(input.AGENT_CAPABILITY_PROFILE) ?? "development-all",
+    rawCapabilityProfile ?? "development-all",
   );
 
   return ToolboxAgentConfigSchema.parse({
     allowedTools: [...toolboxCapabilityProfiles[capabilityProfile]],
-    authorizationToken: readString(input.TOOLBOX_AUTH_TOKEN),
+    authorizationToken,
     capabilityProfile,
     url: normalizeToolboxMcpUrl(rawUrl),
   });

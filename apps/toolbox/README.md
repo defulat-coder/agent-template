@@ -18,7 +18,7 @@
 - 不使用 `templateParameters`，避免让模型控制表名、列名、排序字段或 SQL 结构。
 - 所有 SQL Tool 显式标注 `readOnlyHint: true`、`destructiveHint: false`、`idempotentHint: true` 和 `openWorldHint: false`。
 - 面向 Agent 的业务 Toolset 按单一分析或运营任务分组，避免一次向模型暴露无关 Tool 导致 context rot。
-- 裸 MCP `tools/list` 默认可见服务端全部工具；`AGENT_CAPABILITY_PROFILE` 从 `@agent-template/toolbox-config` 选择 Agent 模型可见的业务子集。本地默认 `development-all`，生产应按岗位使用 `ecommerce-sales`、`ecommerce-product`、`ecommerce-orders`、`ecommerce-fulfillment`、`ecommerce-analyst` 或 `platform-observability`。
+- 裸 MCP `tools/list` 默认可见服务端全部工具；`AGENT_CAPABILITY_PROFILE` 从 `@agent-template/toolbox-config` 选择 Agent 模型可见的业务子集。无认证的本地开发默认 `development-all`；配置 `TOOLBOX_AUTH_TOKEN` 后必须显式使用 `ecommerce-sales`、`ecommerce-product`、`ecommerce-orders`、`ecommerce-fulfillment`、`ecommerce-analyst` 或 `platform-observability`，不能继续使用 `development-all`。
 - Capability Profile 是模型工具面约束，不代替授权。生产强制边界是 Toolbox OIDC、Tool scope、受限数据库角色与 RLS/等效控制。
 
 ## 电商业务验证数据（主要路径）
