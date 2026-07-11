@@ -3,10 +3,12 @@ import { fileURLToPath } from "node:url";
 import { isScenarioName, supportsScenarioRoute } from "./scenarios.js";
 
 const flowsDirectory = fileURLToPath(new URL("../flows", import.meta.url));
+const planPath = fileURLToPath(new URL("../TEST_PLAN.md", import.meta.url));
 const files = (await readdir(flowsDirectory))
   .filter((file) => file.endsWith(".md"))
   .sort();
 const ids = new Set<string>();
+const planRows = readPlanRows(await readFile(planPath, "utf8"));
 const requiredFields = ["id", "priority", "route", "scenario", "mode"];
 const requiredSections = ["前置条件", "操作", "预期", "证据"];
 
@@ -21,6 +23,15 @@ for (const file of files) {
   const id = metadata.id ?? "";
   if (ids.has(id)) throw new Error(`${file}: duplicate id ${id}`);
   ids.add(id);
+  const planRow = planRows.get(id);
+  if (!planRow) throw new Error(`${file}: missing TEST_PLAN row for ${id}`);
+  if (
+    planRow.priority !== metadata.priority ||
+    planRow.scenario !== metadata.scenario ||
+    planRow.flow !== `flows/${file}`
+  ) {
+    throw new Error(`${file}: TEST_PLAN row does not match flow metadata`);
+  }
   if (!isScenarioName(metadata.scenario)) {
     throw new Error(`${file}: unknown scenario ${metadata.scenario}`);
   }
@@ -36,6 +47,12 @@ for (const file of files) {
   }
 }
 
+if (planRows.size !== files.length) {
+  throw new Error(
+    `TEST_PLAN has ${planRows.size} cases but flows has ${files.length}`,
+  );
+}
+
 console.info(`Validated ${files.length} Web QA flows (${ids.size} unique IDs).`);
 
 function readFrontmatter(content: string): Record<string, string> {
@@ -47,5 +64,24 @@ function readFrontmatter(content: string): Record<string, string> {
       if (separator < 1) throw new Error(`Invalid frontmatter line: ${line}`);
       return [line.slice(0, separator).trim(), line.slice(separator + 1).trim()];
     }),
+  );
+}
+
+function readPlanRows(content: string) {
+  return new Map(
+    content
+      .split("\n")
+      .filter((line) => line.startsWith("| WEB-QA-"))
+      .map((line) => {
+        const cells = line
+          .split("|")
+          .slice(1, -1)
+          .map((cell) => cell.trim().replaceAll("`", ""));
+        const [id, priority, , scenario, , flow] = cells;
+        if (!id || !priority || !scenario || !flow) {
+          throw new Error(`Invalid TEST_PLAN row: ${line}`);
+        }
+        return [id, { priority, scenario, flow }] as const;
+      }),
   );
 }

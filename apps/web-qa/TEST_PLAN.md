@@ -14,7 +14,7 @@
 | ID | 优先级 | 功能点 | 场景 | 主要断言 | Flow |
 | --- | --- | --- | --- | --- | --- |
 | WEB-QA-001 | P0 | 首页与健康状态 | `health-ok` | API、PostgreSQL、Redis/BullMQ 状态及 Agent 入口 | `flows/p0-home-smoke.md` |
-| WEB-QA-010 | P0 | Prompt 必填校验 | 无请求 | 空输入不会发请求，展示中文校验并可重试 | `flows/p0-agent-validation.md` |
+| WEB-QA-010 | P0 | Prompt 必填校验 | `health-ok` | 空输入不会发请求，展示中文校验并可重试 | `flows/p0-agent-validation.md` |
 | WEB-QA-020 | P0 | Agent 正常完成 | `chat-completed` | 运行中、流式文本、完成结果、Runtime/Model、事件时间线 | `flows/p0-agent-completed.md` |
 | WEB-QA-021 | P0 | Agent 主动取消 | `chat-slow-cancellable` | 处理中可取消，取消后恢复可发送状态 | `flows/p0-agent-cancel.md` |
 | WEB-QA-022 | P0 | Agent 失败 | `chat-failed` | 失败原因、失败事件、重试入口 | `flows/p0-agent-failed.md` |
@@ -24,7 +24,7 @@
 | WEB-QA-050 | P1 | Markdown 回复 | `chat-markdown` | 标题、列表、表格、代码块和链接 | `flows/p1-markdown.md` |
 | WEB-QA-060 | P1 | 健康状态降级 | `health-degraded` | degraded/error/unavailable 的状态与详情 | `flows/p1-health-degraded.md` |
 | WEB-QA-061 | P1 | Runtime 未配置 | `chat-skipped` | skipped 原因与可恢复状态 | `flows/p1-runtime-skipped.md` |
-| WEB-QA-070 | P2 | 响应式与可访问性 | `health-ok` | 关键断点、键盘路径、名称与焦点 | `flows/p2-responsive-accessibility.md` |
+| WEB-QA-070 | P2 | 响应式与可访问性 | `chat-completed` | 关键断点、键盘路径、名称与焦点 | `flows/p2-responsive-accessibility.md` |
 
 ## 真实全栈冒烟
 
