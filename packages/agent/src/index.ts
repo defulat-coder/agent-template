@@ -47,6 +47,7 @@ export const AgentRuntimeEnvSchema = z.object({
   ANTHROPIC_BASE_URL: z.string().url().optional(),
   ANTHROPIC_MODEL: z.string().default(defaultClaudeAgentModel),
   CLAUDE_AGENT_MODEL: z.string().default(defaultClaudeAgentModel),
+  CLAUDE_PROJECT_DIR: z.string().optional(),
   EVE_AGENT_HOST: z.string().optional(),
   EVE_AGENT_MODEL: z.string().default(defaultEveAgentModel),
   EVE_AGENT_SERVICE_TOKEN: z.string().optional(),

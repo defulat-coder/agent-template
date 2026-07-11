@@ -1,6 +1,6 @@
 import { mkdirSync } from "node:fs";
-import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { z } from "zod";
 import type {
   McpHttpServerConfig,
@@ -18,17 +18,18 @@ import {
   type AgentRunEvent,
   type DependencyState,
 } from "@agent-template/shared";
+import { resolveClaudeFilesystemProject } from "./filesystem-project.js";
 
 export { defaultClaudeAgentModel };
 export const defaultAnthropicBaseUrl = "https://api.kimi.com/coding/";
 export const defaultClaudeAgentMaxTurns = 100;
 const partialTextEventMinDelta = 200;
-
 export const ClaudeAgentConfigSchema = z.object({
   apiKey: z.string().min(1).optional(),
   authToken: z.string().min(1).optional(),
   baseUrl: z.string().url().optional(),
   model: z.string().min(1).default(defaultClaudeAgentModel),
+  projectDir: z.string().min(1).optional(),
   toolbox: ToolboxAgentConfigSchema.optional(),
 });
 
@@ -75,6 +76,7 @@ export function parseClaudeAgentConfig(
     authToken: input.ANTHROPIC_AUTH_TOKEN || undefined,
     baseUrl: input.ANTHROPIC_BASE_URL || undefined,
     model: input.CLAUDE_AGENT_MODEL || input.ANTHROPIC_MODEL || undefined,
+    projectDir: input.CLAUDE_PROJECT_DIR || undefined,
     ...(toolbox ? { toolbox } : {}),
   });
 }
@@ -111,15 +113,18 @@ export async function checkClaudeAgentReadiness(
     };
   }
 
-  if (!config.toolbox) {
-    return {
-      status: "ok",
-      message: "Claude runtime 凭据已配置，Toolbox 未启用",
-    };
-  }
-
   let client: ClaudeToolboxReadinessClient | undefined;
   try {
+    resolveClaudeFilesystemProject({
+      allowedTools: config.toolbox?.allowedTools,
+      projectDir: config.projectDir,
+    });
+    if (!config.toolbox) {
+      return {
+        status: "ok",
+        message: "Claude runtime 凭据已配置，Toolbox 未启用",
+      };
+    }
     client = await (options.connectToolbox ?? connectClaudeToolboxReadiness)(
       config.toolbox,
       options.signal,
@@ -202,6 +207,10 @@ export async function runClaudeAgent(
   }
 
   const sdk = await (options.loadSdk ?? loadClaudeAgentSdk)();
+  const filesystemProject = resolveClaudeFilesystemProject({
+    allowedTools: config.toolbox?.allowedTools,
+    projectDir: config.projectDir,
+  });
   const runEvents: AgentRunEvent[] = [];
   let result: Extract<SDKMessage, { type: "result" }> | undefined;
   let sessionId: string | undefined;
@@ -216,7 +225,7 @@ export async function runClaudeAgent(
         ? { abortController: options.abortController }
         : {}),
       env: createClaudeAgentSubprocessEnv(config),
-      cwd: readClaudeProjectDir(),
+      cwd: filesystemProject.cwd,
       allowedTools: readClaudeToolboxTools(config),
       maxTurns: defaultClaudeAgentMaxTurns,
       mcpServers: createClaudeToolboxMcpServers(config),
@@ -224,7 +233,7 @@ export async function runClaudeAgent(
       persistSession: options.persistSession ?? false,
       ...(options.resumeSessionId ? { resume: options.resumeSessionId } : {}),
       settingSources: ["project"],
-      skills: "all",
+      skills: filesystemProject.skills,
       tools: [],
       includePartialMessages: true,
       ...(!config.baseUrl ? { model: config.model } : {}),
@@ -478,18 +487,11 @@ function createClaudeAgentSubprocessEnv(config: ClaudeAgentConfig) {
   }
 
   delete env.AGENT_CAPABILITY_PROFILE;
+  delete env.CLAUDE_PROJECT_DIR;
   delete env.TOOLBOX_AUTH_TOKEN;
   delete env.TOOLBOX_URL;
 
   return env;
-}
-
-function readClaudeProjectDir() {
-  if (process.env.CLAUDE_PROJECT_DIR) {
-    return process.env.CLAUDE_PROJECT_DIR;
-  }
-
-  return process.env.INIT_CWD ?? process.cwd();
 }
 
 function readClaudeToolboxTools(config: ClaudeAgentConfig) {

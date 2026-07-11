@@ -151,6 +151,7 @@ describe("Agent runtime selector", () => {
         {
           ANTHROPIC_AUTH_TOKEN: "test-token",
           AGENT_CAPABILITY_PROFILE: "ecommerce-sales",
+          CLAUDE_PROJECT_DIR: "/runtime/agent-claude",
           TOOLBOX_AUTH_TOKEN: "toolbox-token",
           TOOLBOX_URL: "http://toolbox:15000",
         },
@@ -160,6 +161,7 @@ describe("Agent runtime selector", () => {
             runClaudeAgent: async (_input, config) => {
               expect(config).toMatchObject({
                 authToken: "test-token",
+                projectDir: "/runtime/agent-claude",
                 toolbox: {
                   authorizationToken: "toolbox-token",
                   capabilityProfile: "ecommerce-sales",

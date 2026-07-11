@@ -1,4 +1,6 @@
 import { readFileSync } from "node:fs";
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   checkClaudeAgentReadiness,
@@ -10,6 +12,10 @@ import {
   runClaudeAgent,
 } from "./index.js";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+
+const claudeProjectRoot = dirname(
+  fileURLToPath(new URL("../package.json", import.meta.url)),
+);
 
 describe("Claude Agent runtime", () => {
   afterEach(() => {
@@ -25,10 +31,7 @@ describe("Claude Agent runtime", () => {
 
     for (const skillName of skillNames) {
       const skill = readFileSync(
-        new URL(
-          `../../../.claude/skills/${skillName}/SKILL.md`,
-          import.meta.url,
-        ),
+        new URL(`../.claude/skills/${skillName}/SKILL.md`, import.meta.url),
         "utf8",
       );
 
@@ -39,13 +42,23 @@ describe("Claude Agent runtime", () => {
 
       const semanticCatalog = readFileSync(
         new URL(
-          `../../../.claude/skills/${skillName}/references/ecommerce-semantic-catalog.yaml`,
+          `../.claude/skills/${skillName}/references/ecommerce-semantic-catalog.yaml`,
           import.meta.url,
         ),
         "utf8",
       );
       expect(semanticCatalog).toContain("kind: business-semantic-catalog");
     }
+  });
+
+  it("keeps Claude project instructions inside the runtime package", () => {
+    const instructions = readFileSync(
+      new URL("../.claude/CLAUDE.md", import.meta.url),
+      "utf8",
+    );
+
+    expect(instructions).toContain("Agent Template Claude Runtime");
+    expect(instructions).toContain("filesystem-first");
   });
 
   it("does not require an Anthropic API key", () => {
@@ -154,13 +167,13 @@ describe("Claude Agent runtime", () => {
             CLAUDE_CODE_AUTO_COMPACT_WINDOW: "262144",
             CLAUDE_CONFIG_DIR: expect.any(String),
           },
-          cwd: expect.any(String),
+          cwd: claudeProjectRoot,
           includePartialMessages: true,
           maxTurns: defaultClaudeAgentMaxTurns,
           permissionMode: "dontAsk",
           persistSession: false,
           settingSources: ["project"],
-          skills: "all",
+          skills: [],
           tools: [],
         },
       },
@@ -360,11 +373,18 @@ describe("Claude Agent runtime", () => {
           abortController: AbortController;
           env: Record<string, string | undefined>;
           mcpServers: Record<string, unknown>;
+          skills: string[];
         };
       }
     ).options;
     expect(options.abortController).toBe(abortController);
     expect(options.allowedTools).toHaveLength(18);
+    expect(options.skills).toEqual([
+      "ecommerce-sales-analysis",
+      "ecommerce-product-analysis",
+      "ecommerce-order-operations",
+      "ecommerce-fulfillment-operations",
+    ]);
     expect(options.allowedTools).toContain("mcp__toolbox__list-agent-runs");
     expect(options.mcpServers).toMatchObject({
       toolbox: {
@@ -431,6 +451,7 @@ describe("Claude Agent runtime", () => {
               }>;
             };
           };
+          skills: string[];
         };
       }
     ).options;
@@ -441,6 +462,7 @@ describe("Claude Agent runtime", () => {
       "mcp__toolbox__summarize_sales_by_region",
       "mcp__toolbox__summarize_sales_by_customer_segment",
     ]);
+    expect(options.skills).toEqual(["ecommerce-sales-analysis"]);
     expect(options.mcpServers.toolbox.headers).toEqual({
       Authorization: "Bearer toolbox-token",
     });

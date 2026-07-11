@@ -58,7 +58,8 @@ pnpm skills:generate:toolbox
 
 ```text
 generated/toolbox-skills/        # Toolbox 官方原始完整产物
-.claude/skills/                  # Claude 实际加载的适配版
+packages/agent-claude/.claude/skills/ # Claude 实际加载的适配版
+packages/agent-claude/.claude/skills-manifest.json # Claude Skill 与 Tool 映射
 packages/agent-eve/agent/skills/ # Eve 实际加载的适配版
 ```
 

@@ -17,6 +17,7 @@ import { format } from "prettier";
 import {
   toolboxCapabilityProfiles,
   toolboxToolNames,
+  type ToolboxToolName,
 } from "@agent-template/toolbox-config";
 
 type BusinessSkill = {
@@ -24,6 +25,11 @@ type BusinessSkill = {
   name: string;
   toolset: string;
   workflow: string;
+};
+
+type GeneratedBusinessSkillMetadata = {
+  name: string;
+  tools: ToolboxToolName[];
 };
 
 const businessSkills: BusinessSkill[] = [
@@ -73,6 +79,7 @@ const businessSkills: BusinessSkill[] = [
 ];
 
 const repositoryRoot = fileURLToPath(new URL("..", import.meta.url));
+const claudePackageRoot = join(repositoryRoot, "packages/agent-claude");
 const evePackageRoot = join(repositoryRoot, "packages/agent-eve");
 const toolboxConfig = join(repositoryRoot, "apps/toolbox/tools.yaml");
 const ecommerceSemanticCatalog = join(
@@ -92,10 +99,15 @@ const eveExecutable = join(
 const generatedRoot = mkdtempSync(join(tmpdir(), "toolbox-business-skills-"));
 const rawOutputRoot = join(repositoryRoot, "generated/toolbox-skills");
 const manifestPath = join(rawOutputRoot, "manifest.json");
+const claudeManifestPath = join(
+  claudePackageRoot,
+  ".claude/skills-manifest.json",
+);
 const checkOnly = process.argv.includes("--check");
 const staleOutputs: string[] = [];
+const generatedBusinessSkillMetadata: GeneratedBusinessSkillMetadata[] = [];
 const outputRoots = {
-  claude: join(repositoryRoot, ".claude/skills"),
+  claude: join(claudePackageRoot, ".claude/skills"),
   eve: join(evePackageRoot, "agent/skills"),
 };
 
@@ -139,7 +151,14 @@ async function main() {
       const rawOutputSkill = join(rawOutputRoot, skill.name);
       const toolNames = readGeneratedToolNames(generatedMarkdown);
       validateChineseBusinessContent(skill, generatedMarkdown, toolNames);
-      validateExecutionSurfaces(skill.name, toolNames);
+      const validatedToolNames = validateExecutionSurfaces(
+        skill.name,
+        toolNames,
+      );
+      generatedBusinessSkillMetadata.push({
+        name: skill.name,
+        tools: validatedToolNames.sort(),
+      });
       const adaptedMarkdown = adaptSkillMarkdown(
         generatedMarkdown,
         skill.workflow,
@@ -206,6 +225,7 @@ async function main() {
       );
     }
 
+    validateClaudeDiscovery();
     validateEveDiscovery();
     console.log(
       checkOnly
@@ -287,7 +307,7 @@ function synchronizeManagedOutputs() {
   const manifest = `${JSON.stringify(
     {
       generatedBy: "scripts/generate-toolbox-business-skills.ts",
-      skills: currentSkills,
+      skills: generatedBusinessSkillMetadata,
     },
     null,
     2,
@@ -296,7 +316,9 @@ function synchronizeManagedOutputs() {
   if (checkOnly) {
     if (
       !existsSync(manifestPath) ||
-      readFileSync(manifestPath, "utf8") !== manifest
+      readFileSync(manifestPath, "utf8") !== manifest ||
+      !existsSync(claudeManifestPath) ||
+      readFileSync(claudeManifestPath, "utf8") !== manifest
     ) {
       staleOutputs.push(manifestPath);
     }
@@ -327,6 +349,8 @@ function synchronizeManagedOutputs() {
 
   mkdirSync(rawOutputRoot, { recursive: true });
   writeFileSync(manifestPath, manifest, "utf8");
+  mkdirSync(dirname(claudeManifestPath), { recursive: true });
+  writeFileSync(claudeManifestPath, manifest, "utf8");
 }
 
 function readManagedSkillManifest() {
@@ -338,16 +362,21 @@ function readManagedSkillManifest() {
     skills?: unknown;
   };
 
-  if (
-    !Array.isArray(manifest.skills) ||
-    !manifest.skills.every(
-      (skillName): skillName is string => typeof skillName === "string",
-    )
-  ) {
+  if (!Array.isArray(manifest.skills)) {
     throw new Error("Toolbox business skill manifest must contain skills[]");
   }
-
-  return manifest.skills;
+  return manifest.skills.map((skill) => {
+    if (typeof skill === "string") return skill;
+    if (
+      skill &&
+      typeof skill === "object" &&
+      "name" in skill &&
+      typeof skill.name === "string"
+    ) {
+      return skill.name;
+    }
+    throw new Error("Toolbox business skill manifest has an invalid skill");
+  });
 }
 
 function synchronizeRawOutputRoot() {
@@ -492,6 +521,30 @@ function validateExecutionSurfaces(skillName: string, toolNames: string[]) {
       "Eve Toolbox connection must apply the shared capability profile",
     );
   }
+
+  return toolNames as ToolboxToolName[];
+}
+
+function validateClaudeDiscovery() {
+  const manifest = JSON.parse(readFileSync(claudeManifestPath, "utf8")) as {
+    skills?: Array<{ name?: string }>;
+  };
+  const discoveredSkills = manifest.skills?.map((skill) => skill.name) ?? [];
+  const missingSkills = businessSkills
+    .map((skill) => skill.name)
+    .filter(
+      (skillName) =>
+        !discoveredSkills.includes(skillName) ||
+        !existsSync(
+          join(claudePackageRoot, ".claude/skills", skillName, "SKILL.md"),
+        ),
+    );
+
+  if (missingSkills.length > 0) {
+    throw new Error(
+      `Claude did not discover all Toolbox business skills: ${missingSkills.join(", ")}`,
+    );
+  }
 }
 
 function validateEveDiscovery() {
@@ -512,7 +565,8 @@ function validateEveDiscovery() {
       })
     : undefined;
   const discoveredConnections =
-    discovery?.connections?.map((connection) => connection.connectionName) ?? [];
+    discovery?.connections?.map((connection) => connection.connectionName) ??
+    [];
   const missingSkills = businessSkills
     .map((skill) => skill.name)
     .filter((skillName) => !discoveredSkills.includes(skillName));
@@ -535,9 +589,7 @@ function useRuntimeToolNames(
 ) {
   return toolNames.reduce((content, toolName) => {
     const qualifiedName =
-      runtime === "eve"
-        ? `toolbox__${toolName}`
-        : `mcp__toolbox__${toolName}`;
+      runtime === "eve" ? `toolbox__${toolName}` : `mcp__toolbox__${toolName}`;
     return content
       .replaceAll(toolName, qualifiedName)
       .replace(`### ${qualifiedName}`, `### \`${qualifiedName}\``);

@@ -12,7 +12,6 @@ x-runtime-environment: &runtime-environment
   ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-https://api.kimi.com/coding/}
   ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-kimi-for-coding}
   CLAUDE_AGENT_MODEL: ${CLAUDE_AGENT_MODEL:-kimi-for-coding}
-  CLAUDE_PROJECT_DIR: /app
   EVE_AGENT_HOST: ${EVE_AGENT_HOST:-http://eve-agent:13010}
   EVE_AGENT_MODEL: ${EVE_AGENT_MODEL:-kimi-for-coding}
   EVE_AGENT_SERVICE_TOKEN: ${EVE_AGENT_SERVICE_TOKEN:-}

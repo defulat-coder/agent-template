@@ -9,7 +9,7 @@
 - Toolbox server 是独立 Tool provider，不属于 Claude 或 Eve Agent runtime。
 - `tools.yaml` 只定义 source、tool 和 toolset，不放业务运行时代码。
 - 业务 Skill 生成编排放在根目录 `scripts/`，本目录只提供被官方生成器读取的 Toolset 事实源。
-- Toolbox 官方原始 Skill 完整保存在 `generated/toolbox-skills/`；runtime 适配版分别保存在 `.claude/skills/` 与 `packages/agent-eve/agent/skills/`。
+- Toolbox 官方原始 Skill 完整保存在 `generated/toolbox-skills/`；runtime 适配版分别保存在 `packages/agent-claude/.claude/skills/` 与 `packages/agent-eve/agent/skills/`。
 - Toolset 只用于 Skill 生成与业务分组，不代表运行时授权；模型可见范围由 runtime capability profile 收窄，授权由 Toolbox OIDC、Tool scope 和数据库强制。
 - `tools.yaml` 是 Tool、Toolset 和 annotations 的可执行事实源；`SEMANTIC_LAYER.md` 记录人类可读的业务指标与时间口径。
 - 智能问数的术语、指标、维度取值、歧义规则和 golden cases 维护在 `semantic/`；每个领域独立建目录，不把业务专有名词写死进通用代码。

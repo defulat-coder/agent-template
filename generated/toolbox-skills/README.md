@@ -13,7 +13,7 @@
 这些原始脚本只用于产物检查和本地诊断，不是项目 Agent 的生产执行路径。Eve 和 Claude 实际加载的适配版分别位于：
 
 - `packages/agent-eve/agent/skills/`
-- `.claude/skills/`
+- `packages/agent-claude/.claude/skills/`
 
 Toolbox 固定模板保持英文；由项目提供的 Skill 描述、补充说明、业务 Tool 描述和参数描述以中文为主。
 
