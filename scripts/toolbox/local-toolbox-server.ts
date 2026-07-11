@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import { createRequire } from "node:module";
 import { createServer } from "node:net";
 import { dirname, join } from "node:path";
@@ -6,6 +6,9 @@ import { fileURLToPath } from "node:url";
 
 const repositoryRoot = fileURLToPath(new URL("../..", import.meta.url));
 const toolboxExecutable = resolveToolboxExecutable();
+const useProcessGroups = process.platform !== "win32";
+const activeToolboxProcesses = new Map<number, ChildProcess>();
+let cleanupHandlersInstalled = false;
 
 export async function startLocalToolbox(input: {
   args?: string[];
@@ -42,6 +45,7 @@ export async function startLocalToolbox(input: {
     ],
     {
       cwd: repositoryRoot,
+      detached: useProcessGroups,
       env: runtimeEnv,
       stdio: ["ignore", "pipe", "pipe"],
     },
@@ -53,25 +57,89 @@ export async function startLocalToolbox(input: {
   child.stderr?.on("data", (chunk) => {
     logs += String(chunk);
   });
+  const childPid = child.pid;
+  if (!childPid) throw new Error("Toolbox process did not receive a pid");
+  activeToolboxProcesses.set(childPid, child);
+  installCleanupHandlers();
+  let stopped = false;
 
   return {
     getLogs: () => logs,
     async stop() {
-      if (child.exitCode !== null) return;
-      child.kill("SIGTERM");
-      await new Promise<void>((resolve) => {
-        const timeout = setTimeout(() => {
-          child.kill("SIGKILL");
-          resolve();
-        }, 2_000);
-        child.once("exit", () => {
-          clearTimeout(timeout);
-          resolve();
-        });
-      });
+      if (stopped) return;
+      stopped = true;
+      signalToolboxProcess(childPid, child, "SIGTERM");
+      if (!(await waitForProcessGroupExit(childPid, 2_000))) {
+        signalToolboxProcess(childPid, child, "SIGKILL");
+        await waitForProcessGroupExit(childPid, 1_000);
+      }
+      activeToolboxProcesses.delete(childPid);
     },
     url,
   };
+}
+
+function installCleanupHandlers() {
+  if (cleanupHandlersInstalled) return;
+  cleanupHandlersInstalled = true;
+  const cleanup = () => signalAllToolboxProcesses("SIGTERM");
+  process.once("exit", cleanup);
+  process.once("uncaughtExceptionMonitor", cleanup);
+  process.once("SIGINT", () => {
+    cleanup();
+    process.exit(130);
+  });
+  process.once("SIGTERM", () => {
+    cleanup();
+    process.exit(143);
+  });
+}
+
+function signalAllToolboxProcesses(signal: NodeJS.Signals) {
+  for (const [pid, child] of activeToolboxProcesses) {
+    signalToolboxProcess(pid, child, signal);
+  }
+}
+
+function signalToolboxProcess(
+  pid: number,
+  child: ChildProcess,
+  signal: NodeJS.Signals,
+) {
+  try {
+    if (useProcessGroups) process.kill(-pid, signal);
+    else child.kill(signal);
+  } catch (error) {
+    if (!isMissingProcess(error)) throw error;
+  }
+}
+
+async function waitForProcessGroupExit(pid: number, timeoutMs: number) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (!isProcessGroupAlive(pid)) return true;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  return !isProcessGroupAlive(pid);
+}
+
+function isProcessGroupAlive(pid: number) {
+  try {
+    process.kill(useProcessGroups ? -pid : pid, 0);
+    return true;
+  } catch (error) {
+    if (isMissingProcess(error)) return false;
+    throw error;
+  }
+}
+
+function isMissingProcess(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "ESRCH"
+  );
 }
 
 async function reservePort() {

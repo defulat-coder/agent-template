@@ -48,6 +48,7 @@
 | completed  | 统一 execution lease 数据库时钟            | Strong          | claim/heartbeat/event/finish 只用 PostgreSQL clock；Worker 时间只作业务 metadata        |
 | completed  | 对齐 BullMQ redelivery 与 execution lease  | Strong          | 固定 retry delay 由默认 lease + grace 派生，并通过本地 Redis/BullMQ 验证                |
 | completed  | 持久化 Agent run event attempt provenance  | Strong          | execution event 原子投影 attempt；timeline 与 Tool 配对禁止跨 attempt 关联              |
+| completed  | 收口本地 Toolbox verifier 资源生命周期     | Worth exploring | connect failure close Client；launcher stop/parent exit 清理临时 Toolbox                |
 | completed  | 同步 Toolbox 生成产物                      | Strong          | production 配置、官方原始 Skill 与 runtime Skill 均由同一事实源生成并通过 stale gate    |
 | completed  | 固定 Toolbox UTC 日桶                      | Strong          | 销售日显式按 UTC 转换，不再依赖 PostgreSQL session timezone                             |
 | completed  | 规范化 Toolbox MCP URL                     | Worth exploring | `/mcp/` 与 `/mcp` 归一为一个 MCP path，Claude/Eve 共享 parser 不再重复追加              |
@@ -61,6 +62,14 @@
 - 每轮完成后用中文 Conventional Commit 提交。
 
 ## 已完成
+
+### 收口本地 Toolbox verifier 资源生命周期
+
+- 日期：2026-07-11
+- locality：MCP Client connect failure 与 Toolbox child lifecycle 统一在两个本地 adapter 内清理，不让各 verifier 复制进程管理。
+- deletion test：删除 cleanup 会把残留端口与 orphan process 清理推给每个调用者；集中后 verifier interface 才能重复运行。
+- leverage：业务、readiness 与 OIDC verifier 共用同一 launcher；正常结束、失败和父进程退出都覆盖。
+- 聚焦验证：清理历史项目 verifier 进程后运行 `pnpm toolbox:verify:local` 与 `pnpm toolbox:verify:auth:local`，确认命令结束后无新增本项目临时 Toolbox/verify 进程。
 
 ### 持久化 Agent run event attempt provenance
 

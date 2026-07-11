@@ -24,23 +24,24 @@ const audience = process.env.TOOLBOX_OIDC_AUDIENCE ?? "agent-template-toolbox";
 
 async function main() {
   const oidc = await startLocalOidcIssuer(audience);
-  const toolbox = await startLocalToolbox({
-    configPath: productionConfig,
-    env: {
-      TOOLBOX_OIDC_AUDIENCE: audience,
-      TOOLBOX_OIDC_ISSUER: oidc.issuer,
-      TOOLBOX_POSTGRES_DATABASE: database.database,
-      TOOLBOX_POSTGRES_HOST: database.host,
-      TOOLBOX_POSTGRES_PASSWORD: database.password,
-      TOOLBOX_POSTGRES_PORT: database.port,
-      TOOLBOX_POSTGRES_USER: database.user,
-    },
-  });
+  let toolbox: Awaited<ReturnType<typeof startLocalToolbox>> | undefined;
   let client: Client | undefined;
   let ecommerceClient: Client | undefined;
   let observeClient: Client | undefined;
 
   try {
+    toolbox = await startLocalToolbox({
+      configPath: productionConfig,
+      env: {
+        TOOLBOX_OIDC_AUDIENCE: audience,
+        TOOLBOX_OIDC_ISSUER: oidc.issuer,
+        TOOLBOX_POSTGRES_DATABASE: database.database,
+        TOOLBOX_POSTGRES_HOST: database.host,
+        TOOLBOX_POSTGRES_PASSWORD: database.password,
+        TOOLBOX_POSTGRES_PORT: database.port,
+        TOOLBOX_POSTGRES_USER: database.user,
+      },
+    });
     client = await waitForAuthorizedToolbox(toolbox.url, oidc.tokens.all);
     await assertUnauthenticatedRequestIsRejected(toolbox.url);
 
@@ -108,11 +109,17 @@ async function main() {
       `Local Toolbox OIDC verification passed: unauthenticated MCP rejected, 18 scoped tools listed, ${Object.keys(toolboxCapabilityProfiles).length} Agent capability profiles matched live tools, and ecommerce/observe minimum-scope clients passed positive and negative Tool calls.`,
     );
   } finally {
-    await observeClient?.close();
-    await ecommerceClient?.close();
-    await client?.close();
-    await toolbox.stop();
-    await closeServer(oidc.server);
+    await Promise.allSettled(
+      [observeClient, ecommerceClient, client]
+        .filter((item): item is Client => Boolean(item))
+        .map((item) => withTimeout(item.close(), 2_000)),
+    );
+    try {
+      await toolbox?.stop();
+    } finally {
+      oidc.server.closeAllConnections();
+      await withTimeout(closeServer(oidc.server), 2_000).catch(() => undefined);
+    }
   }
 }
 
@@ -170,8 +177,13 @@ async function connectClient(url: string, token?: string) {
       ? { requestInit: { headers: { Authorization: `Bearer ${token}` } } }
       : undefined,
   );
-  await client.connect(transport as Parameters<Client["connect"]>[0]);
-  return client;
+  try {
+    await client.connect(transport as Parameters<Client["connect"]>[0]);
+    return client;
+  } catch (error) {
+    await client.close().catch(() => undefined);
+    throw error;
+  }
 }
 
 async function startLocalOidcIssuer(aud: string) {
@@ -270,6 +282,20 @@ function closeServer(server: Server) {
   return new Promise<void>((resolve, reject) => {
     server.close((error) => (error ? reject(error) : resolve()));
   });
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number) {
+  let timeout: NodeJS.Timeout | undefined;
+  return Promise.race([
+    promise,
+    new Promise<never>((_resolve, reject) => {
+      timeout = setTimeout(
+        () => reject(new Error(`Cleanup timed out after ${timeoutMs}ms`)),
+        timeoutMs,
+      );
+      timeout.unref?.();
+    }),
+  ]).finally(() => clearTimeout(timeout));
 }
 
 main().catch((error: unknown) => {

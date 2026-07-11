@@ -19,6 +19,7 @@
 - 生产 Agent 默认只使用自定义 toolset，不使用 prebuilt generic tools。
 - 数据库连接信息通过环境变量注入，不能把密码写死在 `tools.yaml`。
 - 真实业务部署使用 `generated/toolbox-production/tools.yaml`，由 `pnpm toolbox:generate:production` 生成；它必须启用 Generic OIDC、server scope 和 Tool scope，不能手改生成产物。
+- 本地 Toolbox launcher 必须在显式 stop 与父进程退出时清理子进程；MCP connect 失败也必须 close Client，验证结束后不得遗留临时端口进程。
 
 ## 智能问数后续设计标准
 
