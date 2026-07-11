@@ -27,4 +27,6 @@
 
 - 不把 QA fixture 接入 `AGENT_RUNTIME`，不调用真实模型、数据库、Redis 或 Toolbox。
 - 不给 `apps/web-qa` 添加 `dev` script，避免根 `pnpm dev` 自动启动 QA 环境。
+- QA Web 固定使用 Next.js webpack 模式，避免 Codex Desktop 下 Turbopack 原生 worker 造成负载尖峰。
+- QA 子进程必须按进程组关闭，避免 pnpm 退出后遗留 Next.js 或 fixture 孤儿进程。
 - 场景变化集中在 `src/scenarios.ts`；新增场景必须有 HTTP contract test 和至少一个 flow。

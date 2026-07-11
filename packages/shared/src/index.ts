@@ -41,6 +41,7 @@ export {
   AgentRunPageSchema,
   AgentRunStreamFrameSchema,
   AgentRunSummarySchema,
+  maxAgentSseBufferCharacters,
   type AgentRunInput,
   type AgentRunResult,
   type AgentRunRecordedEvent,
@@ -53,7 +54,14 @@ export {
 } from "./agent-run";
 export {
   AgentArtifactSchema,
+  AgentInputOptionSchema,
+  AgentInputRequestSchema,
+  AgentInputResponseSchema,
   AgentRunEventSchema,
+  appendCompactedAgentRunEvent,
   type AgentArtifact,
+  type AgentInputOption,
+  type AgentInputRequest,
+  type AgentInputResponse,
   type AgentRunEvent,
 } from "./agent-run-events";

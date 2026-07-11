@@ -58,6 +58,7 @@ type ConversationRecord = {
 const fromPrismaStatus = {
   QUEUED: "queued",
   RUNNING: "running",
+  WAITING: "waiting",
   COMPLETED: "completed",
   FAILED: "failed",
   SKIPPED: "skipped",

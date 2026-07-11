@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { AgentRunEventSchema } from "./agent-run-events";
+import {
+  AgentRunEventSchema,
+  appendCompactedAgentRunEvent,
+  type AgentRunEvent,
+} from "./agent-run-events";
 
 describe("AgentRunEventSchema", () => {
   it("accepts the shared Agent run event protocol", () => {
@@ -60,5 +64,46 @@ describe("AgentRunEventSchema", () => {
     expect(
       AgentRunEventSchema.parse({ kind: "unknown", text: "raw event" }),
     ).toEqual({ kind: "unknown", text: "raw event" });
+  });
+
+  it("accepts a runtime-neutral input request", () => {
+    expect(
+      AgentRunEventSchema.parse({
+        kind: "input-request",
+        request: {
+          requestId: "request-1",
+          type: "question",
+          prompt: "是否排除内部测试订单？",
+          options: [
+            { id: "exclude", label: "排除并继续", style: "primary" },
+            { id: "keep", label: "保留" },
+          ],
+          action: {
+            callId: "call-1",
+            toolName: "AskUserQuestion",
+            input: { source: "agent" },
+          },
+        },
+      }),
+    ).toMatchObject({
+      kind: "input-request",
+      request: { requestId: "request-1", type: "question" },
+    });
+  });
+
+  it("keeps only the latest consecutive cumulative text snapshot", () => {
+    const events: AgentRunEvent[] = [
+      { kind: "tool-call", callId: "call-1", toolName: "search", input: {} },
+    ];
+
+    appendCompactedAgentRunEvent(events, { kind: "text", text: "Hel" });
+    appendCompactedAgentRunEvent(events, { kind: "text", text: "Hello" });
+    appendCompactedAgentRunEvent(events, { kind: "done", result: "Hello" });
+
+    expect(events).toEqual([
+      { kind: "tool-call", callId: "call-1", toolName: "search", input: {} },
+      { kind: "text", text: "Hello" },
+      { kind: "done", result: "Hello" },
+    ]);
   });
 });

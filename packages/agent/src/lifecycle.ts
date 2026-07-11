@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import {
+  appendCompactedAgentRunEvent,
   AgentRunInputSchema,
   AgentRunListQuerySchema,
   AgentRunResultSchema,
@@ -25,6 +26,7 @@ export type StoredAgentRunEvent = {
 };
 
 type AgentRunEventWrite = Omit<StoredAgentRunEvent, "executionAttempt">;
+const maxPendingAgentRunEvents = 1_000;
 
 export type StoredAgentRun = {
   id: string;
@@ -228,9 +230,20 @@ export function createAgentRunLifecycle(input: {
       input.cancellationPollMs ?? 250,
       leaseDurationMs,
     );
-    let sequence = started.events.length;
-    let eventWrites = Promise.resolve();
     const emittedEvents: AgentRunEvent[] = [];
+    const eventWriter = createExecutionEventWriter({
+      initialSequence: started.events.length,
+      onFailure(error) {
+        controller.abort(error);
+      },
+      async write(storedEvent) {
+        const appended = await input.repository.appendExecutionEvent(runId, {
+          ...storedEvent,
+          executionToken,
+        });
+        if (!appended) throw new AgentRunExecutionLeaseLostError(runId);
+      },
+    });
 
     try {
       const result = await input.execute({ prompt: started.prompt }, env, {
@@ -240,24 +253,12 @@ export function createAgentRunLifecycle(input: {
           : {}),
         ...(options.continuation ? { continuation: options.continuation } : {}),
         onEvent(event) {
-          emittedEvents.push(event);
-          const storedEvent = {
-            sequence,
-            event,
-            createdAt: now(),
-          };
-          sequence += 1;
-          eventWrites = eventWrites.then(async () => {
-            const appended = await input.repository.appendExecutionEvent(
-              runId,
-              { ...storedEvent, executionToken },
-            );
-            if (!appended) throw new AgentRunExecutionLeaseLostError(runId);
-          });
+          appendCompactedAgentRunEvent(emittedEvents, event);
+          eventWriter.push(event, now());
           options.onEvent?.(event);
         },
       });
-      await eventWrites;
+      await eventWriter.flush();
 
       if (controller.signal.aborted) {
         if (isExecutionLeaseLost(controller.signal.reason)) {
@@ -301,25 +302,33 @@ export function createAgentRunLifecycle(input: {
           ? { conversationId: finished.conversationId }
           : {}),
       });
-    } catch (error) {
-      await eventWrites;
+    } catch (caughtError) {
+      let error = caughtError;
+      try {
+        await eventWriter.flush();
+      } catch (writeError) {
+        error = writeError;
+      }
       if (
         isExecutionLeaseLost(error) ||
         isExecutionLeaseLost(controller.signal.reason)
       ) {
         throw new AgentRunExecutionLeaseLostError(runId);
       }
-      if (controller.signal.aborted || isAbortError(error)) {
+      if (
+        (controller.signal.aborted || isAbortError(error)) &&
+        !(controller.signal.reason instanceof Error)
+      ) {
         return finishCancelled(started, emittedEvents);
       }
 
       const reason =
         error instanceof Error ? error.message : "Agent run failed";
       const event = { kind: "error", message: reason } satisfies AgentRunEvent;
-      emittedEvents.push(event);
+      appendCompactedAgentRunEvent(emittedEvents, event);
       const appended = await input.repository.appendExecutionEvent(runId, {
         executionToken,
-        sequence,
+        sequence: eventWriter.nextSequence(),
         event,
         createdAt: now(),
       });
@@ -351,7 +360,7 @@ export function createAgentRunLifecycle(input: {
       ) {
         const appended = await input.repository.appendExecutionEvent(run.id, {
           executionToken,
-          sequence,
+          sequence: eventWriter.nextSequence(),
           event,
           createdAt: now(),
         });
@@ -424,6 +433,92 @@ export function createAgentRunLifecycle(input: {
         }),
       );
     },
+  };
+}
+
+function createExecutionEventWriter(input: {
+  initialSequence: number;
+  onFailure(error: unknown): void;
+  write(event: AgentRunEventWrite): Promise<void>;
+}) {
+  let pending: Array<{ event: AgentRunEvent; createdAt: Date }> = [];
+  let pendingHead = 0;
+  let sequence = input.initialSequence;
+  let draining: Promise<void> | undefined;
+  let failure: unknown;
+
+  const fail = (error: unknown) => {
+    if (failure !== undefined) return;
+    failure = error;
+    pending = [];
+    pendingHead = 0;
+    input.onFailure(error);
+  };
+
+  const pendingSize = () => pending.length - pendingHead;
+
+  const startDrain = () => {
+    if (draining || failure !== undefined || pendingSize() === 0) return;
+    draining = drain()
+      .catch((error: unknown) => {
+        fail(error);
+      })
+      .finally(() => {
+        draining = undefined;
+        startDrain();
+      });
+  };
+
+  const push = (event: AgentRunEvent, createdAt: Date) => {
+    if (failure !== undefined) return;
+    const previous = pending.at(-1);
+    if (
+      pendingSize() > 0 &&
+      event.kind === "text" &&
+      previous?.event.kind === "text"
+    ) {
+      previous.event = event;
+      previous.createdAt = createdAt;
+    } else {
+      if (pendingSize() >= maxPendingAgentRunEvents) {
+        fail(
+          new Error(
+            `Agent run event backlog exceeded ${maxPendingAgentRunEvents}`,
+          ),
+        );
+        return;
+      }
+      pending.push({ event, createdAt });
+    }
+    startDrain();
+  };
+
+  const flush = async () => {
+    while (draining || pendingSize() > 0) {
+      startDrain();
+      if (draining) await draining;
+    }
+    if (failure !== undefined) throw failure;
+  };
+
+  async function drain() {
+    while (pendingHead < pending.length && failure === undefined) {
+      const current = pending[pendingHead];
+      if (!current) break;
+      pendingHead += 1;
+      await input.write({ ...current, sequence });
+      sequence += 1;
+    }
+    if (pendingHead === pending.length) {
+      pending = [];
+      pendingHead = 0;
+    }
+  }
+
+  return {
+    flush,
+    nextSequence: () => sequence,
+    push,
   };
 }
 

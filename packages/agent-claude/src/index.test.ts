@@ -174,7 +174,7 @@ describe("Claude Agent runtime", () => {
           persistSession: false,
           settingSources: ["project"],
           skills: [],
-          tools: [],
+          tools: ["AskUserQuestion"],
         },
       },
     ]);
@@ -261,7 +261,6 @@ describe("Claude Agent runtime", () => {
       ),
     ).resolves.toMatchObject({
       events: [
-        { kind: "text", text: "Hel" },
         { kind: "text", text: "Hello" },
         { kind: "done", result: "Hello" },
       ],
@@ -274,6 +273,75 @@ describe("Claude Agent runtime", () => {
       { kind: "text", text: "Hello" },
       { kind: "done", result: "Hello" },
     ]);
+  });
+
+  it("keeps only the latest cumulative text snapshot in the terminal result", async () => {
+    const chunk = "x".repeat(512);
+    const output = chunk.repeat(256);
+
+    const result = await runClaudeAgent(
+      { prompt: "Stream a long reply" },
+      {
+        authToken: "test-token",
+        baseUrl: defaultAnthropicBaseUrl,
+        model: "kimi-for-coding",
+      },
+      {
+        loadSdk: async () => ({
+          query() {
+            return (async function* () {
+              yield {
+                event: {
+                  content_block: { citations: null, text: "", type: "text" },
+                  index: 0,
+                  type: "content_block_start",
+                },
+                parent_tool_use_id: null,
+                session_id: "claude-session-long",
+                type: "stream_event",
+                uuid: "partial-start",
+              } as unknown as SDKMessage;
+              for (let index = 0; index < 256; index += 1) {
+                yield {
+                  event: {
+                    delta: { text: chunk, type: "text_delta" },
+                    index: 0,
+                    type: "content_block_delta",
+                  },
+                  parent_tool_use_id: null,
+                  session_id: "claude-session-long",
+                  type: "stream_event",
+                  uuid: `partial-${index}`,
+                } as unknown as SDKMessage;
+              }
+              yield {
+                duration_api_ms: 0,
+                duration_ms: 0,
+                is_error: false,
+                modelUsage: {},
+                num_turns: 1,
+                permission_denials: [],
+                result: output,
+                session_id: "claude-session-long",
+                stop_reason: "stop",
+                subtype: "success",
+                total_cost_usd: 0,
+                type: "result",
+                usage: {},
+              } as unknown as SDKMessage;
+            })();
+          },
+        }),
+      },
+    );
+
+    expect(result).toMatchObject({
+      status: "completed",
+      events: [
+        { kind: "text", text: output },
+        { kind: "done", result: output },
+      ],
+    });
   });
 
   it("connects Claude directly to the Toolbox MCP server", async () => {
@@ -378,7 +446,8 @@ describe("Claude Agent runtime", () => {
       }
     ).options;
     expect(options.abortController).toBe(abortController);
-    expect(options.allowedTools).toHaveLength(18);
+    expect(options.allowedTools).toHaveLength(19);
+    expect(options.allowedTools).toContain("AskUserQuestion");
     expect(options.skills).toEqual([
       "ecommerce-sales-analysis",
       "ecommerce-product-analysis",
@@ -457,6 +526,7 @@ describe("Claude Agent runtime", () => {
     ).options;
 
     expect(options.allowedTools).toEqual([
+      "AskUserQuestion",
       "mcp__toolbox__summarize-ecommerce-sales-by-day",
       "mcp__toolbox__summarize-ecommerce-sales-by-channel",
       "mcp__toolbox__summarize_sales_by_region",
@@ -477,5 +547,158 @@ describe("Claude Agent runtime", () => {
       )?.permission_policy,
     ).toBe("always_deny");
     expect(options.env).not.toHaveProperty("TOOLBOX_AUTH_TOKEN");
+  });
+
+  it("defers AskUserQuestion and resumes it with platform input", async () => {
+    const toolInput = {
+      questions: [
+        {
+          question: "是否排除内部测试订单？",
+          header: "数据范围",
+          multiSelect: false,
+          options: [
+            { label: "排除并继续", description: "过滤测试账号" },
+            { label: "保留", description: "保留全部订单" },
+          ],
+        },
+      ],
+    };
+    const pendingInput = {
+      toolUseId: "toolu-question-1",
+      toolName: "AskUserQuestion",
+      toolInput,
+      requests: [
+        {
+          requestId: "toolu-question-1:0",
+          type: "question" as const,
+          prompt: "是否排除内部测试订单？",
+          options: [
+            { id: "0", label: "排除并继续", style: "primary" as const },
+            { id: "1", label: "保留" },
+          ],
+          action: {
+            callId: "toolu-question-1",
+            toolName: "AskUserQuestion",
+            input: toolInput,
+          },
+        },
+      ],
+    };
+
+    await expect(
+      runClaudeAgent(
+        { prompt: "分析退款异常" },
+        {
+          authToken: "test-token",
+          baseUrl: defaultAnthropicBaseUrl,
+          model: "kimi-for-coding",
+        },
+        {
+          loadSdk: async () => ({
+            query() {
+              return (async function* () {
+                yield {
+                  deferred_tool_use: {
+                    id: pendingInput.toolUseId,
+                    input: pendingInput.toolInput,
+                    name: pendingInput.toolName,
+                  },
+                  duration_api_ms: 0,
+                  duration_ms: 0,
+                  is_error: false,
+                  modelUsage: {},
+                  num_turns: 1,
+                  permission_denials: [],
+                  result: "",
+                  session_id: "claude-session-waiting",
+                  stop_reason: "tool_deferred",
+                  subtype: "success",
+                  total_cost_usd: 0,
+                  type: "result",
+                  usage: {},
+                } as unknown as SDKMessage;
+              })();
+            },
+          }),
+        },
+      ),
+    ).resolves.toMatchObject({
+      status: "waiting",
+      sessionId: "claude-session-waiting",
+      events: [
+        {
+          kind: "input-request",
+          request: {
+            requestId: "toolu-question-1:0",
+            prompt: "是否排除内部测试订单？",
+          },
+        },
+      ],
+    });
+
+    let hookDecision: unknown;
+    await expect(
+      runClaudeAgent(
+        {
+          prompt: "排除并继续",
+          inputResponses: [{ requestId: "toolu-question-1:0", optionId: "0" }],
+        },
+        {
+          authToken: "test-token",
+          baseUrl: defaultAnthropicBaseUrl,
+          model: "kimi-for-coding",
+        },
+        {
+          pendingInput,
+          resumeSessionId: "claude-session-waiting",
+          loadSdk: async () => ({
+            query(params) {
+              const hook = (
+                params.options?.hooks as {
+                  PreToolUse: Array<{
+                    hooks: Array<(input: unknown) => Promise<unknown>>;
+                  }>;
+                }
+              ).PreToolUse[0]?.hooks[0];
+              return (async function* () {
+                hookDecision = await hook?.({
+                  hook_event_name: "PreToolUse",
+                  tool_name: "AskUserQuestion",
+                  tool_input: pendingInput.toolInput,
+                  tool_use_id: pendingInput.toolUseId,
+                });
+                yield {
+                  duration_api_ms: 0,
+                  duration_ms: 0,
+                  is_error: false,
+                  modelUsage: {},
+                  num_turns: 1,
+                  permission_denials: [],
+                  result: "已排除测试订单",
+                  session_id: "claude-session-waiting",
+                  stop_reason: "stop",
+                  subtype: "success",
+                  total_cost_usd: 0,
+                  type: "result",
+                  usage: {},
+                } as unknown as SDKMessage;
+              })();
+            },
+          }),
+        },
+      ),
+    ).resolves.toMatchObject({
+      status: "completed",
+      output: "已排除测试订单",
+    });
+    expect(hookDecision).toMatchObject({
+      hookSpecificOutput: {
+        hookEventName: "PreToolUse",
+        permissionDecision: "allow",
+        updatedInput: {
+          answers: { "是否排除内部测试订单？": "排除并继续" },
+        },
+      },
+    });
   });
 });

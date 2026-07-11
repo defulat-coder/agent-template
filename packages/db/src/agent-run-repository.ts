@@ -15,6 +15,7 @@ const storedRunInclude = {
 const fromPrismaStatus = {
   QUEUED: "queued",
   RUNNING: "running",
+  WAITING: "waiting",
   COMPLETED: "completed",
   FAILED: "failed",
   SKIPPED: "skipped",
@@ -24,6 +25,7 @@ const fromPrismaStatus = {
 const toPrismaStatus = {
   queued: "QUEUED",
   running: "RUNNING",
+  waiting: "WAITING",
   completed: "COMPLETED",
   failed: "FAILED",
   skipped: "SKIPPED",

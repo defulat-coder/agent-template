@@ -1,13 +1,20 @@
 import { z } from "zod";
-import { AgentRunEventSchema } from "./agent-run-events";
+import {
+  AgentInputResponseSchema,
+  AgentRunEventSchema,
+} from "./agent-run-events";
+
+export const maxAgentSseBufferCharacters = 16 * 1024 * 1024;
 
 export const AgentRunInputSchema = z.object({
   prompt: z.string().min(1),
+  inputResponses: z.array(AgentInputResponseSchema).min(1).optional(),
 });
 
 export const AgentRunStatusSchema = z.enum([
   "queued",
   "running",
+  "waiting",
   "completed",
   "failed",
   "skipped",
@@ -31,6 +38,11 @@ const AgentRunResultBaseSchema = z.object({
 });
 
 export const AgentRunResultSchema = z.discriminatedUnion("status", [
+  AgentRunResultBaseSchema.extend({
+    status: z.literal("waiting"),
+    events: z.array(AgentRunEventSchema),
+    reason: z.string().min(1),
+  }),
   AgentRunResultBaseSchema.extend({
     status: z.literal("completed"),
     events: z.array(AgentRunEventSchema),

@@ -8,6 +8,7 @@ import {
   AgentRunSnapshotSchema,
   AgentRunStreamFrameSchema,
   HealthStatusSchema,
+  maxAgentSseBufferCharacters,
   type AgentConversationCreateInput,
   type AgentConversationListQuery,
   type AgentConversationPage,
@@ -331,27 +332,42 @@ async function* parseSse(stream: ReadableStream<Uint8Array>) {
   const reader = stream.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let streamEnded = false;
   try {
     for (;;) {
       const { done, value } = await reader.read();
       buffer += decoder.decode(value, { stream: !done }).replace(/\r\n/g, "\n");
       let boundary = buffer.indexOf("\n\n");
       while (boundary >= 0) {
+        assertAgentSseFrameSize(boundary);
         const block = buffer.slice(0, boundary);
         buffer = buffer.slice(boundary + 2);
         const message = parseSseBlock(block);
         if (message) yield message;
         boundary = buffer.indexOf("\n\n");
       }
-      if (done) break;
+      assertAgentSseFrameSize(buffer.length);
+      if (done) {
+        streamEnded = true;
+        break;
+      }
     }
     if (buffer.trim()) {
       const message = parseSseBlock(buffer);
       if (message) yield message;
     }
   } finally {
+    if (!streamEnded) await reader.cancel().catch(() => undefined);
     reader.releaseLock();
   }
+}
+
+function assertAgentSseFrameSize(length: number) {
+  if (length <= maxAgentSseBufferCharacters) return;
+  throw new AgentClientError({
+    code: "PROTOCOL_ERROR",
+    message: "Agent SSE message exceeded 16 MiB",
+  });
 }
 
 function parseSseBlock(block: string): SseMessage | undefined {

@@ -4,16 +4,78 @@
 
 :root {
   color-scheme: light;
-  background: #f8fafc;
-  color: #0f172a;
+  --agent-canvas: #f0f0f0;
+  --agent-paper: #ffffff;
+  --agent-inset: #e9e9e9;
+  --agent-ink: #09090b;
+  --agent-secondary: #646464;
+  --agent-tertiary: #8a8a8a;
+  --agent-border: #d9d9d9;
+  --agent-border-strong: #bbbbbb;
+  --agent-accent: #ff4017;
+  --agent-accent-hover: #e93610;
+  --agent-success: #159447;
+  --agent-danger: #c8331b;
+  background: var(--agent-canvas);
+  color: var(--agent-ink);
+  font-family: Inter, "PingFang SC", "Microsoft YaHei", ui-sans-serif,
+    system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
 body {
   margin: 0;
   min-height: 100vh;
-  background: #f8fafc;
+  background: var(--agent-canvas);
 }
 
 * {
   box-sizing: border-box;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--agent-accent) 18%, transparent);
+}
+
+.agent-activity-item {
+  animation: agent-rise 220ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+.agent-action {
+  transition:
+    background-color 150ms cubic-bezier(0.23, 1, 0.32, 1),
+    border-color 150ms cubic-bezier(0.23, 1, 0.32, 1),
+    color 150ms cubic-bezier(0.23, 1, 0.32, 1),
+    transform 120ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.agent-action:active {
+  transform: scale(0.97);
+}
+
+@keyframes agent-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-activity-item {
+    animation: none;
+  }
+
+  .agent-action {
+    transition: none;
+  }
 }

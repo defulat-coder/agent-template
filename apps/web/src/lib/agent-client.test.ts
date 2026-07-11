@@ -92,9 +92,11 @@ describe("submitAgentJob", () => {
 describe("streamAgentChat", () => {
   it("streams Agent events and returns the final result", async () => {
     const events: unknown[] = [];
+    const accepted: unknown[] = [];
     const fetcher = vi.fn().mockResolvedValue({
       body: createStream(
         [
+          'event: run-accepted\ndata: {"runId":"run-1","conversationId":"conversation-1"}\n\n',
           'event: agent-event\ndata: {"kind":"text","text":"Working"}\n\n',
           'event: result\ndata: {"promptLength":9,"runtime":"claude","configured":true,"model":"kimi-for-coding","status":"completed","events":[{"kind":"text","text":"Working"},{"kind":"done","result":"Done"}],"output":"Done","runId":"run-1"}\n\n',
         ].join(""),
@@ -110,6 +112,9 @@ describe("streamAgentChat", () => {
         onEvent(event) {
           events.push(event);
         },
+        onAccepted(frame) {
+          accepted.push(frame);
+        },
       }),
     ).resolves.toMatchObject({
       output: "Done",
@@ -123,6 +128,9 @@ describe("streamAgentChat", () => {
       body: JSON.stringify({ prompt: "Run agent" }),
     });
     expect(events).toEqual([{ kind: "text", text: "Working" }]);
+    expect(accepted).toEqual([
+      { runId: "run-1", conversationId: "conversation-1" },
+    ]);
   });
 
   it("continues an existing platform conversation", async () => {
@@ -163,6 +171,80 @@ describe("streamAgentChat", () => {
         signal: controller.signal,
       }),
     ).rejects.toThrow("Agent chat cancelled");
+  });
+
+  it("releases the SSE reader after a completed stream", async () => {
+    const releaseLock = vi.fn();
+    const cancel = vi.fn();
+    const read = vi
+      .fn()
+      .mockResolvedValueOnce({
+        done: false,
+        value: new TextEncoder().encode(
+          'event: result\ndata: {"promptLength":9,"runtime":"claude","configured":true,"model":"test","status":"completed","events":[],"output":"Done"}\n\n',
+        ),
+      })
+      .mockResolvedValueOnce({ done: true, value: undefined });
+    const fetcher = vi.fn().mockResolvedValue({
+      body: { getReader: () => ({ cancel, read, releaseLock }) },
+      ok: true,
+    });
+
+    await streamAgentChat({ prompt: "Run agent", fetcher });
+
+    expect(releaseLock).toHaveBeenCalledOnce();
+    expect(cancel).not.toHaveBeenCalled();
+  });
+
+  it("cancels and releases the SSE reader after a protocol error", async () => {
+    const releaseLock = vi.fn();
+    const cancel = vi.fn().mockResolvedValue(undefined);
+    const fetcher = vi.fn().mockResolvedValue({
+      body: {
+        getReader: () => ({
+          cancel,
+          read: vi.fn().mockResolvedValue({
+            done: false,
+            value: new TextEncoder().encode(
+              "event: result\ndata: not-json\n\n",
+            ),
+          }),
+          releaseLock,
+        }),
+      },
+      ok: true,
+    });
+
+    await expect(
+      streamAgentChat({ prompt: "Run agent", fetcher }),
+    ).rejects.toThrow();
+
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(releaseLock).toHaveBeenCalledOnce();
+  });
+
+  it("rejects an unterminated SSE message before buffering without limit", async () => {
+    const releaseLock = vi.fn();
+    const cancel = vi.fn().mockResolvedValue(undefined);
+    const fetcher = vi.fn().mockResolvedValue({
+      body: {
+        getReader: () => ({
+          cancel,
+          read: vi.fn().mockResolvedValue({
+            done: false,
+            value: new Uint8Array(16 * 1024 * 1024 + 1),
+          }),
+          releaseLock,
+        }),
+      },
+      ok: true,
+    });
+
+    await expect(
+      streamAgentChat({ prompt: "Run agent", fetcher }),
+    ).rejects.toThrow("Agent chat SSE message exceeded 16 MiB");
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(releaseLock).toHaveBeenCalledOnce();
   });
 });
 

@@ -45,6 +45,7 @@ export function registerV1AgentApi(
       "run-stream",
       "run-stream-resume",
       "run-cancel",
+      "human-input",
       "jobs",
     ],
   }));

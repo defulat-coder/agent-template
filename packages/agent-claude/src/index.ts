@@ -14,7 +14,11 @@ import {
   toolboxToolNames,
 } from "@agent-template/toolbox-config";
 import {
+  appendCompactedAgentRunEvent,
   defaultClaudeAgentModel,
+  type AgentInputRequest,
+  type AgentInputResponse,
+  type AgentRunInput,
   type AgentRunEvent,
   type DependencyState,
 } from "@agent-template/shared";
@@ -40,8 +44,13 @@ export type ClaudeAgentRuntimeState = {
   model: string;
 };
 
-export type ClaudeAgentRunInput = {
-  prompt: string;
+export type ClaudeAgentRunInput = AgentRunInput;
+
+export type ClaudePendingInput = {
+  toolUseId: string;
+  toolName: string;
+  toolInput: Extract<AgentRunEvent, { kind: "tool-call" }>["input"];
+  requests: AgentInputRequest[];
 };
 
 type ClaudeToolboxReadinessClient = {
@@ -59,6 +68,13 @@ export type ClaudeAgentRunResult =
       events: AgentRunEvent[];
       output: string;
       sessionId?: string;
+    }
+  | {
+      status: "waiting";
+      events: AgentRunEvent[];
+      reason: string;
+      sessionId: string;
+      pendingInput: ClaudePendingInput;
     }
   | {
       status: "failed";
@@ -195,6 +211,7 @@ export async function runClaudeAgent(
     abortController?: AbortController;
     loadSdk?: () => Promise<ClaudeAgentSdk>;
     onEvent?: (event: AgentRunEvent) => void;
+    pendingInput?: ClaudePendingInput;
     persistSession?: boolean;
     resumeSessionId?: string;
   } = {},
@@ -234,7 +251,8 @@ export async function runClaudeAgent(
       ...(options.resumeSessionId ? { resume: options.resumeSessionId } : {}),
       settingSources: ["project"],
       skills: filesystemProject.skills,
-      tools: [],
+      tools: ["AskUserQuestion"],
+      hooks: createClaudeInputHooks(options.pendingInput, input.inputResponses),
       includePartialMessages: true,
       ...(!config.baseUrl ? { model: config.model } : {}),
     },
@@ -278,7 +296,7 @@ export async function runClaudeAgent(
     }
 
     for (const event of progressEvents) {
-      runEvents.push(event);
+      appendCompactedAgentRunEvent(runEvents, event);
       options.onEvent?.(event);
     }
 
@@ -299,6 +317,36 @@ export async function runClaudeAgent(
       events: [...runEvents, event],
       reason: "Claude Agent SDK did not return a result",
       ...(sessionId ? { sessionId } : {}),
+    };
+  }
+
+  const pendingInput = readClaudePendingInput(result);
+  if (pendingInput) {
+    const waitingEvents = pendingInput.requests.map(
+      (request) => ({ kind: "input-request", request }) satisfies AgentRunEvent,
+    );
+    for (const event of waitingEvents) {
+      appendCompactedAgentRunEvent(runEvents, event);
+      options.onEvent?.(event);
+    }
+    if (!sessionId) {
+      const event = {
+        kind: "error",
+        message: "Claude deferred a tool without a resumable session ID",
+      } satisfies AgentRunEvent;
+      options.onEvent?.(event);
+      return {
+        status: "failed",
+        events: [...runEvents, event],
+        reason: event.message,
+      };
+    }
+    return {
+      status: "waiting",
+      events: runEvents,
+      reason: "Agent 正在等待用户输入",
+      sessionId,
+      pendingInput,
     };
   }
 
@@ -358,6 +406,165 @@ function formatClaudeAgentProgressEvent(
   return [
     { kind: "unknown", text: JSON.stringify(message) ?? String(message) },
   ];
+}
+
+function createClaudeInputHooks(
+  pendingInput: ClaudePendingInput | undefined,
+  inputResponses: AgentInputResponse[] | undefined,
+) {
+  return {
+    PreToolUse: [
+      {
+        matcher: "AskUserQuestion",
+        hooks: [
+          async (hookInput: unknown) => {
+            if (!isRecord(hookInput)) return {};
+            const toolUseId = readNonEmptyString(hookInput.tool_use_id);
+            if (
+              pendingInput &&
+              toolUseId === pendingInput.toolUseId &&
+              inputResponses?.length
+            ) {
+              const updatedInput = resolveClaudeQuestionInput(
+                pendingInput,
+                inputResponses,
+              );
+              if (updatedInput) {
+                return {
+                  hookSpecificOutput: {
+                    hookEventName: "PreToolUse" as const,
+                    permissionDecision: "allow" as const,
+                    updatedInput,
+                  },
+                };
+              }
+            }
+            return {
+              hookSpecificOutput: {
+                hookEventName: "PreToolUse" as const,
+                permissionDecision: "defer" as const,
+              },
+            };
+          },
+        ],
+      },
+    ],
+  };
+}
+
+function readClaudePendingInput(
+  result: Extract<SDKMessage, { type: "result" }>,
+): ClaudePendingInput | undefined {
+  if (
+    result.subtype !== "success" ||
+    result.stop_reason !== "tool_deferred" ||
+    !result.deferred_tool_use
+  ) {
+    return undefined;
+  }
+  const deferred = result.deferred_tool_use;
+  const requests = formatClaudeInputRequests(
+    deferred.id,
+    deferred.name,
+    deferred.input,
+  );
+  return {
+    toolUseId: deferred.id,
+    toolName: deferred.name,
+    toolInput: toJsonValue(deferred.input),
+    requests,
+  };
+}
+
+function formatClaudeInputRequests(
+  toolUseId: string,
+  toolName: string,
+  input: unknown,
+): AgentInputRequest[] {
+  if (toolName === "AskUserQuestion" && isRecord(input)) {
+    const questions = Array.isArray(input.questions) ? input.questions : [];
+    const requests = questions.flatMap((question, index) => {
+      if (!isRecord(question) || typeof question.question !== "string") {
+        return [];
+      }
+      const options = Array.isArray(question.options)
+        ? question.options.flatMap((option, optionIndex) => {
+            if (!isRecord(option) || typeof option.label !== "string") {
+              return [];
+            }
+            return [
+              {
+                id: String(optionIndex),
+                label: option.label,
+                ...(typeof option.description === "string"
+                  ? { description: option.description }
+                  : {}),
+                ...(optionIndex === 0 ? { style: "primary" as const } : {}),
+              },
+            ];
+          })
+        : undefined;
+      return [
+        {
+          requestId: `${toolUseId}:${index}`,
+          type: "question" as const,
+          prompt: question.question,
+          ...(options?.length ? { options } : {}),
+          ...(question.multiSelect === true || options?.length === 0
+            ? { allowFreeform: true }
+            : {}),
+          action: {
+            callId: toolUseId,
+            toolName,
+            input: toJsonValue(input),
+          },
+        },
+      ];
+    });
+    if (requests.length) return requests;
+  }
+  return [
+    {
+      requestId: toolUseId,
+      type: "approval",
+      prompt: `允许 Agent 执行 ${toolName}？`,
+      options: [
+        { id: "approve", label: "允许并继续", style: "primary" },
+        { id: "deny", label: "拒绝", style: "danger" },
+      ],
+      action: {
+        callId: toolUseId,
+        toolName,
+        input: toJsonValue(input),
+      },
+    },
+  ];
+}
+
+function resolveClaudeQuestionInput(
+  pendingInput: ClaudePendingInput,
+  responses: AgentInputResponse[],
+): Record<string, unknown> | undefined {
+  if (pendingInput.toolName !== "AskUserQuestion") return undefined;
+  if (!isRecord(pendingInput.toolInput)) return undefined;
+  const responseById = new Map(
+    responses.map((response) => [response.requestId, response]),
+  );
+  const answers: Record<string, string> = {};
+  for (const request of pendingInput.requests) {
+    const response = responseById.get(request.requestId);
+    if (!response) return undefined;
+    const option = request.options?.find(
+      (candidate) => candidate.id === response.optionId,
+    );
+    const answer = response.text ?? option?.label;
+    if (!answer) return undefined;
+    answers[request.prompt] = answer;
+  }
+  return {
+    ...pendingInput.toolInput,
+    answers,
+  };
 }
 
 function readClaudePartialTextDelta(message: SDKMessage): string | undefined {
@@ -431,6 +638,7 @@ function formatClaudeUserMessage(
   for (const item of content) {
     if (item.type === "tool_result") {
       const toolName = toolNamesByCallId.get(item.tool_use_id);
+      toolNamesByCallId.delete(item.tool_use_id);
       events.push(
         toolName
           ? {
@@ -456,6 +664,14 @@ function toJsonValue(
     AgentRunEvent,
     { kind: "tool-call" }
   >["input"];
+}
+
+function readNonEmptyString(value: unknown) {
+  return typeof value === "string" && value ? value : undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
 function createClaudeAgentSubprocessEnv(config: ClaudeAgentConfig) {
@@ -495,11 +711,12 @@ function createClaudeAgentSubprocessEnv(config: ClaudeAgentConfig) {
 }
 
 function readClaudeToolboxTools(config: ClaudeAgentConfig) {
-  return (
-    config.toolbox?.allowedTools.map(
+  return [
+    "AskUserQuestion",
+    ...(config.toolbox?.allowedTools.map(
       (toolName) => `mcp__toolbox__${toolName}`,
-    ) ?? []
-  );
+    ) ?? []),
+  ];
 }
 
 function createClaudeToolboxMcpServers(

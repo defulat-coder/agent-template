@@ -22,6 +22,7 @@ model TemplateEvent {
 enum AgentRunStatus {
   QUEUED    @map("queued")
   RUNNING   @map("running")
+  WAITING   @map("waiting")
   COMPLETED @map("completed")
   FAILED    @map("failed")
   SKIPPED   @map("skipped")

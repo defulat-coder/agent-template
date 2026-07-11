@@ -1,149 +1,359 @@
 "use client";
 
-import { useState } from "react";
-import type { AgentArtifact, AgentRunEvent } from "@agent-template/shared";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import {
+  CheckCircleIcon,
+  CircleIcon,
+  CircleNotchIcon,
+  PaperPlaneTiltIcon,
+} from "@phosphor-icons/react";
+import { Button } from "@agent-template/ui";
+import type {
+  AgentInputRequest,
+  AgentInputResponse,
+  AgentRunEvent,
+} from "@agent-template/shared";
 
-export function AgentRunTimeline({ events }: { events: AgentRunEvent[] }) {
+type AgentRunTimelineProps = {
+  events: AgentRunEvent[];
+  pendingRequests: AgentInputRequest[];
+  responding: boolean;
+  runtimeLabel: string;
+  onRespond: (responses: AgentInputResponse[], labels: string[]) => void;
+};
+
+export function AgentRunTimeline({
+  events,
+  pendingRequests,
+  responding,
+  runtimeLabel,
+  onRespond,
+}: AgentRunTimelineProps) {
+  const activities = useMemo(() => buildActivities(events), [events]);
+
   return (
-    <section className="rounded-md border border-slate-200 bg-white p-4">
-      <div className="flex flex-col gap-1">
-        <h2 className="text-base font-semibold text-slate-950">运行事件</h2>
-        <p className="text-sm text-slate-500">
-          来自当前 Agent Chat SSE 连接的运行事件。
-        </p>
+    <aside className="flex min-h-0 flex-col border-t border-[var(--agent-border)] bg-[var(--agent-canvas)] xl:border-t-0 xl:border-l">
+      <div className="min-h-0 flex-1 overflow-y-auto px-6 py-7 xl:px-8">
+        <div className="border-b border-[var(--agent-border-strong)] pb-4">
+          <h2 className="text-lg font-semibold tracking-[-0.01em] text-[var(--agent-ink)]">
+            Agent 正在推进
+          </h2>
+        </div>
+
+        {activities.length ? (
+          <ol className="mt-7">
+            {activities.map((activity, index) => (
+              <ActivityItem
+                activity={activity}
+                isLast={
+                  index === activities.length - 1 && !pendingRequests.length
+                }
+                key={activity.id}
+              />
+            ))}
+          </ol>
+        ) : (
+          <div className="mt-7 flex gap-4 text-sm text-[var(--agent-secondary)]">
+            <CircleIcon className="mt-0.5 size-5 shrink-0" weight="regular" />
+            <p className="leading-6">
+              发送任务后，这里会显示 Agent 的 Tool 调用、进度和需要你处理的请求。
+            </p>
+          </div>
+        )}
+
+        {pendingRequests.length ? (
+          <InputRequestGroup
+            onRespond={onRespond}
+            requests={pendingRequests}
+            responding={responding}
+          />
+        ) : null}
       </div>
 
-      {events.length ? (
-        <div className="mt-4 flex flex-col gap-3">
-          {events.map((event, index) => (
-            <AgentRunEventRow event={event} key={`${event.kind}-${index}`} />
-          ))}
-        </div>
-      ) : (
-        <p className="mt-4 rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-500">
-          暂无运行事件。
-        </p>
-      )}
-    </section>
+      <p className="border-t border-[var(--agent-border)] px-6 py-5 text-xs leading-5 text-[var(--agent-tertiary)] xl:px-8">
+        所有活动由平台 API 驱动 · {runtimeLabel}
+      </p>
+    </aside>
   );
 }
 
-function AgentRunEventRow({ event }: { event: AgentRunEvent }) {
-  if (event.kind === "tool-call") {
-    return (
-      <LogRow
-        label={`Tool call: ${event.toolName} (${event.callId})`}
-        tone="blue"
-      >
-        {JSON.stringify(event.input, null, 2)}
-      </LogRow>
-    );
-  }
+type Activity = {
+  id: string;
+  label: string;
+  meta?: string;
+  state: "completed" | "running" | "pending";
+};
 
-  if (event.kind === "tool-result") {
-    return (
-      <LogRow
-        label={`Tool result: ${event.toolName} (${event.callId})`}
-        tone="green"
+function ActivityItem({
+  activity,
+  isLast,
+}: {
+  activity: Activity;
+  isLast: boolean;
+}) {
+  const icon =
+    activity.state === "completed" ? (
+      <CheckCircleIcon
+        className="size-6 text-[var(--agent-success)]"
+        weight="fill"
+      />
+    ) : activity.state === "running" ? (
+      <CircleNotchIcon
+        className="size-6 animate-spin text-[var(--agent-accent)]"
+        weight="bold"
+      />
+    ) : (
+      <CircleIcon
+        className="size-6 text-[var(--agent-border-strong)]"
+        weight="regular"
       />
     );
-  }
-
-  if (event.kind === "text") {
-    return <LogRow label="Agent output">{event.text}</LogRow>;
-  }
-
-  if (event.kind === "done") {
-    return (
-      <LogRow label="Final result" tone="green">
-        {event.result}
-      </LogRow>
-    );
-  }
-
-  if (event.kind === "error") {
-    return (
-      <LogRow label="Run failed" tone="red">
-        {event.message}
-      </LogRow>
-    );
-  }
-
-  if (event.kind === "cancelled") {
-    return (
-      <LogRow label="运行已取消" tone="slate">
-        {event.reason}
-      </LogRow>
-    );
-  }
-
-  if (event.kind === "artifacts") {
-    return <ArtifactTabs tabs={event.tabs} />;
-  }
-
-  return <LogRow label="Unknown event">{event.text}</LogRow>;
-}
-
-function LogRow({
-  children,
-  label,
-  tone = "slate",
-}: {
-  children?: string;
-  label: string;
-  tone?: "blue" | "green" | "red" | "slate";
-}) {
-  const toneClass = {
-    blue: "border-blue-200 bg-blue-50 text-blue-900",
-    green: "border-green-200 bg-green-50 text-green-900",
-    red: "border-red-200 bg-red-50 text-red-900",
-    slate: "border-slate-200 bg-slate-50 text-slate-900",
-  }[tone];
 
   return (
-    <div className={`rounded-md border px-3 py-2 text-sm ${toneClass}`}>
-      <div className="font-medium">{label}</div>
-      {children ? (
-        <pre className="mt-2 whitespace-pre-wrap break-words font-sans leading-6">
-          {children}
-        </pre>
+    <li className="agent-activity-item grid grid-cols-[24px_minmax(0,1fr)] gap-4">
+      <div className="flex flex-col items-center">
+        {icon}
+        {!isLast ? (
+          <span className="my-1 min-h-12 w-px flex-1 bg-[var(--agent-border-strong)]" />
+        ) : null}
+      </div>
+      <div className="pb-7">
+        <p
+          className={
+            activity.state === "pending"
+              ? "font-medium text-[var(--agent-tertiary)]"
+              : "font-medium text-[var(--agent-ink)]"
+          }
+        >
+          {activity.label}
+        </p>
+        {activity.meta ? (
+          <p className="mt-2 break-all font-mono text-xs leading-5 text-[var(--agent-tertiary)]">
+            {activity.meta}
+          </p>
+        ) : null}
+      </div>
+    </li>
+  );
+}
+
+function InputRequestGroup({
+  onRespond,
+  requests,
+  responding,
+}: {
+  onRespond: (responses: AgentInputResponse[], labels: string[]) => void;
+  requests: AgentInputRequest[];
+  responding: boolean;
+}) {
+  const requestKey = requests.map((request) => request.requestId).join("|");
+  const [responses, setResponses] = useState<
+    Record<string, { response: AgentInputResponse; label: string }>
+  >({});
+
+  useEffect(() => setResponses({}), [requestKey]);
+
+  function select(
+    request: AgentInputRequest,
+    response: AgentInputResponse,
+    label: string,
+  ) {
+    if (requests.length === 1) {
+      onRespond([response], [label]);
+      return;
+    }
+    setResponses((current) => ({
+      ...current,
+      [request.requestId]: { response, label },
+    }));
+  }
+
+  const complete = requests.every((request) => responses[request.requestId]);
+
+  return (
+    <div className="agent-activity-item ml-10 border-l-2 border-[var(--agent-accent)] bg-[var(--agent-paper)] px-5 py-5">
+      <div className="flex flex-col gap-5">
+        {requests.map((request) => (
+          <InputRequestCard
+            disabled={responding}
+            key={request.requestId}
+            onSelect={(response, label) => select(request, response, label)}
+            request={request}
+            selected={responses[request.requestId]?.response}
+          />
+        ))}
+      </div>
+
+      {requests.length > 1 ? (
+        <Button
+          className="agent-action mt-5 w-full bg-[var(--agent-accent)] text-white hover:bg-[var(--agent-accent-hover)]"
+          disabled={!complete || responding}
+          onClick={() =>
+            onRespond(
+              requests.map((request) => responses[request.requestId]!.response),
+              requests.map((request) => responses[request.requestId]!.label),
+            )
+          }
+          type="button"
+        >
+          <PaperPlaneTiltIcon className="size-4" weight="bold" />
+          提交并继续
+        </Button>
       ) : null}
     </div>
   );
 }
 
-function ArtifactTabs({ tabs }: { tabs: AgentArtifact[] }) {
-  const [activeId, setActiveId] = useState(tabs[0]?.id ?? "");
-  const active = tabs.find((tab) => tab.id === activeId) ?? tabs[0];
+function InputRequestCard({
+  disabled,
+  onSelect,
+  request,
+  selected,
+}: {
+  disabled: boolean;
+  onSelect: (response: AgentInputResponse, label: string) => void;
+  request: AgentInputRequest;
+  selected?: AgentInputResponse;
+}) {
+  const [freeform, setFreeform] = useState("");
 
-  if (!active) {
-    return <LogRow label="Artifacts">No artifact content.</LogRow>;
+  function submitFreeform(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const text = freeform.trim();
+    if (!text) return;
+    onSelect({ requestId: request.requestId, text }, text);
   }
 
   return (
-    <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
-      <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-2">
-        {tabs.map((tab) => (
-          <button
-            className={`rounded-md px-2 py-1 text-left ${tab.id === active.id ? "bg-slate-950 text-white" : "bg-white text-slate-700"}`}
-            key={tab.id}
-            onClick={() => setActiveId(tab.id)}
-            type="button"
+    <section aria-labelledby={`request-${request.requestId}`}>
+      <p
+        className="text-xs font-medium text-[var(--agent-accent)]"
+        id={`request-${request.requestId}`}
+      >
+        需要确认
+      </p>
+      <h3 className="mt-2 text-base font-semibold leading-6 text-[var(--agent-ink)]">
+        {request.prompt}
+      </h3>
+      {request.action ? (
+        <p className="mt-2 font-mono text-xs leading-5 text-[var(--agent-tertiary)]">
+          Tool: {formatToolName(request.action.toolName)}
+        </p>
+      ) : null}
+
+      {request.options?.length ? (
+        <div className="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+          {request.options.map((option) => {
+            const active = selected?.optionId === option.id;
+            const primary = option.style === "primary";
+            return (
+              <button
+                aria-pressed={active}
+                className={
+                  primary
+                    ? "agent-action min-h-11 rounded-lg bg-[var(--agent-accent)] px-4 py-2.5 text-sm font-medium text-white hover:bg-[var(--agent-accent-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--agent-accent)] disabled:opacity-50"
+                    : "agent-action min-h-11 rounded-lg border border-[var(--agent-border-strong)] bg-[var(--agent-paper)] px-4 py-2.5 text-sm font-medium text-[var(--agent-ink)] hover:border-[var(--agent-ink)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--agent-ink)] disabled:opacity-50"
+                }
+                disabled={disabled}
+                key={option.id}
+                onClick={() =>
+                  onSelect(
+                    { requestId: request.requestId, optionId: option.id },
+                    option.label,
+                  )
+                }
+                type="button"
+              >
+                {disabled && primary ? "正在继续…" : option.label}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {request.allowFreeform && !request.options?.length ? (
+        <form className="mt-4 flex gap-2" onSubmit={submitFreeform}>
+          <input
+            aria-label="输入回答"
+            className="min-h-11 min-w-0 flex-1 rounded-lg border border-[var(--agent-border-strong)] bg-[var(--agent-canvas)] px-3 text-sm outline-none focus:border-[var(--agent-accent)]"
+            disabled={disabled}
+            onChange={(event) => setFreeform(event.target.value)}
+            placeholder="输入你的回答"
+            value={freeform}
+          />
+          <Button
+            className="agent-action bg-[var(--agent-accent)] text-white hover:bg-[var(--agent-accent-hover)]"
+            disabled={disabled || !freeform.trim()}
+            type="submit"
           >
-            {tab.label} <span className="text-xs opacity-70">{tab.hint}</span>
-          </button>
-        ))}
-        <button
-          className="ml-auto rounded-md bg-white px-2 py-1 text-slate-700"
-          onClick={() => void navigator.clipboard?.writeText(active.content)}
-          type="button"
-        >
-          复制
-        </button>
-      </div>
-      <pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap break-words text-slate-900">
-        {active.content}
-      </pre>
-    </div>
+            继续
+          </Button>
+        </form>
+      ) : null}
+    </section>
   );
+}
+
+function buildActivities(events: AgentRunEvent[]): Activity[] {
+  const results = new Set(
+    events.flatMap((event) =>
+      event.kind === "tool-result" ? [event.callId] : [],
+    ),
+  );
+  const calls = events.flatMap((event) =>
+    event.kind === "tool-call" ? [event] : [],
+  );
+  const activities: Activity[] = calls.map((event) => ({
+    id: event.callId,
+    label: describeToolCall(event.toolName),
+    meta: `Tool: ${formatToolName(event.toolName)}`,
+    state: results.has(event.callId) ? "completed" : "running",
+  }));
+  const terminal = [...events]
+    .reverse()
+    .find(
+      (event) =>
+        event.kind === "done" ||
+        event.kind === "error" ||
+        event.kind === "cancelled",
+    );
+  if (terminal?.kind === "done") {
+    activities.push({
+      id: `done-${activities.length}`,
+      label: "交付物已更新",
+      state: "completed",
+    });
+  }
+  if (terminal?.kind === "error") {
+    activities.push({
+      id: `error-${activities.length}`,
+      label: "运行失败",
+      meta: terminal.message,
+      state: "pending",
+    });
+  }
+  if (terminal?.kind === "cancelled") {
+    activities.push({
+      id: `cancelled-${activities.length}`,
+      label: "运行已取消",
+      meta: terminal.reason,
+      state: "pending",
+    });
+  }
+  return activities;
+}
+
+function describeToolCall(toolName: string) {
+  if (toolName.includes("subagent")) return "委派子 Agent 处理任务";
+  if (toolName === "AskUserQuestion") return "确认分析范围";
+  return `调用 ${formatToolName(toolName)}`;
+}
+
+function formatToolName(toolName: string) {
+  return toolName
+    .replace(/^mcp__toolbox__/, "")
+    .replace(/^toolbox__/, "")
+    .replace(/^eve:subagent:/, "subagent:")
+    .replaceAll("_", " ")
+    .replaceAll("-", " ");
 }

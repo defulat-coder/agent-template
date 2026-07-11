@@ -213,7 +213,12 @@ export async function runAgent(
               ...eventOptions,
               persistSession: options.captureContinuation ?? false,
               ...(continuation?.runtime === "claude"
-                ? { resumeSessionId: continuation.sessionId }
+                ? {
+                    resumeSessionId: continuation.sessionId,
+                    ...(continuation.pendingInput
+                      ? { pendingInput: continuation.pendingInput }
+                      : {}),
+                  }
                 : {}),
             },
           );
@@ -250,6 +255,15 @@ export async function runAgent(
       ...(runtimeContinuation ? { runtimeContinuation } : {}),
     };
   }
+  if (run.status === "waiting") {
+    return {
+      ...resultBase,
+      status: run.status,
+      events: [...run.events],
+      reason: run.reason,
+      ...(runtimeContinuation ? { runtimeContinuation } : {}),
+    };
+  }
   return {
     ...resultBase,
     status: run.status,
@@ -268,7 +282,13 @@ function readRuntimeContinuation(
 ): AgentRuntimeContinuation | undefined {
   if (!capture) return undefined;
   if (runtime === "claude" && "sessionId" in run && run.sessionId) {
-    return { runtime, sessionId: run.sessionId };
+    return {
+      runtime,
+      sessionId: run.sessionId,
+      ...("pendingInput" in run && run.pendingInput
+        ? { pendingInput: run.pendingInput }
+        : {}),
+    };
   }
   if (runtime === "eve" && "sessionState" in run && run.sessionState) {
     return AgentRuntimeContinuationSchema.parse({

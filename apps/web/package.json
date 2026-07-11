@@ -3,9 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev --port 13000",
+    "dev": "next dev --webpack --port 13000",
     "start": "next start --hostname 0.0.0.0 --port 13000",
-    "build": "next build",
+    "build": "next build --webpack",
     "lint": "eslint app src",
     "typecheck": "node ../../scripts/tsc7.mjs -p tsconfig.json --noEmit",
     "test": "vitest run"
@@ -14,6 +14,7 @@
     "@agent-template/agent-client": "workspace:*",
     "@agent-template/shared": "workspace:*",
     "@agent-template/ui": "workspace:*",
+    "@phosphor-icons/react": "^2.1.10",
     "next": "^16.2.9",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",

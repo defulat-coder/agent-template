@@ -291,7 +291,6 @@ describe("Eve Agent runtime", () => {
           kind: "tool-result",
           toolName: "toolbox__list-agent-runs",
         },
-        { kind: "text", text: "Do" },
         { kind: "text", text: "Done" },
         { kind: "done", result: "Done" },
       ],
@@ -325,5 +324,107 @@ describe("Eve Agent runtime", () => {
         signal: abortController.signal,
       },
     ]);
+  });
+
+  it("parks on input.requested and submits structured responses", async () => {
+    const sent: unknown[] = [];
+    const sessionState = {
+      continuationToken: "continuation-waiting",
+      sessionId: "eve-session-waiting",
+      streamIndex: 3,
+    };
+
+    await expect(
+      runEveAgent(
+        { prompt: "分析退款异常" },
+        parseEveAgentConfig({ EVE_AGENT_HOST: "http://eve.local" }),
+        {
+          createClient: () => ({
+            session: () => ({
+              state: sessionState,
+              send: async (input) => {
+                sent.push(input);
+                return {
+                  sessionId: "eve-session-waiting",
+                  async *[Symbol.asyncIterator]() {
+                    yield {
+                      type: "input.requested",
+                      data: {
+                        requests: [
+                          {
+                            requestId: "request-1",
+                            prompt: "是否排除内部测试订单？",
+                            display: "confirmation",
+                            options: [
+                              {
+                                id: "approve",
+                                label: "排除并继续",
+                                style: "primary",
+                              },
+                              { id: "deny", label: "保留" },
+                            ],
+                            action: {
+                              callId: "call-1",
+                              kind: "tool-call",
+                              toolName: "filter-test-orders",
+                              input: {},
+                            },
+                          },
+                        ],
+                      },
+                    };
+                  },
+                };
+              },
+            }),
+          }),
+        },
+      ),
+    ).resolves.toMatchObject({
+      status: "waiting",
+      events: [
+        {
+          kind: "input-request",
+          request: {
+            requestId: "request-1",
+            type: "approval",
+            prompt: "是否排除内部测试订单？",
+          },
+        },
+      ],
+      sessionState,
+    });
+
+    await runEveAgent(
+      {
+        prompt: "排除并继续",
+        inputResponses: [{ requestId: "request-1", optionId: "approve" }],
+      },
+      parseEveAgentConfig({ EVE_AGENT_HOST: "http://eve.local" }),
+      {
+        sessionState,
+        createClient: () => ({
+          session: () => ({
+            state: sessionState,
+            send: async (input) => {
+              sent.push(input);
+              return {
+                sessionId: "eve-session-waiting",
+                async *[Symbol.asyncIterator]() {
+                  yield {
+                    type: "message.completed",
+                    data: { message: "已排除测试订单" },
+                  };
+                },
+              };
+            },
+          }),
+        }),
+      },
+    );
+
+    expect(sent.at(-1)).toEqual({
+      inputResponses: [{ requestId: "request-1", optionId: "approve" }],
+    });
   });
 });

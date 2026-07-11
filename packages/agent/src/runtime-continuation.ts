@@ -1,10 +1,21 @@
 import { z } from "zod";
-import type { AgentRunResult } from "@agent-template/shared";
+import {
+  AgentInputRequestSchema,
+  type AgentRunResult,
+} from "@agent-template/shared";
 
 export const AgentRuntimeContinuationSchema = z.discriminatedUnion("runtime", [
   z.object({
     runtime: z.literal("claude"),
     sessionId: z.string().min(1),
+    pendingInput: z
+      .object({
+        toolUseId: z.string().min(1),
+        toolName: z.string().min(1),
+        toolInput: z.json(),
+        requests: z.array(AgentInputRequestSchema).min(1),
+      })
+      .optional(),
   }),
   z.object({
     runtime: z.literal("eve"),

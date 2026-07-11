@@ -17,6 +17,11 @@ export const webQaTopology = {
 
 type ProcessName = "fixture" | "web";
 
+export type WebQaSpawnCommand = {
+  command: "pnpm";
+  args: string[];
+};
+
 export type WebQaChildProcess = {
   exitCode: number | null;
   kill(signal: NodeJS.Signals): boolean;
@@ -117,16 +122,62 @@ export async function startWebQaEnvironment(
 function defaultSpawnProcess(
   name: ProcessName,
   extraEnv: NodeJS.ProcessEnv,
-) {
-  const args =
-    name === "fixture"
-      ? ["--filter", "@agent-template/web-qa", "fixture"]
-      : ["--filter", "@agent-template/web", "dev"];
-  return spawn("pnpm", args, {
+): WebQaChildProcess {
+  const { command, args } = getWebQaSpawnCommand(name);
+  const detached = process.platform !== "win32";
+  const child = spawn(command, args, {
     cwd: root,
+    detached,
     env: { ...process.env, ...extraEnv },
     stdio: "inherit",
   });
+  if (!detached) return child;
+
+  return {
+    get exitCode() {
+      return child.exitCode;
+    },
+    kill(signal) {
+      if (!child.pid) return child.kill(signal);
+      try {
+        process.kill(-child.pid, signal);
+        return true;
+      } catch (error) {
+        if (
+          typeof error === "object" &&
+          error !== null &&
+          "code" in error &&
+          error.code === "ESRCH"
+        ) {
+          return false;
+        }
+        throw error;
+      }
+    },
+    once(event, listener) {
+      child.once(event, listener);
+      return this;
+    },
+  };
+}
+
+export function getWebQaSpawnCommand(name: ProcessName): WebQaSpawnCommand {
+  return {
+    command: "pnpm",
+    args:
+      name === "fixture"
+        ? ["--filter", "@agent-template/web-qa", "fixture"]
+        : [
+            "--filter",
+            "@agent-template/web",
+            "exec",
+            "next",
+            "dev",
+            "--webpack",
+            "--port",
+            "13000",
+          ],
+  };
 }
 
 async function defaultFetchUrl(url: string) {

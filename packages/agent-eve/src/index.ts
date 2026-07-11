@@ -1,6 +1,12 @@
 import { z } from "zod";
 import { Client, type SessionState } from "eve/client";
-import type { AgentRunEvent, DependencyState } from "@agent-template/shared";
+import {
+  appendCompactedAgentRunEvent,
+  type AgentInputRequest,
+  type AgentRunEvent,
+  type AgentRunInput,
+  type DependencyState,
+} from "@agent-template/shared";
 import { defaultEveAgentModel, readEveAgentModel } from "./config.js";
 
 export const eveAgentDirectory = "packages/agent-eve/agent";
@@ -25,9 +31,7 @@ export type EveAgentRuntimeState = {
   host?: string;
 };
 
-export type EveAgentRunInput = {
-  prompt: string;
-};
+export type EveAgentRunInput = AgentRunInput;
 
 export type EveAgentRunResult =
   | {
@@ -40,6 +44,13 @@ export type EveAgentRunResult =
       output: string;
       sessionId: string;
       sessionState?: SessionState;
+    }
+  | {
+      status: "waiting";
+      events: AgentRunEvent[];
+      reason: string;
+      sessionId: string;
+      sessionState: SessionState;
     }
   | {
       status: "failed";
@@ -57,7 +68,13 @@ type EveRunClient = {
   session(state?: SessionState): {
     readonly state: SessionState;
     send(
-      input: string | { message: string; signal?: AbortSignal },
+      input:
+        | string
+        | {
+            message?: string;
+            inputResponses?: NonNullable<AgentRunInput["inputResponses"]>;
+            signal?: AbortSignal;
+          },
     ): Promise<EveMessageResponse>;
   };
 };
@@ -148,23 +165,30 @@ export async function runEveAgent(
   const client = (options.createClient ?? createEveClient)(config.host, config);
   const session = client.session(options.sessionState);
   const response = await session.send(
-    options.abortController
-      ? { message: input.prompt, signal: options.abortController.signal }
-      : input.prompt,
+    input.inputResponses
+      ? {
+          inputResponses: input.inputResponses,
+          ...(options.abortController
+            ? { signal: options.abortController.signal }
+            : {}),
+        }
+      : options.abortController
+        ? { message: input.prompt, signal: options.abortController.signal }
+        : input.prompt,
   );
-  const rawEvents: unknown[] = [];
   const events: AgentRunEvent[] = [];
+  let failure: string | undefined;
+  let output = "";
 
   for await (const rawEvent of response) {
-    rawEvents.push(rawEvent);
+    failure ??= readEveFailure(rawEvent);
+    output = updateEveOutput(output, rawEvent);
 
     for (const event of formatEveAgentEvents(rawEvent)) {
-      events.push(event);
+      appendCompactedAgentRunEvent(events, event);
       options.onEvent?.(event);
     }
   }
-
-  const failure = findEveFailure(rawEvents);
 
   if (failure) {
     const reason = failure;
@@ -180,7 +204,16 @@ export async function runEveAgent(
     };
   }
 
-  const output = findEveOutput(rawEvents);
+  if (events.some((event) => event.kind === "input-request")) {
+    return {
+      status: "waiting",
+      events,
+      reason: "Agent 正在等待用户输入",
+      sessionId: response.sessionId,
+      sessionState: session.state,
+    };
+  }
+
   const event = { kind: "done", result: output } satisfies AgentRunEvent;
   options.onEvent?.(event);
 
@@ -235,6 +268,17 @@ function formatEveAgentEvents(event: unknown): AgentRunEvent[] {
     return event.data.actions.map(formatEveActionRequest);
   }
 
+  if (
+    event.type === "input.requested" &&
+    isRecord(event.data) &&
+    Array.isArray(event.data.requests)
+  ) {
+    return event.data.requests.flatMap((request) => {
+      const formatted = formatEveInputRequest(request);
+      return formatted ? [{ kind: "input-request", request: formatted }] : [];
+    });
+  }
+
   if (event.type === "action.result" && isRecord(event.data)) {
     const tool = readEveActionResult(event.data.result);
     return tool
@@ -270,6 +314,68 @@ function formatEveActionRequest(action: unknown): AgentRunEvent {
         input: toJsonValue(action.input ?? {}),
       }
     : { kind: "unknown", text: formatEveOutput(action) };
+}
+
+function formatEveInputRequest(
+  request: unknown,
+): AgentInputRequest | undefined {
+  if (
+    !isRecord(request) ||
+    typeof request.requestId !== "string" ||
+    typeof request.prompt !== "string"
+  ) {
+    return undefined;
+  }
+  const action = isRecord(request.action)
+    ? {
+        callId: readNonEmptyString(request.action.callId),
+        toolName: readNonEmptyString(request.action.toolName),
+        input: toJsonValue(request.action.input ?? {}),
+      }
+    : undefined;
+  const formattedAction =
+    action?.callId && action.toolName
+      ? {
+          callId: action.callId,
+          toolName: action.toolName,
+          input: action.input,
+        }
+      : undefined;
+  const options = Array.isArray(request.options)
+    ? request.options.flatMap((option) => {
+        if (
+          !isRecord(option) ||
+          typeof option.id !== "string" ||
+          typeof option.label !== "string"
+        ) {
+          return [];
+        }
+        const style: "primary" | "danger" | "default" | undefined =
+          option.style === "primary" ||
+          option.style === "danger" ||
+          option.style === "default"
+            ? option.style
+            : undefined;
+        return [
+          {
+            id: option.id,
+            label: option.label,
+            ...(typeof option.description === "string"
+              ? { description: option.description }
+              : {}),
+            ...(style ? { style } : {}),
+          },
+        ];
+      })
+    : undefined;
+  return {
+    requestId: request.requestId,
+    type: request.display === "confirmation" ? "approval" : "question",
+    prompt: request.prompt,
+    ...(options?.length ? { options } : {}),
+    ...(request.allowFreeform === true ? { allowFreeform: true } : {}),
+    ...(formattedAction ? { action: formattedAction } : {}),
+  };
 }
 
 function readEveActionRequestToolName(action: Record<string, unknown>): string {
@@ -335,50 +441,40 @@ function toJsonValue(
   >["input"];
 }
 
-function findEveFailure(events: unknown[]): string | undefined {
-  for (const event of events) {
-    if (
-      isRecord(event) &&
-      (event.type === "session.failed" ||
-        event.type === "turn.failed" ||
-        event.type === "step.failed") &&
-      isRecord(event.data) &&
-      typeof event.data.message === "string"
-    ) {
-      return event.data.message;
-    }
+function readEveFailure(event: unknown): string | undefined {
+  if (
+    isRecord(event) &&
+    (event.type === "session.failed" ||
+      event.type === "turn.failed" ||
+      event.type === "step.failed") &&
+    isRecord(event.data) &&
+    typeof event.data.message === "string"
+  ) {
+    return event.data.message;
   }
-
   return undefined;
 }
 
-function findEveOutput(events: unknown[]): string {
-  let output = "";
+function updateEveOutput(output: string, event: unknown): string {
+  if (!isRecord(event) || !isRecord(event.data)) return output;
 
-  for (const event of events) {
-    if (!isRecord(event) || !isRecord(event.data)) {
-      continue;
-    }
-
-    if (event.type === "result.completed") {
-      output = formatEveOutput(event.data.result);
-    }
-
-    if (
-      event.type === "message.completed" &&
-      typeof event.data.message === "string"
-    ) {
-      output = event.data.message;
-    }
-
-    if (
-      event.type === "message.appended" &&
-      typeof event.data.messageSoFar === "string"
-    ) {
-      output = event.data.messageSoFar;
-    }
+  if (event.type === "result.completed") {
+    return formatEveOutput(event.data.result);
   }
 
+  if (
+    event.type === "message.completed" &&
+    typeof event.data.message === "string"
+  ) {
+    return event.data.message;
+  }
+
+  if (
+    event.type === "message.appended" &&
+    typeof event.data.messageSoFar === "string"
+  ) {
+    return event.data.messageSoFar;
+  }
   return output;
 }
 

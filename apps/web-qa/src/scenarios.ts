@@ -3,6 +3,7 @@ import {
   AgentRunResultSchema,
   createHealthStatus,
   type AgentRunEvent,
+  type AgentInputResponse,
   type AgentRunResult,
   type HealthStatus,
 } from "@agent-template/shared";
@@ -13,6 +14,7 @@ type ChatBehavior =
   | "tool-events"
   | "artifacts"
   | "markdown"
+  | "waiting-input"
   | "slow-cancellable"
   | "failed"
   | "skipped"
@@ -47,6 +49,11 @@ export const scenarioCatalog = {
   "chat-markdown": {
     health: "ok",
     chat: "markdown",
+    routes: ["/agent"],
+  },
+  "chat-waiting-input": {
+    health: "ok",
+    chat: "waiting-input",
     routes: ["/agent"],
   },
   "chat-slow-cancellable": {
@@ -133,6 +140,7 @@ export function createScenarioHealth(name: ScenarioName): HealthStatus {
 export function createChatScenario(
   name: ScenarioName,
   promptLength: number,
+  inputResponses?: AgentInputResponse[],
 ): ChatScenario {
   const behavior = scenarioCatalog[name].chat;
   if (!behavior) {
@@ -215,6 +223,154 @@ export function createChatScenario(
       markdown,
       "qa-run-markdown",
     );
+  }
+
+  if (behavior === "waiting-input") {
+    const report = [
+      "# 退款异常分析",
+      "",
+      "## 执行摘要",
+      "",
+      "近 4 周整体退款率从 2.14% 升至 3.68%，较前 4 周上升 1.54 个百分点。风险主要集中在 3C 配件、服饰鞋包和美妆个护，建议优先排查高风险商品并优化售后策略。",
+      "",
+      "## 关键证据",
+      "",
+      "| 指标 | 近 4 周 | 前 4 周 | 变化 |",
+      "| --- | ---: | ---: | ---: |",
+      "| 退款率（GMV） | 3.68% | 2.14% | +72.0% |",
+      "| 退款订单数 | 8,732 | 5,126 | +70.4% |",
+      "| 客单价（退款订单） | ¥236.72 | ¥231.11 | +2.4% |",
+      "",
+      "## 结论与洞察",
+      "",
+      "- 退款率上升主要由退货率提升驱动，而非客单价因素。",
+      "- 3C 配件、服饰鞋包、美妆个护贡献 61% 的退款金额。",
+      "- 质量问题、尺码不符和描述不符是前三类退款原因。",
+    ].join("\n");
+
+    if (inputResponses?.length) {
+      const completed = `${report}\n\n## 行动方案\n\n1. 排除内部测试订单后重新计算基线。\n2. 优先复核 Top 20 高风险商品。\n3. 为尺码与商品描述建立专项整改清单。`;
+      return completedScenario(
+        promptLength,
+        [
+          event({
+            kind: "tool-call",
+            callId: "qa-call-rank",
+            toolName: "rank_high_risk_products",
+            input: { excludeInternalOrders: true },
+          }),
+          event({
+            kind: "tool-result",
+            callId: "qa-call-rank",
+            toolName: "rank_high_risk_products",
+          }),
+          event({
+            kind: "artifacts",
+            tabs: [
+              {
+                id: "report",
+                label: "分析报告",
+                hint: "Markdown",
+                content: completed,
+              },
+              {
+                id: "actions",
+                label: "行动清单",
+                hint: "Markdown",
+                content:
+                  "# 行动清单\n\n- [ ] 复核 Top 20 高风险商品\n- [ ] 修订尺码信息\n- [ ] 更新商品描述",
+              },
+            ],
+          }),
+          event({ kind: "done", result: completed }),
+        ],
+        completed,
+        "qa-run-waiting-completed",
+      );
+    }
+
+    const events = [
+      event({
+        kind: "tool-call",
+        callId: "qa-call-orders",
+        toolName: "fetch_orders_and_refunds",
+        input: { weeks: 8 },
+      }),
+      event({
+        kind: "tool-result",
+        callId: "qa-call-orders",
+        toolName: "fetch_orders_and_refunds",
+      }),
+      event({
+        kind: "tool-call",
+        callId: "qa-call-compare",
+        toolName: "compare_refund_periods",
+        input: { currentWeeks: 4, previousWeeks: 4 },
+      }),
+      event({
+        kind: "tool-result",
+        callId: "qa-call-compare",
+        toolName: "compare_refund_periods",
+      }),
+      event({
+        kind: "artifacts",
+        tabs: [
+          {
+            id: "report",
+            label: "分析报告",
+            hint: "Markdown",
+            content: report,
+          },
+          {
+            id: "actions",
+            label: "行动清单",
+            hint: "等待确认",
+            content: "# 行动清单\n\n等待确认数据范围后生成。",
+          },
+          {
+            id: "data",
+            label: "原始数据",
+            hint: "CSV",
+            content: "metric,current,previous\nrefund_rate,3.68%,2.14%",
+          },
+        ],
+      }),
+      event({
+        kind: "input-request",
+        request: {
+          requestId: "qa-request-exclude-test-orders",
+          type: "question",
+          prompt: "是否排除内部测试订单？",
+          options: [
+            {
+              id: "exclude",
+              label: "排除并继续",
+              description: "过滤内部测试账号",
+              style: "primary",
+            },
+            { id: "keep", label: "保留" },
+          ],
+          action: {
+            callId: "qa-call-question",
+            toolName: "AskUserQuestion",
+            input: { internalOrderCount: 1248, amountShare: 0.82 },
+          },
+        },
+      }),
+    ];
+    return {
+      events,
+      result: AgentRunResultSchema.parse({
+        status: "waiting",
+        configured: true,
+        events,
+        model: "qa-fixture",
+        promptLength,
+        reason: "Agent 正在等待用户输入",
+        runId: "qa-run-waiting",
+        runtime: "claude",
+      }),
+    };
   }
 
   if (behavior === "failed") {

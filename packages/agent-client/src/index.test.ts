@@ -109,6 +109,56 @@ describe("createAgentPlatformClient", () => {
       retryable: false,
     });
   });
+
+  it("rejects an unterminated SSE frame before buffering without limit", async () => {
+    const client = createAgentPlatformClient({
+      baseUrl: "https://agent.example.com",
+      fetcher: async () =>
+        new Response(
+          new ReadableStream({
+            start(controller) {
+              controller.enqueue(new Uint8Array(16 * 1024 * 1024 + 1));
+              controller.close();
+            },
+          }),
+          { headers: { "Content-Type": "text/event-stream" } },
+        ),
+    });
+
+    const stream = client.runs.start({ prompt: "Run" });
+    const firstFrame = stream[Symbol.asyncIterator]().next();
+
+    await expect(firstFrame).rejects.toMatchObject({
+      code: "PROTOCOL_ERROR",
+      message: "Agent SSE message exceeded 16 MiB",
+    });
+  });
+
+  it("accepts one large network chunk containing bounded SSE frames", async () => {
+    const frame = "event: ping\ndata: " + "x".repeat(1_024) + "\n\n";
+    const payload = frame.repeat(17_000);
+    const client = createAgentPlatformClient({
+      baseUrl: "https://agent.example.com",
+      fetcher: async () =>
+        new Response(
+          new ReadableStream({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode(payload));
+              controller.close();
+            },
+          }),
+          { headers: { "Content-Type": "text/event-stream" } },
+        ),
+    });
+    const received = [];
+
+    for await (const item of client.runs.start({ prompt: "Run" })) {
+      received.push(item);
+    }
+
+    expect(payload.length).toBeGreaterThan(16 * 1024 * 1024);
+    expect(received).toEqual([]);
+  });
 });
 
 const runSummary = {

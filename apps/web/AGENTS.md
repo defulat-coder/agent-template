@@ -30,6 +30,9 @@
 
 ## 验证
 
+- 本地 `dev` 和 Web `build` 固定使用 Next.js webpack 模式；在确认 Turbopack 原生 worker 的 macOS/Codex Desktop 负载问题解决前，不移除 `--webpack`。
+- Next.js 编译 worker 固定为 2，避免开发机和 Codex Desktop 验证期间出现 CPU/进程负载尖峰。
+
 ```bash
 pnpm --filter @agent-template/web lint
 pnpm --filter @agent-template/web test

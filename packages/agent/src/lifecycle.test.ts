@@ -65,6 +65,86 @@ describe("Agent run lifecycle", () => {
     ]);
   });
 
+  it("coalesces queued cumulative text snapshots under write backpressure", async () => {
+    const repository = createInMemoryRepository();
+    const lifecycle = createAgentRunLifecycle({
+      repository,
+      async execute(input, _env, options) {
+        for (let index = 1; index <= 1_000; index += 1) {
+          options.onEvent?.({ kind: "text", text: "x".repeat(index) });
+        }
+        options.onEvent?.({ kind: "done", result: "Done" });
+        return {
+          configured: true,
+          events: [
+            { kind: "text", text: "x".repeat(1_000) },
+            { kind: "done", result: "Done" },
+          ],
+          model: "test-model",
+          output: "Done",
+          promptLength: (input as { prompt: string }).prompt.length,
+          runtime: "claude",
+          status: "completed",
+        };
+      },
+    });
+
+    const result = await lifecycle.run(
+      { prompt: "Stream a long response" },
+      { AGENT_RUNTIME: "claude", CLAUDE_AGENT_MODEL: "test-model" },
+    );
+    const stored = await lifecycle.get(result.runId ?? "");
+    const textEvents = stored?.events.filter(
+      ({ event }) => event.kind === "text",
+    );
+
+    expect(textEvents?.length).toBeLessThanOrEqual(2);
+    expect(textEvents?.at(-1)?.event).toEqual({
+      kind: "text",
+      text: "x".repeat(1_000),
+    });
+    expect(stored?.events.at(-1)?.event).toEqual({
+      kind: "done",
+      result: "Done",
+    });
+  });
+
+  it("fails fast when non-text event persistence exceeds its backlog", async () => {
+    const repository = createInMemoryRepository();
+    const lifecycle = createAgentRunLifecycle({
+      repository,
+      async execute(input, _env, options) {
+        for (let index = 0; index < 1_002; index += 1) {
+          options.onEvent?.({
+            kind: "tool-call",
+            callId: `call-${index}`,
+            toolName: "stress-tool",
+            input: {},
+          });
+        }
+        return {
+          configured: true,
+          events: [],
+          model: "test-model",
+          output: "unexpected",
+          promptLength: (input as { prompt: string }).prompt.length,
+          runtime: "claude",
+          status: "completed",
+        };
+      },
+    });
+
+    await expect(
+      lifecycle.run(
+        { prompt: "Flood events" },
+        { AGENT_RUNTIME: "claude", CLAUDE_AGENT_MODEL: "test-model" },
+      ),
+    ).resolves.toMatchObject({
+      status: "failed",
+      reason: "Agent run event backlog exceeded 1000",
+    });
+  });
+
   it("cancels a running Agent run through the runtime abort controller", async () => {
     const repository = createInMemoryRepository();
     const lifecycle = createAgentRunLifecycle({
