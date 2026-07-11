@@ -14,11 +14,12 @@ import {
   toolboxToolNames,
 } from "@agent-template/toolbox-config";
 import {
+  defaultClaudeAgentModel,
   type AgentRunEvent,
   type DependencyState,
 } from "@agent-template/shared";
 
-export const defaultClaudeAgentModel = "kimi-for-coding";
+export { defaultClaudeAgentModel };
 export const defaultAnthropicBaseUrl = "https://api.kimi.com/coding/";
 export const defaultClaudeAgentMaxTurns = 100;
 const partialTextEventMinDelta = 200;

@@ -71,9 +71,6 @@ importers:
       '@agent-template/shared':
         specifier: workspace:*
         version: link:../../packages/shared
-      '@anthropic-ai/claude-agent-sdk':
-        specifier: '>=0.3.193 <1.0.0'
-        version: 0.3.193(@anthropic-ai/sdk@0.106.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(zod@4.4.3)
       '@fastify/cors':
         specifier: ^11.2.0
         version: 11.2.0
@@ -163,9 +160,6 @@ importers:
       '@agent-template/shared':
         specifier: workspace:*
         version: link:../../packages/shared
-      '@anthropic-ai/claude-agent-sdk':
-        specifier: '>=0.3.193 <1.0.0'
-        version: 0.3.193(@anthropic-ai/sdk@0.106.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(zod@4.4.3)
       bullmq:
         specifier: ^5.79.1
         version: 5.79.1

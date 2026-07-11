@@ -38,6 +38,7 @@
 | completed | 建立持久化 Agent run lifecycle             | Strong          | Chat/Queue 共用状态机与 PostgreSQL record，BullMQ 只投递 `runId`                      |
 | completed | 建立所选 Agent runtime readiness           | Strong          | Claude 校验 MCP capability，Eve 使用官方 health；API 只聚合 shared state              |
 | completed | 收紧 Agent run event/result 协议不变量     | Strong          | Tool event 关联 call/name；terminal result 按 status 强制必需字段                      |
+| completed | 按部署选择动态加载 runtime adapter         | Strong          | 公共 selector 保留同步 config，execution/readiness 只加载所选 adapter                  |
 | completed | 同步 Toolbox 生成产物                      | Strong          | production 配置、官方原始 Skill 与 runtime Skill 均由同一事实源生成并通过 stale gate |
 | completed | 固定 Toolbox UTC 日桶                      | Strong          | 销售日显式按 UTC 转换，不再依赖 PostgreSQL session timezone                          |
 | completed | 规范化 Toolbox MCP URL                    | Worth exploring | `/mcp/` 与 `/mcp` 归一为一个 MCP path，Claude/Eve 共享 parser 不再重复追加            |
@@ -51,6 +52,14 @@
 - 每轮完成后用中文 Conventional Commit 提交。
 
 ## 已完成
+
+### 按部署选择动态加载 runtime adapter
+
+- 日期：2026-07-11
+- locality：`packages/agent` 维护 selector 与 loader interface；Claude/Eve config、execution、readiness 留在各自 dynamic module，apps 不依赖 concrete runtime。
+- deletion test：恢复顶层 value import 会让 API/Worker 启动时同时装载两套框架，因此 dynamic seam 直接降低部署耦合和启动副作用。
+- leverage：execution 与 health 共用同一选择规则；单元测试证明未选择 loader 不调用，构建门禁证明 API/Worker entry 与两套 runtime chunk 分离。
+- 聚焦验证：shared/Claude/Eve/Agent/API/Worker lint、typecheck、test；`pnpm agent-runtime:check:bundle`，未使用 Docker。
 
 ### 收紧 Agent run event/result 协议不变量
 

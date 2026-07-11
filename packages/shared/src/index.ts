@@ -1,3 +1,4 @@
+export { defaultClaudeAgentModel, defaultEveAgentModel } from "./agent-runtime";
 export {
   DependencyStateSchema,
   HealthStatusSchema,

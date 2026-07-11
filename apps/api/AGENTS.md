@@ -14,6 +14,7 @@
 - 任务队列使用 BullMQ，并通过 `@agent-template/shared` 的队列名和 payload schema 保持类型一致。
 - 日志使用 `@agent-template/logger`。
 - Agent run lifecycle 和 runtime selector 通过 `@agent-template/agent` 使用；持久化 adapter 来自 `@agent-template/db`。
+- 不直接依赖 concrete runtime package；execution/readiness 由公共 selector 动态加载部署选择的 adapter。
 
 ## 不应该做
 

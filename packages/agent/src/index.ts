@@ -1,28 +1,17 @@
 import { z } from "zod";
-import {
-  checkClaudeAgentReadiness,
-  defaultClaudeAgentModel,
-  getClaudeAgentRuntimeStateFromEnv,
-  loadClaudeAgentSdk,
-  parseClaudeAgentConfig,
-  runClaudeAgent,
-} from "@agent-template/agent-claude";
-import {
-  checkEveAgentReadiness,
-  defaultEveAgentModel,
-  getEveAgentRuntimeStateFromEnv,
-  parseEveAgentConfig,
-  runEveAgent,
-} from "@agent-template/agent-eve";
+import type * as ClaudeRuntime from "@agent-template/agent-claude";
+import type * as EveRuntime from "@agent-template/agent-eve";
 import {
   AgentRunInputSchema,
+  defaultClaudeAgentModel,
+  defaultEveAgentModel,
   type AgentRunEvent,
   type AgentRunResult,
   type DependencyState,
 } from "@agent-template/shared";
 import { ToolboxCapabilityProfileSchema } from "@agent-template/toolbox-config";
 
-export { defaultClaudeAgentModel, defaultEveAgentModel, loadClaudeAgentSdk };
+export { defaultClaudeAgentModel, defaultEveAgentModel };
 export type { AgentRunResult };
 export {
   createAgentRunLifecycle,
@@ -63,16 +52,26 @@ export type AgentRuntimeState = {
 
 export type RunAgentOptions = {
   abortController?: AbortController;
-  runClaude?: typeof runClaudeAgent;
-  runEve?: typeof runEveAgent;
+  loadClaude?: () => Promise<ClaudeRuntimeModule>;
+  loadEve?: () => Promise<EveRuntimeModule>;
   onEvent?: (event: AgentRunEvent) => void;
 };
 
 export type CheckAgentRuntimeReadinessOptions = {
-  checkClaude?: typeof checkClaudeAgentReadiness;
-  checkEve?: typeof checkEveAgentReadiness;
+  loadClaude?: () => Promise<ClaudeRuntimeModule>;
+  loadEve?: () => Promise<EveRuntimeModule>;
   timeoutMs?: number;
 };
+
+type ClaudeRuntimeModule = Pick<
+  typeof ClaudeRuntime,
+  "checkClaudeAgentReadiness" | "parseClaudeAgentConfig" | "runClaudeAgent"
+>;
+
+type EveRuntimeModule = Pick<
+  typeof EveRuntime,
+  "checkEveAgentReadiness" | "parseEveAgentConfig" | "runEveAgent"
+>;
 
 export function parseAgentRuntimeEnv(
   input: Record<string, unknown>,
@@ -89,13 +88,15 @@ export function getAgentRuntimeStateFromEnv(
   if (runtime === "eve") {
     return {
       runtime,
-      ...getEveAgentRuntimeStateFromEnv(env),
+      configured: Boolean(env.EVE_AGENT_HOST),
+      model: env.EVE_AGENT_MODEL,
     };
   }
 
   return {
     runtime,
-    ...getClaudeAgentRuntimeStateFromEnv(env),
+    configured: Boolean(env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN),
+    model: env.CLAUDE_AGENT_MODEL,
   };
 }
 
@@ -114,10 +115,14 @@ export async function checkAgentRuntimeReadinessFromEnv(
   try {
     const check =
       env.AGENT_RUNTIME === "eve"
-        ? (options.checkEve ?? checkEveAgentReadiness)(parseEveAgentConfig(env))
-        : (options.checkClaude ?? checkClaudeAgentReadiness)(
-            parseClaudeAgentConfig(env),
-            { signal: controller.signal },
+        ? (options.loadEve ?? loadEveRuntime)().then((runtime) =>
+            runtime.checkEveAgentReadiness(runtime.parseEveAgentConfig(env)),
+          )
+        : (options.loadClaude ?? loadClaudeRuntime)().then((runtime) =>
+            runtime.checkClaudeAgentReadiness(
+              runtime.parseClaudeAgentConfig(env),
+              { signal: controller.signal },
+            ),
           );
     return await Promise.race([
       check,
@@ -154,16 +159,22 @@ export async function runAgent(
   };
   const run =
     agentState.runtime === "eve"
-      ? await (options.runEve ?? runEveAgent)(
-          parsed,
-          parseEveAgentConfig(runtimeEnv),
-          eventOptions,
-        )
-      : await (options.runClaude ?? runClaudeAgent)(
-          parsed,
-          parseClaudeAgentConfig(runtimeEnv),
-          eventOptions,
-        );
+      ? await (async () => {
+          const runtime = await (options.loadEve ?? loadEveRuntime)();
+          return runtime.runEveAgent(
+            parsed,
+            runtime.parseEveAgentConfig(runtimeEnv),
+            eventOptions,
+          );
+        })()
+      : await (async () => {
+          const runtime = await (options.loadClaude ?? loadClaudeRuntime)();
+          return runtime.runClaudeAgent(
+            parsed,
+            runtime.parseClaudeAgentConfig(runtimeEnv),
+            eventOptions,
+          );
+        })();
 
   const resultBase = {
     promptLength: parsed.prompt.length,
@@ -190,4 +201,12 @@ export async function runAgent(
     };
   }
   return { ...resultBase, status: run.status, reason: run.reason };
+}
+
+function loadClaudeRuntime(): Promise<ClaudeRuntimeModule> {
+  return import("@agent-template/agent-claude");
+}
+
+function loadEveRuntime(): Promise<EveRuntimeModule> {
+  return import("@agent-template/agent-eve");
 }

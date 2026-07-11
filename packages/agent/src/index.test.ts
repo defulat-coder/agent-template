@@ -52,13 +52,19 @@ describe("Agent runtime selector", () => {
       checkAgentRuntimeReadinessFromEnv(
         { AGENT_RUNTIME: "eve", EVE_AGENT_HOST: "http://eve.local" },
         {
-          checkClaude: async () => {
+          loadClaude: async () => {
             calls.push("claude");
-            return { status: "ok", message: "unexpected" };
+            throw new Error("unselected Claude runtime loaded");
           },
-          checkEve: async () => {
+          loadEve: async () => {
             calls.push("eve");
-            return { status: "ok", message: "ready" };
+            return {
+              ...(await import("@agent-template/agent-eve")),
+              checkEveAgentReadiness: async () => ({
+                status: "ok" as const,
+                message: "ready",
+              }),
+            };
           },
         },
       ),
@@ -71,7 +77,10 @@ describe("Agent runtime selector", () => {
       checkAgentRuntimeReadinessFromEnv(
         { ANTHROPIC_AUTH_TOKEN: "test-token" },
         {
-          checkClaude: async () => new Promise(() => undefined),
+          loadClaude: async () => ({
+            ...(await import("@agent-template/agent-claude")),
+            checkClaudeAgentReadiness: async () => new Promise(() => undefined),
+          }),
           timeoutMs: 5,
         },
       ),
@@ -95,19 +104,22 @@ describe("Agent runtime selector", () => {
           EVE_AGENT_MODEL: "eve-custom",
         },
         {
-          runEve: async (_input, _config, options) => {
-            options?.onEvent?.({ kind: "text", text: "Working" });
+          loadEve: async () => ({
+            ...(await import("@agent-template/agent-eve")),
+            runEveAgent: async (_input, _config, options) => {
+              options?.onEvent?.({ kind: "text", text: "Working" });
 
-            return {
-              status: "completed",
-              events: [
-                { kind: "text", text: "Working" },
-                { kind: "done", result: "Done" },
-              ],
-              output: "Done",
-              sessionId: "eve-session-1",
-            };
-          },
+              return {
+                status: "completed" as const,
+                events: [
+                  { kind: "text" as const, text: "Working" },
+                  { kind: "done" as const, result: "Done" },
+                ],
+                output: "Done",
+                sessionId: "eve-session-1",
+              };
+            },
+          }),
           onEvent(event) {
             events.push(event);
           },
@@ -143,22 +155,25 @@ describe("Agent runtime selector", () => {
           TOOLBOX_URL: "http://toolbox:15000",
         },
         {
-          runClaude: async (_input, config) => {
-            expect(config).toMatchObject({
-              authToken: "test-token",
-              toolbox: {
-                authorizationToken: "toolbox-token",
-                capabilityProfile: "ecommerce-sales",
-                url: "http://toolbox:15000/mcp",
-              },
-            });
+          loadClaude: async () => ({
+            ...(await import("@agent-template/agent-claude")),
+            runClaudeAgent: async (_input, config) => {
+              expect(config).toMatchObject({
+                authToken: "test-token",
+                toolbox: {
+                  authorizationToken: "toolbox-token",
+                  capabilityProfile: "ecommerce-sales",
+                  url: "http://toolbox:15000/mcp",
+                },
+              });
 
-            return {
-              status: "completed",
-              events: [{ kind: "done", result: "Done" }],
-              output: "Done",
-            };
-          },
+              return {
+                status: "completed" as const,
+                events: [{ kind: "done" as const, result: "Done" }],
+                output: "Done",
+              };
+            },
+          }),
         },
       ),
     ).resolves.toMatchObject({

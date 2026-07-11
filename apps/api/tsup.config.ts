@@ -4,7 +4,6 @@ export default defineConfig({
   entry: ["src/server.ts"],
   format: ["esm"],
   external: [
-    "@anthropic-ai/claude-agent-sdk",
     "@prisma/adapter-pg",
     "@prisma/client",
     "bullmq",
@@ -12,8 +11,8 @@ export default defineConfig({
     "ioredis",
     "pg",
     "pino",
-    "zod"
+    "zod",
   ],
   noExternal: [/^@agent-template\//],
-  clean: true
+  clean: true,
 });

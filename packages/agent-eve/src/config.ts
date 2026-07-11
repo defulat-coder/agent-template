@@ -1,7 +1,8 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
+import { defaultEveAgentModel } from "@agent-template/shared";
 import type { AgentModelDefinition } from "eve";
 
-export const defaultEveAgentModel = "kimi-for-coding";
+export { defaultEveAgentModel };
 
 export function readEveAgentModel(input: Record<string, unknown>): string {
   return typeof input.EVE_AGENT_MODEL === "string" &&

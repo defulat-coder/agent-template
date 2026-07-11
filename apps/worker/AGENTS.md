@@ -21,6 +21,7 @@
 - 不把 BullMQ event name 泄漏到 runtime 测试；测试通过回调 interface 验证 completed/failed 行为。
 - 不直接用 BullMQ attempt 或 job status 表达 Agent run 业务状态。
 - 不直接依赖 `@agent-template/agent-claude` 或 `@agent-template/agent-eve`；通过公共 selector 选择 runtime。
+- 不为方便打包而静态 import 两套 runtime；使用 `pnpm agent-runtime:check:bundle` 验证独立 dynamic chunks。
 
 ## 验证
 
