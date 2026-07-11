@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  checkClaudeAgentReadiness,
   defaultClaudeAgentModel,
   getClaudeAgentRuntimeStateFromEnv,
   loadClaudeAgentSdk,
@@ -7,6 +8,7 @@ import {
   runClaudeAgent,
 } from "@agent-template/agent-claude";
 import {
+  checkEveAgentReadiness,
   defaultEveAgentModel,
   getEveAgentRuntimeStateFromEnv,
   parseEveAgentConfig,
@@ -16,6 +18,7 @@ import {
   AgentRunInputSchema,
   type AgentRunEvent,
   type AgentRunResult,
+  type DependencyState,
 } from "@agent-template/shared";
 import { ToolboxCapabilityProfileSchema } from "@agent-template/toolbox-config";
 
@@ -65,6 +68,12 @@ export type RunAgentOptions = {
   onEvent?: (event: AgentRunEvent) => void;
 };
 
+export type CheckAgentRuntimeReadinessOptions = {
+  checkClaude?: typeof checkClaudeAgentReadiness;
+  checkEve?: typeof checkEveAgentReadiness;
+  timeoutMs?: number;
+};
+
 export function parseAgentRuntimeEnv(
   input: Record<string, unknown>,
 ): AgentRuntimeEnv {
@@ -88,6 +97,45 @@ export function getAgentRuntimeStateFromEnv(
     runtime,
     ...getClaudeAgentRuntimeStateFromEnv(env),
   };
+}
+
+export async function checkAgentRuntimeReadinessFromEnv(
+  input: Record<string, unknown>,
+  options: CheckAgentRuntimeReadinessOptions = {},
+): Promise<DependencyState> {
+  const env = parseAgentRuntimeEnv(input);
+  const controller = new AbortController();
+  const timeoutMs = options.timeoutMs ?? 800;
+  const timeout = setTimeout(
+    () => controller.abort("Agent runtime readiness timed out"),
+    timeoutMs,
+  );
+
+  try {
+    const check =
+      env.AGENT_RUNTIME === "eve"
+        ? (options.checkEve ?? checkEveAgentReadiness)(parseEveAgentConfig(env))
+        : (options.checkClaude ?? checkClaudeAgentReadiness)(
+            parseClaudeAgentConfig(env),
+            { signal: controller.signal },
+          );
+    return await Promise.race([
+      check,
+      new Promise<DependencyState>((resolve) => {
+        controller.signal.addEventListener(
+          "abort",
+          () =>
+            resolve({
+              status: "error",
+              message: "Agent runtime readiness 检查超时",
+            }),
+          { once: true },
+        );
+      }),
+    ]);
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export async function runAgent(

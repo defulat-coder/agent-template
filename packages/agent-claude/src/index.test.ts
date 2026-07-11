@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  checkClaudeAgentReadiness,
   defaultAnthropicBaseUrl,
   defaultClaudeAgentMaxTurns,
   defaultClaudeAgentModel,
@@ -52,6 +53,53 @@ describe("Claude Agent runtime", () => {
 
     expect(state.configured).toBe(false);
     expect(state.model).toBe(defaultClaudeAgentModel);
+  });
+
+  it("checks credentials and the configured Toolbox capability profile", async () => {
+    let closed = false;
+    const readiness = await checkClaudeAgentReadiness(
+      parseClaudeAgentConfig({
+        ANTHROPIC_AUTH_TOKEN: "test-token",
+        AGENT_CAPABILITY_PROFILE: "ecommerce-sales",
+        TOOLBOX_URL: "http://toolbox:15000",
+      }),
+      {
+        connectToolbox: async () => ({
+          close: async () => {
+            closed = true;
+          },
+          listTools: async () => ({
+            tools: [
+              { name: "summarize-ecommerce-sales-by-day" },
+              { name: "summarize-ecommerce-sales-by-channel" },
+              { name: "summarize_sales_by_region" },
+              { name: "summarize_sales_by_customer_segment" },
+            ],
+          }),
+        }),
+      },
+    );
+
+    expect(readiness).toMatchObject({ status: "ok" });
+    expect(closed).toBe(true);
+  });
+
+  it("reports an incomplete Toolbox capability profile as not ready", async () => {
+    await expect(
+      checkClaudeAgentReadiness(
+        parseClaudeAgentConfig({
+          ANTHROPIC_AUTH_TOKEN: "test-token",
+          AGENT_CAPABILITY_PROFILE: "ecommerce-sales",
+          TOOLBOX_URL: "http://toolbox:15000",
+        }),
+        {
+          connectToolbox: async () => ({
+            close: async () => undefined,
+            listTools: async () => ({ tools: [] }),
+          }),
+        },
+      ),
+    ).resolves.toMatchObject({ status: "error" });
   });
 
   it("supports Kimi through the Anthropic-compatible protocol env", async () => {

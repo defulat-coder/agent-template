@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  checkAgentRuntimeReadinessFromEnv,
   defaultAgentRuntimeName,
   defaultClaudeAgentModel,
   defaultEveAgentModel,
@@ -42,6 +43,41 @@ describe("Agent runtime selector", () => {
       runtime: "eve",
       configured: true,
       model: "eve-custom",
+    });
+  });
+
+  it("checks only the deployment-selected runtime with a bounded timeout", async () => {
+    const calls: string[] = [];
+    await expect(
+      checkAgentRuntimeReadinessFromEnv(
+        { AGENT_RUNTIME: "eve", EVE_AGENT_HOST: "http://eve.local" },
+        {
+          checkClaude: async () => {
+            calls.push("claude");
+            return { status: "ok", message: "unexpected" };
+          },
+          checkEve: async () => {
+            calls.push("eve");
+            return { status: "ok", message: "ready" };
+          },
+        },
+      ),
+    ).resolves.toEqual({ status: "ok", message: "ready" });
+    expect(calls).toEqual(["eve"]);
+  });
+
+  it("turns a hanging runtime probe into an error", async () => {
+    await expect(
+      checkAgentRuntimeReadinessFromEnv(
+        { ANTHROPIC_AUTH_TOKEN: "test-token" },
+        {
+          checkClaude: async () => new Promise(() => undefined),
+          timeoutMs: 5,
+        },
+      ),
+    ).resolves.toEqual({
+      status: "error",
+      message: "Agent runtime readiness 检查超时",
     });
   });
 

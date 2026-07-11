@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import {
+  checkEveAgentReadiness,
   defaultEveAgentModel,
   eveAgentDirectory,
   getEveAgentRuntimeStateFromEnv,
@@ -60,6 +61,26 @@ describe("Eve Agent runtime", () => {
     expect(config.serviceToken).toBe("service-token");
     expect(state.configured).toBe(true);
     expect(state.host).toBe("http://127.0.0.1:13000");
+  });
+
+  it("uses the official Eve Client health contract for readiness", async () => {
+    await expect(
+      checkEveAgentReadiness(
+        parseEveAgentConfig({ EVE_AGENT_HOST: "http://eve.local" }),
+        {
+          createClient: () => ({
+            health: async () => ({
+              ok: true,
+              status: "ready",
+              workflowId: "workflow-1",
+            }),
+          }),
+        },
+      ),
+    ).resolves.toEqual({
+      status: "ok",
+      message: "Eve runtime 已就绪（workflow: workflow-1）",
+    });
   });
 
   it("depends on the latest official eve package", () => {

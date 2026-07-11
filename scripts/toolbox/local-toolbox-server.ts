@@ -1,11 +1,11 @@
 import { spawn } from "node:child_process";
+import { createRequire } from "node:module";
 import { createServer } from "node:net";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repositoryRoot = fileURLToPath(new URL("../..", import.meta.url));
-const toolboxExecutable = fileURLToPath(
-  new URL("../../node_modules/.bin/toolbox", import.meta.url),
-);
+const toolboxExecutable = resolveToolboxExecutable();
 
 export async function startLocalToolbox(input: {
   args?: string[];
@@ -89,4 +89,25 @@ async function reservePort() {
     server.close((error) => (error ? reject(error) : resolve()));
   });
   return port;
+}
+
+function resolveToolboxExecutable() {
+  const platformPackages: Record<string, string> = {
+    "darwin-arm64": "@toolbox-sdk/server-darwin-arm64",
+    "darwin-x64": "@toolbox-sdk/server-darwin-x64",
+    "linux-x64": "@toolbox-sdk/server-linux-x64",
+    "win32-arm64": "@toolbox-sdk/server-win32-arm64",
+    "win32-x64": "@toolbox-sdk/server-win32-x64",
+  };
+  const key = `${process.platform}-${process.arch}`;
+  const packageName = platformPackages[key];
+  if (!packageName) throw new Error(`Unsupported Toolbox platform: ${key}`);
+
+  const require = createRequire(import.meta.url);
+  const packageJson = require.resolve(`${packageName}/package.json`);
+  return join(
+    dirname(packageJson),
+    "bin",
+    process.platform === "win32" ? "toolbox.exe" : "toolbox",
+  );
 }

@@ -22,6 +22,7 @@ describe("GET /health", () => {
     expect(body.redis.status).toBe("skipped");
     expect(body.agent.runtime).toBe("claude");
     expect(body.agent.configured).toBe(false);
+    expect(body.agent.readiness.status).toBe("skipped");
     expect(body.toolbox).toEqual({
       configured: true,
       url: "http://localhost:15000",
@@ -142,6 +143,10 @@ describe("getHealth", () => {
     const status = await getHealth(loadEnv({ NODE_ENV: "test" }), {
       checkExternal: true,
       adapters: {
+        agent: async () => ({
+          status: "ok",
+          message: "Agent runtime ready",
+        }),
         database: async () => ({
           status: "ok",
           message: "PostgreSQL reachable",
@@ -159,6 +164,7 @@ describe("getHealth", () => {
     expect(status.queue.status).toBe("unavailable");
     expect(status.redis.message).toBe("Redis refused connection");
     expect(status.agent.runtime).toBe("claude");
+    expect(status.agent.readiness.status).toBe("ok");
     expect(status.toolbox.capabilityProfile).toBe("development-all");
   });
 

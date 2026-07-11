@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { Client } from "eve/client";
-import type { AgentRunEvent } from "@agent-template/shared";
+import type { AgentRunEvent, DependencyState } from "@agent-template/shared";
 import { defaultEveAgentModel, readEveAgentModel } from "./config.js";
 
 export const eveAgentDirectory = "packages/agent-eve/agent";
@@ -47,7 +47,11 @@ export type EveAgentRunResult =
       sessionId?: string;
     };
 
-type EveClient = {
+type EveReadinessClient = {
+  health(): Promise<{ ok: true; status: "ready"; workflowId: string }>;
+};
+
+type EveRunClient = {
   session(): {
     send(
       input: string | { message: string; signal?: AbortSignal },
@@ -94,12 +98,42 @@ export function getEveAgentRuntimeStateFromEnv(
   return getEveAgentRuntimeState(parseEveAgentConfig(input));
 }
 
+export async function checkEveAgentReadiness(
+  config: EveAgentConfig,
+  options: {
+    createClient?: (host: string, config: EveAgentConfig) => EveReadinessClient;
+  } = {},
+): Promise<DependencyState> {
+  if (!config.host) {
+    return { status: "error", message: "Eve runtime 缺少 EVE_AGENT_HOST" };
+  }
+
+  try {
+    const health = await (options.createClient ?? createEveClient)(
+      config.host,
+      config,
+    ).health();
+    return {
+      status: "ok",
+      message: `Eve runtime 已就绪（workflow: ${health.workflowId}）`,
+    };
+  } catch (error) {
+    return {
+      status: "error",
+      message:
+        error instanceof Error && error.message
+          ? error.message
+          : "Eve runtime readiness 检查失败",
+    };
+  }
+}
+
 export async function runEveAgent(
   input: EveAgentRunInput,
   config: EveAgentConfig,
   options: {
     abortController?: AbortController;
-    createClient?: (host: string, config: EveAgentConfig) => EveClient;
+    createClient?: (host: string, config: EveAgentConfig) => EveRunClient;
     onEvent?: (event: AgentRunEvent) => void;
   } = {},
 ): Promise<EveAgentRunResult> {
@@ -154,7 +188,10 @@ export async function runEveAgent(
   };
 }
 
-function createEveClient(host: string, config: EveAgentConfig): EveClient {
+function createEveClient(
+  host: string,
+  config: EveAgentConfig,
+): EveReadinessClient & EveRunClient {
   return new Client({
     host,
     ...(config.serviceToken

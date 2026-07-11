@@ -23,6 +23,10 @@ describe("createHealthStatus", () => {
         runtime: "claude",
         configured: false,
         model: "kimi-for-coding",
+        readiness: {
+          status: "skipped",
+          message: "not checked in test",
+        },
       },
       toolbox: {
         configured: true,
@@ -33,6 +37,7 @@ describe("createHealthStatus", () => {
 
     expect(status.service).toBe("api");
     expect(status.agent.configured).toBe(false);
+    expect(status.agent.readiness.status).toBe("skipped");
     expect(status.toolbox.capabilityProfile).toBe("development-all");
   });
 });

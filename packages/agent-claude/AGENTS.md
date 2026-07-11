@@ -8,6 +8,7 @@
 
 - `parseClaudeAgentConfig` 只读取 Claude runtime 相关环境变量。
 - `getClaudeAgentRuntimeStateFromEnv` 返回 API key 配置状态和模型。
+- `checkClaudeAgentReadiness` 不调用模型；配置 Toolbox 时用临时 MCP Client 校验 capability profile 的 Tool 可发现性并及时关闭。
 - `loadClaudeAgentSdk` 保持懒加载，避免无 key 时影响本地启动。
 - Kimi Code 通过 Anthropic-compatible env 接入：`ANTHROPIC_BASE_URL=https://api.kimi.com/coding/`、`ANTHROPIC_MODEL=kimi-for-coding`、`ANTHROPIC_API_KEY`。
 - 传给 Claude Agent SDK subprocess 的 `env` 必须合并 `process.env`，不要替换掉 `PATH`、`HOME` 等运行时变量。

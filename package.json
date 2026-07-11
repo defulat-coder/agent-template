@@ -15,6 +15,7 @@
     "db:migrate": "pnpm --filter @agent-template/db db:migrate",
     "db:seed": "pnpm --filter @agent-template/db db:seed",
     "agent-runs:verify:local": "pnpm --filter @agent-template/db exec prisma migrate deploy --schema prisma/schema.prisma && tsx scripts/verify-agent-run-lifecycle.ts",
+    "agent-runtime:verify:local": "tsx scripts/verify-agent-runtime-readiness.ts",
     "toolbox:check:semantic": "tsx scripts/check-toolbox-semantic-layer.ts",
     "toolbox:check": "pnpm skills:check:toolbox && pnpm toolbox:check:production",
     "toolbox:generate:production": "tsx scripts/generate-toolbox-production-config.ts",

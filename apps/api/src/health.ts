@@ -1,4 +1,7 @@
-import { getAgentRuntimeStateFromEnv } from "@agent-template/agent";
+import {
+  checkAgentRuntimeReadinessFromEnv,
+  getAgentRuntimeStateFromEnv,
+} from "@agent-template/agent";
 import {
   createHealthStatus,
   agentQueueName,
@@ -14,6 +17,7 @@ export type HealthOptions = {
 };
 
 export type HealthAdapters = {
+  agent(): Promise<DependencyState>;
   database(): Promise<DependencyState>;
   redis(): Promise<DependencyState>;
   now(): string;
@@ -71,6 +75,10 @@ async function checkRedis(redisUrl: string): Promise<DependencyState> {
 
 function createSkippedAdapters(): HealthAdapters {
   return {
+    agent: async () => ({
+      status: "skipped",
+      message: "external checks disabled",
+    }),
     database: async () => ({
       status: "skipped",
       message: "external checks disabled",
@@ -85,6 +93,7 @@ function createSkippedAdapters(): HealthAdapters {
 
 function createDefaultAdapters(env: Env): HealthAdapters {
   return {
+    agent: () => checkAgentRuntimeReadinessFromEnv(env),
     database: checkDatabase,
     redis: () => checkRedis(env.REDIS_URL),
     now: () => new Date().toISOString(),
@@ -121,12 +130,17 @@ export async function getHealth(
     (options.checkExternal
       ? createDefaultAdapters(env)
       : createSkippedAdapters());
-  const [database, redis] = await Promise.all([
+  const [agent, database, redis] = await Promise.all([
+    adapters.agent(),
     adapters.database(),
     adapters.redis(),
   ]);
   const status =
-    database.status === "error" || redis.status === "error" ? "degraded" : "ok";
+    agent.status === "error" ||
+    database.status === "error" ||
+    redis.status === "error"
+      ? "degraded"
+      : "ok";
 
   return createHealthStatus({
     service: "api",
@@ -138,7 +152,7 @@ export async function getHealth(
       name: agentQueueName,
       status: redis.status === "error" ? "unavailable" : "ready",
     },
-    agent: getAgentRuntimeStateFromEnv(env),
+    agent: { ...getAgentRuntimeStateFromEnv(env), readiness: agent },
     toolbox: {
       configured: Boolean(env.TOOLBOX_URL),
       url: env.TOOLBOX_URL,

@@ -8,6 +8,7 @@
 
 - `AgentRuntimeEnvSchema` / `parseAgentRuntimeEnv` 统一维护 Agent runtime 相关环境变量。
 - `getAgentRuntimeStateFromEnv` 返回当前 runtime、配置状态和模型。
+- `checkAgentRuntimeReadinessFromEnv` 只探测部署选择的 runtime，并以短超时返回 shared dependency state。
 - `runAgent` 是 Chat SSE 和 Worker 共同调用的 Agent run execution seam，负责 run input validation、runtime dispatch 和 execution result assembly。
 - `createAgentRunLifecycle` 负责 create/start/event/terminal/cancel 状态机；存储只通过 `AgentRunRepository` interface。
 - 具体实现委派给 `@agent-template/agent-claude` 或 `@agent-template/agent-eve`。

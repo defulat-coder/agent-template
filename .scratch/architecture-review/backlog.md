@@ -36,6 +36,7 @@
 | completed | 阻止 Toolbox token 进入 Claude subprocess  | Strong          | ambient Toolbox env 在创建 Claude subprocess env 时显式删除并有回归测试               |
 | completed | 恢复 Toolbox 执行级时间窗护栏              | Strong          | PostgreSQL 统一拒绝反向或超过 31 天的窗口，原生 MCP 验收穿过真实 seam                 |
 | completed | 建立持久化 Agent run lifecycle             | Strong          | Chat/Queue 共用状态机与 PostgreSQL record，BullMQ 只投递 `runId`                      |
+| completed | 建立所选 Agent runtime readiness           | Strong          | Claude 校验 MCP capability，Eve 使用官方 health；API 只聚合 shared state              |
 | completed | 同步 Toolbox 生成产物                      | Strong          | production 配置、官方原始 Skill 与 runtime Skill 均由同一事实源生成并通过 stale gate |
 | completed | 固定 Toolbox UTC 日桶                      | Strong          | 销售日显式按 UTC 转换，不再依赖 PostgreSQL session timezone                          |
 | completed | 规范化 Toolbox MCP URL                    | Worth exploring | `/mcp/` 与 `/mcp` 归一为一个 MCP path，Claude/Eve 共享 parser 不再重复追加            |
@@ -49,6 +50,14 @@
 - 每轮完成后用中文 Conventional Commit 提交。
 
 ## 已完成
+
+### 建立所选 Agent runtime readiness
+
+- 日期：2026-07-11
+- locality：runtime selector 只选择一个 readiness adapter；Claude 负责 transient MCP capability probe，Eve 负责官方 `Client.health()`，API 只聚合结果。
+- deletion test：只保留 `configured` 会把凭据存在误报为服务可用；把协议探测写进 API 又会泄漏 runtime 细节，因此 readiness interface 保留在 Agent runtime 边界。
+- leverage：同一 `/health` schema 区分配置与可用性，超时后降级但不挂起；不发送模型 prompt，不产生外部推理费用。
+- 聚焦验证：shared/Claude/Eve/Agent/API lint、typecheck、test；真实临时 Toolbox MCP capability probe；真实本地 Eve server 官方 health，均未使用 Docker。
 
 ### 收窄本地 Toolbox 容器暴露面
 

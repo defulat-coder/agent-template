@@ -6,12 +6,17 @@ import type {
   McpHttpServerConfig,
   SDKMessage,
 } from "@anthropic-ai/claude-agent-sdk";
+import { Client as McpClient } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import {
   parseToolboxAgentConfig,
   ToolboxAgentConfigSchema,
   toolboxToolNames,
 } from "@agent-template/toolbox-config";
-import { type AgentRunEvent } from "@agent-template/shared";
+import {
+  type AgentRunEvent,
+  type DependencyState,
+} from "@agent-template/shared";
 
 export const defaultClaudeAgentModel = "kimi-for-coding";
 export const defaultAnthropicBaseUrl = "https://api.kimi.com/coding/";
@@ -35,6 +40,11 @@ export type ClaudeAgentRuntimeState = {
 
 export type ClaudeAgentRunInput = {
   prompt: string;
+};
+
+type ClaudeToolboxReadinessClient = {
+  listTools(): Promise<{ tools: Array<{ name: string }> }>;
+  close(): Promise<void>;
 };
 
 export type ClaudeAgentRunResult =
@@ -83,8 +93,86 @@ export function getClaudeAgentRuntimeStateFromEnv(
   return getClaudeAgentRuntimeState(parseClaudeAgentConfig(input));
 }
 
+export async function checkClaudeAgentReadiness(
+  config: ClaudeAgentConfig,
+  options: {
+    connectToolbox?: (
+      config: NonNullable<ClaudeAgentConfig["toolbox"]>,
+      signal?: AbortSignal,
+    ) => Promise<ClaudeToolboxReadinessClient>;
+    signal?: AbortSignal;
+  } = {},
+): Promise<DependencyState> {
+  if (!config.apiKey && !config.authToken) {
+    return {
+      status: "error",
+      message: "Claude runtime 缺少 API Key 或 Auth Token",
+    };
+  }
+
+  if (!config.toolbox) {
+    return {
+      status: "ok",
+      message: "Claude runtime 凭据已配置，Toolbox 未启用",
+    };
+  }
+
+  let client: ClaudeToolboxReadinessClient | undefined;
+  try {
+    client = await (options.connectToolbox ?? connectClaudeToolboxReadiness)(
+      config.toolbox,
+      options.signal,
+    );
+    const tools = await client.listTools();
+    const names = new Set(tools.tools.map((tool) => tool.name));
+    const missing = config.toolbox.allowedTools.filter(
+      (tool) => !names.has(tool),
+    );
+    if (missing.length > 0) {
+      return {
+        status: "error",
+        message: `Toolbox 缺少 capability profile 所需 Tool: ${missing.join(", ")}`,
+      };
+    }
+    return {
+      status: "ok",
+      message: `Claude runtime 与 Toolbox 已就绪（${tools.tools.length} tools）`,
+    };
+  } catch (error) {
+    return {
+      status: "error",
+      message:
+        error instanceof Error && error.message
+          ? error.message
+          : "Claude runtime readiness 检查失败",
+    };
+  } finally {
+    await client?.close();
+  }
+}
+
 export async function loadClaudeAgentSdk() {
   return import("@anthropic-ai/claude-agent-sdk");
+}
+
+async function connectClaudeToolboxReadiness(
+  config: NonNullable<ClaudeAgentConfig["toolbox"]>,
+  signal?: AbortSignal,
+): Promise<ClaudeToolboxReadinessClient> {
+  const client = new McpClient(
+    { name: "agent-template-claude-readiness", version: "1.0.0" },
+    { capabilities: {} },
+  );
+  const transport = new StreamableHTTPClientTransport(new URL(config.url), {
+    requestInit: {
+      ...(config.authorizationToken
+        ? { headers: { Authorization: `Bearer ${config.authorizationToken}` } }
+        : {}),
+      ...(signal ? { signal } : {}),
+    },
+  });
+  await client.connect(transport as Parameters<McpClient["connect"]>[0]);
+  return client;
 }
 
 type ClaudeAgentSdk = {

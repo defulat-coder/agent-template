@@ -44,6 +44,7 @@ pnpm db:generate
 pnpm db:migrate
 pnpm db:seed
 pnpm agent-runs:verify:local
+pnpm agent-runtime:verify:local
 ```
 
 ## 目录结构
@@ -81,6 +82,6 @@ EVE_AGENT_HOST=http://localhost:13010
 CLAUDE_CODE_AUTO_COMPACT_WINDOW=262144
 ```
 
-`AGENT_RUNTIME=claude|eve` 只通过环境变量选择。未配置 API Key 时，API 仍可启动，`/health` 会显示当前 runtime 配置状态。
+`AGENT_RUNTIME=claude|eve` 只通过环境变量选择。未配置 API Key 时，API 仍可启动；`/health` 分别显示当前 runtime 的 `configured` 与 `readiness`。生产检查只探测所选 runtime，设置短超时且不会向模型发送 prompt。
 
 Chat SSE 与 queued job 共用持久化 Agent run lifecycle。`POST /agent/jobs` 返回的 `id` 即 `runId`；通过 `GET /agent/runs/:runId` 查询状态，通过 `DELETE /agent/runs/:runId` 请求取消。PostgreSQL 保存 ordered events 和 terminal result，BullMQ 只负责投递同一个 `runId`。

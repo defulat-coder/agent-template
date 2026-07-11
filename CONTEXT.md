@@ -16,6 +16,10 @@ _Avoid_: Job route, enqueue helper
 A selectable implementation of Agent behavior. The template may include multiple Agent runtimes, but a deployment chooses one through environment configuration.
 _Avoid_: Agent type, Agent mode
 
+**Agent runtime readiness**:
+The bounded, non-billable check that the deployment-selected Agent runtime can accept work and discover its required capabilities. It is distinct from environment configuration presence.
+_Avoid_: Configured flag, model ping
+
 **Agent run**:
 One execution of an Agent from a prompt through the selected Agent runtime. It may be started by Chat SSE or by a queued Agent job.
 _Avoid_: Agent work, job result

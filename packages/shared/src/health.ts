@@ -19,6 +19,7 @@ export const HealthStatusSchema = z.object({
     runtime: z.enum(["claude", "eve"]),
     configured: z.boolean(),
     model: z.string(),
+    readiness: DependencyStateSchema,
   }),
   toolbox: z.object({
     configured: z.boolean(),

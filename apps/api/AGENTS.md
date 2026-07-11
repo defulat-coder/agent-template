@@ -26,7 +26,7 @@
 
 ## 健康检查
 
-`GET /health` 必须快速返回。PostgreSQL 或 Redis 不可用时应返回 `degraded`，不能让请求长时间挂起。
+`GET /health` 必须快速返回。PostgreSQL、Redis 或所选 Agent runtime 不可用时返回 `degraded`；runtime 协议检查委派给 `@agent-template/agent`，API 不自行连接 Eve/Toolbox。
 
 ## 验证
 

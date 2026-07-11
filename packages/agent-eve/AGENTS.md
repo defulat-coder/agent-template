@@ -10,8 +10,9 @@
 - `agent/agent.ts` 使用 `eve` 导出的 `defineAgent` 放 runtime config。
 - `EVE_AGENT_MODEL` 由 `src/config.ts` 统一读取，runtime state 和 `agent/agent.ts` 必须同源。
 - `EVE_AGENT_HOST` 是 Eve execution adapter 连接官方 Eve HTTP API 的运行配置；未配置时 execution 返回 skipped。
+- `checkEveAgentReadiness` 必须使用当前安装版本的官方 `Client.health()`，不在 API 重写 Eve health 协议。
 - `EVE_AGENT_SERVICE_TOKEN` 是 API/Worker 到 Eve HTTP channel 的可选服务凭证；配置后 client 发送 `x-agent-template-eve-token`，Eve channel 校验该 header。
-- Docker Compose 提供 `eve-agent` 服务，默认监听 `13010`，API/Worker 通过 `EVE_AGENT_HOST` 连接它。
+- Eve 本地服务默认监听 `13010`，API/Worker 通过 `EVE_AGENT_HOST` 连接；Docker 只用于显式容器模式。
 - Kimi Code 通过 `@ai-sdk/anthropic` 的 Anthropic-compatible provider 接入 Eve authored surface。
 - Eve 默认使用 `ANTHROPIC_BASE_URL=https://api.kimi.com/coding/`、`ANTHROPIC_MODEL=kimi-for-coding`、`ANTHROPIC_API_KEY`。
 - Kimi 模型不是 Eve/AI Gateway catalog 内置模型，`agent/agent.ts` 必须显式设置 `modelContextWindowTokens` 和 `compaction.modelContextWindowTokens`，避免 Eve 编译期查不到 context window metadata。
