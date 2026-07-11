@@ -110,8 +110,13 @@ export function parseToolboxAgentConfig(
     allowedTools: [...toolboxCapabilityProfiles[capabilityProfile]],
     authorizationToken: readString(input.TOOLBOX_AUTH_TOKEN),
     capabilityProfile,
-    url: rawUrl.endsWith("/mcp") ? rawUrl : `${rawUrl.replace(/\/$/, "")}/mcp`,
+    url: normalizeToolboxMcpUrl(rawUrl),
   });
+}
+
+function normalizeToolboxMcpUrl(rawUrl: string) {
+  const url = rawUrl.replace(/\/+$/, "");
+  return url.endsWith("/mcp") ? url : `${url}/mcp`;
 }
 
 function readString(value: unknown) {

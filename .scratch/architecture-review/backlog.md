@@ -35,6 +35,7 @@
 | completed | 由 Agent runtime 持有 MCP Client            | Strong          | Claude/Eve 各自使用框架原生 Client，共享包只持有配置与 schema                         |
 | completed | 阻止 Toolbox token 进入 Claude subprocess  | Strong          | ambient Toolbox env 在创建 Claude subprocess env 时显式删除并有回归测试               |
 | completed | 恢复 Toolbox 执行级时间窗护栏              | Strong          | PostgreSQL 统一拒绝反向或超过 31 天的窗口，原生 MCP 验收穿过真实 seam                 |
+| completed | 建立持久化 Agent run lifecycle             | Strong          | Chat/Queue 共用状态机与 PostgreSQL record，BullMQ 只投递 `runId`                      |
 | completed | 同步 Toolbox 生成产物                      | Strong          | production 配置、官方原始 Skill 与 runtime Skill 均由同一事实源生成并通过 stale gate |
 | completed | 固定 Toolbox UTC 日桶                      | Strong          | 销售日显式按 UTC 转换，不再依赖 PostgreSQL session timezone                          |
 
@@ -45,6 +46,14 @@
 - 每轮完成后用中文 Conventional Commit 提交。
 
 ## 已完成
+
+### 建立持久化 Agent run lifecycle
+
+- 日期：2026-07-11
+- locality：create/start/event/terminal/cancel 状态机集中在 `packages/agent`；Prisma package 只实现 repository 原子读写，API/Worker 只做装配。
+- deletion test：删除该 lifecycle 会让 Chat、Queue、Worker 各自维护状态并把 BullMQ/SSE transport 状态误当业务事实，因此保留一个深 module。
+- leverage：Chat SSE 与 queued job 共用 durable run record、ordered events、结果查询和协作式取消；BullMQ retry 始终恢复同一 `runId`。
+- 聚焦验证：Agent/Claude/Eve/API/Worker/Web/shared/db lint、typecheck、test；`pnpm agent-runs:verify:local` 穿过本机 PostgreSQL，无 Docker。
 
 ### 固定 Toolbox UTC 日桶
 

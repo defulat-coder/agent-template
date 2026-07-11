@@ -11,12 +11,9 @@ describe("AgentJobAcceptedSchema", () => {
     });
   });
 
-  it("allows BullMQ to omit a job id", () => {
-    expect(
+  it("requires the durable Agent run id", () => {
+    expect(() =>
       AgentJobAcceptedSchema.parse({ id: undefined, queue: "agent-jobs" }),
-    ).toEqual({
-      id: undefined,
-      queue: "agent-jobs",
-    });
+    ).toThrow();
   });
 });

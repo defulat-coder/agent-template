@@ -1,11 +1,12 @@
 import {
   agentJobName,
   AgentJobAcceptedSchema,
-  AgentJobPayloadSchema,
+  AgentJobRequestSchema,
   type AgentJobAccepted,
   type AgentJobName,
   type AgentJobPayload,
 } from "@agent-template/shared";
+import type { AgentRunLifecycle } from "@agent-template/agent";
 import { createAgentQueue } from "./queue.js";
 
 export type AgentJobIntake = {
@@ -22,6 +23,7 @@ type AgentJobQueue = {
 };
 
 type EnqueueAgentJobOptions = {
+  agentRunLifecycle: AgentRunLifecycle;
   redisUrl: string;
   createQueue?: (redisUrl: string) => AgentJobQueue;
 };
@@ -40,12 +42,20 @@ async function enqueueAgentJob(
   input: unknown,
   options: EnqueueAgentJobOptions,
 ): Promise<AgentJobAccepted> {
-  const payload = AgentJobPayloadSchema.parse(input);
+  const request = AgentJobRequestSchema.parse(input);
+  const run = await options.agentRunLifecycle.queue(request);
+  const payload = { ...request, runId: run.id } satisfies AgentJobPayload;
   const queue = (options.createQueue ?? createAgentQueue)(options.redisUrl);
 
   try {
-    const job = await queue.add(agentJobName, payload);
-    return AgentJobAcceptedSchema.parse({ id: job.id, queue: queue.name });
+    await queue.add(agentJobName, payload);
+    return AgentJobAcceptedSchema.parse({ id: run.id, queue: queue.name });
+  } catch (error) {
+    await options.agentRunLifecycle.failQueued(
+      run.id,
+      error instanceof Error ? error.message : "Agent job enqueue failed",
+    );
+    throw error;
   } finally {
     await queue.close();
   }

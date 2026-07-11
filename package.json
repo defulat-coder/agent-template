@@ -14,6 +14,7 @@
     "db:generate": "pnpm --filter @agent-template/db db:generate",
     "db:migrate": "pnpm --filter @agent-template/db db:migrate",
     "db:seed": "pnpm --filter @agent-template/db db:seed",
+    "agent-runs:verify:local": "pnpm --filter @agent-template/db exec prisma migrate deploy --schema prisma/schema.prisma && tsx scripts/verify-agent-run-lifecycle.ts",
     "toolbox:check:semantic": "tsx scripts/check-toolbox-semantic-layer.ts",
     "toolbox:check": "pnpm skills:check:toolbox && pnpm toolbox:check:production",
     "toolbox:generate:production": "tsx scripts/generate-toolbox-production-config.ts",
@@ -26,6 +27,8 @@
     "format": "prettier --write ."
   },
   "devDependencies": {
+    "@agent-template/agent": "workspace:*",
+    "@agent-template/db": "workspace:*",
     "@eslint/js": "^10.0.1",
     "@agent-template/toolbox-config": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.29.0",

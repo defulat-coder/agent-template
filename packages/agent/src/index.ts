@@ -21,6 +21,14 @@ import { ToolboxCapabilityProfileSchema } from "@agent-template/toolbox-config";
 
 export { defaultClaudeAgentModel, defaultEveAgentModel, loadClaudeAgentSdk };
 export type { AgentRunResult };
+export {
+  createAgentRunLifecycle,
+  type AgentRunLifecycle,
+  type AgentRunLifecycleExecutionOptions,
+  type AgentRunRepository,
+  type StoredAgentRun,
+  type StoredAgentRunEvent,
+} from "./lifecycle.js";
 
 export const defaultAgentRuntimeName = "claude";
 export const AgentRuntimeNameSchema = z.enum(["claude", "eve"]);
@@ -51,6 +59,7 @@ export type AgentRuntimeState = {
 };
 
 export type RunAgentOptions = {
+  abortController?: AbortController;
   runClaude?: typeof runClaudeAgent;
   runEve?: typeof runEveAgent;
   onEvent?: (event: AgentRunEvent) => void;
@@ -89,7 +98,12 @@ export async function runAgent(
   const parsed = AgentRunInputSchema.parse(input);
   const runtimeEnv = parseAgentRuntimeEnv(env);
   const agentState = getAgentRuntimeStateFromEnv(runtimeEnv);
-  const eventOptions = options.onEvent ? { onEvent: options.onEvent } : {};
+  const eventOptions = {
+    ...(options.onEvent ? { onEvent: options.onEvent } : {}),
+    ...(options.abortController
+      ? { abortController: options.abortController }
+      : {}),
+  };
   const run =
     agentState.runtime === "eve"
       ? await (options.runEve ?? runEveAgent)(

@@ -98,6 +98,7 @@ export async function runClaudeAgent(
   input: ClaudeAgentRunInput,
   config: ClaudeAgentConfig,
   options: {
+    abortController?: AbortController;
     loadSdk?: () => Promise<ClaudeAgentSdk>;
     onEvent?: (event: AgentRunEvent) => void;
   } = {},
@@ -119,6 +120,9 @@ export async function runClaudeAgent(
   for await (const message of sdk.query({
     prompt: input.prompt,
     options: {
+      ...(options.abortController
+        ? { abortController: options.abortController }
+        : {}),
       env: createClaudeAgentSubprocessEnv(config),
       cwd: readClaudeProjectDir(),
       allowedTools: readClaudeToolboxTools(config),

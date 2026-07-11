@@ -8,11 +8,12 @@
 
 - HTTP 路由和 Fastify app 装配放在这里。
 - 数据库访问通过 `@agent-template/db`。
-- Agent job intake 通过 `AgentJobIntake.enqueue(input)` 暴露给 route；BullMQ queue lifecycle 留在 `src/agent-job-intake.ts`。
-- Agent Chat 通过 `POST /agent/chat` 启动 Agent run，并用 SSE 返回 Agent run event 和最终结果。
+- Agent job intake 先创建 durable Agent run，再把 `runId` 入队；BullMQ lifecycle 留在 `src/agent-job-intake.ts`。
+- Agent Chat 通过公共 `AgentRunLifecycle` 启动 run，并用 SSE 返回 event 和最终结果。
+- `GET /agent/runs/:runId` 读取持久化状态；`DELETE /agent/runs/:runId` 请求协作式取消。
 - 任务队列使用 BullMQ，并通过 `@agent-template/shared` 的队列名和 payload schema 保持类型一致。
 - 日志使用 `@agent-template/logger`。
-- Agent run 和 Agent runtime 状态通过 `@agent-template/agent` 读取，不在 API 内直接调用具体 runtime。
+- Agent run lifecycle 和 runtime selector 通过 `@agent-template/agent` 使用；持久化 adapter 来自 `@agent-template/db`。
 
 ## 不应该做
 
@@ -21,6 +22,7 @@
 - 不在 API 内创建独立 logger 抽象；logger 规则放 `packages/logger`。
 - 不让 Fastify route 直接知道 Redis URL、BullMQ `Queue.add` 或 queue close 细节。
 - 不从 request payload 覆盖 Agent runtime；runtime 只读环境变量 `AGENT_RUNTIME`。
+- 不把 SSE 连接或 BullMQ job 状态当成 Agent run 的 source of truth。
 
 ## 健康检查
 

@@ -20,6 +20,14 @@ _Avoid_: Agent type, Agent mode
 One execution of an Agent from a prompt through the selected Agent runtime. It may be started by Chat SSE or by a queued Agent job.
 _Avoid_: Agent work, job result
 
+**Agent run record**:
+The durable source of truth for one Agent run's status, ordered events, terminal result, and cancellation request.
+_Avoid_: Queue job, log record
+
+**Agent run cancellation**:
+A durable request to stop an Agent run. A queued run becomes cancelled before execution; a running run cooperatively stops through its Agent runtime.
+_Avoid_: Job deletion, process kill
+
 **Agent run event**:
 An event emitted while an Agent runtime executes an Agent run.
 _Avoid_: UI timeline item, log line

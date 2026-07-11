@@ -18,6 +18,13 @@ describe("Toolbox Agent config", () => {
     ).toBe("http://localhost:15000/mcp");
   });
 
+  it("normalizes a trailing slash after the MCP path", () => {
+    expect(
+      parseToolboxAgentConfig({ TOOLBOX_URL: "http://localhost:15000/mcp/" })
+        ?.url,
+    ).toBe("http://localhost:15000/mcp");
+  });
+
   it("normalizes the MCP URL and resolves a deployment capability profile", () => {
     expect(
       parseToolboxAgentConfig({

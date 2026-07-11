@@ -8,6 +8,12 @@ importers:
 
   .:
     devDependencies:
+      '@agent-template/agent':
+        specifier: workspace:*
+        version: link:packages/agent
+      '@agent-template/db':
+        specifier: workspace:*
+        version: link:packages/db
       '@agent-template/toolbox-config':
         specifier: workspace:*
         version: link:packages/toolbox-config
@@ -148,6 +154,9 @@ importers:
       '@agent-template/agent':
         specifier: workspace:*
         version: link:../../packages/agent
+      '@agent-template/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@agent-template/logger':
         specifier: workspace:*
         version: link:../../packages/logger
@@ -239,6 +248,9 @@ importers:
 
   packages/db:
     dependencies:
+      '@agent-template/shared':
+        specifier: workspace:*
+        version: link:../shared
       '@prisma/adapter-pg':
         specifier: ^7.8.0
         version: 7.8.0

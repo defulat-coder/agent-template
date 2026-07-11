@@ -17,6 +17,48 @@ model TemplateEvent {
   @@index([type, createdAt])
 }
 
+enum AgentRunStatus {
+  QUEUED    @map("queued")
+  RUNNING   @map("running")
+  COMPLETED @map("completed")
+  FAILED    @map("failed")
+  SKIPPED   @map("skipped")
+  CANCELLED @map("cancelled")
+}
+
+model AgentRun {
+  id                String          @id @default(cuid())
+  prompt            String
+  requestedAt       DateTime        @db.Timestamptz(3)
+  startedAt         DateTime?       @db.Timestamptz(3)
+  completedAt       DateTime?       @db.Timestamptz(3)
+  cancelRequestedAt DateTime?       @db.Timestamptz(3)
+  status            AgentRunStatus
+  runtime           String?
+  model             String?
+  output            String?
+  reason            String?
+  sessionId         String?
+  createdAt         DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime        @updatedAt @db.Timestamptz(3)
+  events            AgentRunEvent[]
+
+  @@index([status, createdAt])
+}
+
+model AgentRunEvent {
+  id        String   @id @default(cuid())
+  runId     String
+  run       AgentRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  sequence  Int
+  kind      String
+  payload   Json
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@unique([runId, sequence])
+  @@index([runId, createdAt])
+}
+
 enum EcommerceCustomerSegment {
   NEW
   ACTIVE

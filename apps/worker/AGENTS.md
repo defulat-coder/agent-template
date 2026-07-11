@@ -7,9 +7,10 @@
 ## 能力边界
 
 - Worker 进程入口在 `src/worker.ts`。
-- `src/process.ts` 负责 BullMQ Worker 装配、event wiring、shutdown，并委派到 `runAgent`。
+- `src/process.ts` 负责 BullMQ Worker 装配、event wiring 和 shutdown。
 - 队列名、任务名和 payload schema 来自 `@agent-template/shared`。
-- Agent runtime selector 和公共入口来自 `@agent-template/agent`。
+- Worker 只按 payload 的 `runId` 恢复公共 `AgentRunLifecycle`，不创建第二条 run record。
+- Agent runtime selector 和 lifecycle 来自 `@agent-template/agent`，持久化 adapter 来自 `@agent-template/db`。
 - 日志使用 `@agent-template/logger`。
 
 ## 不应该做
@@ -18,7 +19,7 @@
 - 不直接定义共享任务 payload schema。
 - 不把不可测试的逻辑全部写在 `worker.ts`；进程装配和 job 处理要分开。
 - 不把 BullMQ event name 泄漏到 runtime 测试；测试通过回调 interface 验证 completed/failed 行为。
-- Worker process 直接委派给 `@agent-template/agent` 的 `runAgent` Agent run execution seam。
+- 不直接用 BullMQ attempt 或 job status 表达 Agent run 业务状态。
 - 不直接依赖 `@agent-template/agent-claude` 或 `@agent-template/agent-eve`；通过公共 selector 选择 runtime。
 
 ## 验证

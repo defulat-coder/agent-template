@@ -13,12 +13,14 @@
 ```bash
 cp .env.example .env
 pnpm install
-docker compose up -d
+# 确认 PostgreSQL :15432 与 Redis :16379 已在本机监听
 pnpm db:generate
 pnpm db:migrate
 pnpm db:seed
 pnpm dev
 ```
+
+Docker Compose 是显式选择的容器启动方式，不是默认构建或回归验证路径。
 
 默认服务：
 
@@ -41,6 +43,7 @@ pnpm test
 pnpm db:generate
 pnpm db:migrate
 pnpm db:seed
+pnpm agent-runs:verify:local
 ```
 
 ## 目录结构
@@ -79,3 +82,5 @@ CLAUDE_CODE_AUTO_COMPACT_WINDOW=262144
 ```
 
 `AGENT_RUNTIME=claude|eve` 只通过环境变量选择。未配置 API Key 时，API 仍可启动，`/health` 会显示当前 runtime 配置状态。
+
+Chat SSE 与 queued job 共用持久化 Agent run lifecycle。`POST /agent/jobs` 返回的 `id` 即 `runId`；通过 `GET /agent/runs/:runId` 查询状态，通过 `DELETE /agent/runs/:runId` 请求取消。PostgreSQL 保存 ordered events 和 terminal result，BullMQ 只负责投递同一个 `runId`。

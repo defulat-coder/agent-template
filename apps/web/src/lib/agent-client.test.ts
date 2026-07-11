@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { streamAgentChat, submitAgentJob } from "./agent-client";
+import {
+  cancelAgentRun,
+  fetchAgentRun,
+  streamAgentChat,
+  submitAgentJob,
+} from "./agent-client";
 
 describe("submitAgentJob", () => {
   it("rejects an empty prompt before calling the backend", async () => {
@@ -91,7 +96,7 @@ describe("streamAgentChat", () => {
       body: createStream(
         [
           'event: agent-event\ndata: {"kind":"text","text":"Working"}\n\n',
-          'event: result\ndata: {"promptLength":9,"runtime":"claude","configured":true,"model":"kimi-for-coding","status":"completed","events":[{"kind":"text","text":"Working"},{"kind":"done","result":"Done"}],"output":"Done"}\n\n',
+          'event: result\ndata: {"promptLength":9,"runtime":"claude","configured":true,"model":"kimi-for-coding","status":"completed","events":[{"kind":"text","text":"Working"},{"kind":"done","result":"Done"}],"output":"Done","runId":"run-1"}\n\n',
         ].join(""),
       ),
       ok: true,
@@ -108,6 +113,7 @@ describe("streamAgentChat", () => {
       }),
     ).resolves.toMatchObject({
       output: "Done",
+      runId: "run-1",
       status: "completed",
     });
 
@@ -117,6 +123,63 @@ describe("streamAgentChat", () => {
       body: JSON.stringify({ prompt: "Run agent" }),
     });
     expect(events).toEqual([{ kind: "text", text: "Working" }]);
+  });
+
+  it("reports caller cancellation separately", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const fetcher = vi
+      .fn()
+      .mockRejectedValue(new DOMException("aborted", "AbortError"));
+
+    await expect(
+      streamAgentChat({
+        prompt: "Run agent",
+        fetcher,
+        signal: controller.signal,
+      }),
+    ).rejects.toThrow("Agent chat cancelled");
+  });
+});
+
+describe("Agent run lifecycle client", () => {
+  it("loads and cancels a durable Agent run", async () => {
+    const snapshot = {
+      id: "run-1",
+      prompt: "Run agent",
+      requestedAt: "2026-07-11T00:00:00.000Z",
+      startedAt: null,
+      completedAt: null,
+      cancelRequestedAt: null,
+      status: "queued",
+      runtime: null,
+      model: null,
+      output: null,
+      reason: null,
+      sessionId: null,
+      events: [],
+    };
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => snapshot,
+    });
+
+    await expect(
+      fetchAgentRun("run-1", { baseUrl: "http://api.test", fetcher }),
+    ).resolves.toMatchObject({ id: "run-1", status: "queued" });
+    await expect(
+      cancelAgentRun("run-1", { baseUrl: "http://api.test", fetcher }),
+    ).resolves.toMatchObject({ id: "run-1", status: "queued" });
+    expect(fetcher).toHaveBeenNthCalledWith(
+      1,
+      "http://api.test/agent/runs/run-1",
+      { method: "GET" },
+    );
+    expect(fetcher).toHaveBeenNthCalledWith(
+      2,
+      "http://api.test/agent/runs/run-1",
+      { method: "DELETE" },
+    );
   });
 });
 

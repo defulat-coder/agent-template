@@ -217,6 +217,7 @@ describe("Claude Agent runtime", () => {
 
   it("connects Claude directly to the Toolbox MCP server", async () => {
     const calls: unknown[] = [];
+    const abortController = new AbortController();
 
     await expect(
       runClaudeAgent(
@@ -228,6 +229,7 @@ describe("Claude Agent runtime", () => {
           TOOLBOX_URL: "http://toolbox:15000",
         }),
         {
+          abortController,
           loadSdk: async () => ({
             query(params) {
               calls.push(params);
@@ -285,11 +287,13 @@ describe("Claude Agent runtime", () => {
       calls[0] as {
         options: {
           allowedTools: string[];
+          abortController: AbortController;
           env: Record<string, string | undefined>;
           mcpServers: Record<string, unknown>;
         };
       }
     ).options;
+    expect(options.abortController).toBe(abortController);
     expect(options.allowedTools).toHaveLength(18);
     expect(options.allowedTools).toContain("mcp__toolbox__list-agent-runs");
     expect(options.mcpServers).toMatchObject({

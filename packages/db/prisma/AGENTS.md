@@ -12,6 +12,7 @@
 - 不用 `prisma db push` 作为长期方案；只能用于一次性原型验证，落地前必须转成 migration。
 - `seed.ts` 必须幂等，使用稳定 id 和 `upsert`，不要写随机数据或依赖当前时间。
 - 示例数据保留模板语境，不加入具体客户业务表。
+- Agent run status、event sequence 与 cancellation 字段是持久化 invariant；迁移需保留原子状态转换所需索引和唯一约束。
 
 ## 验证
 

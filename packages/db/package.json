@@ -16,6 +16,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@agent-template/shared": "workspace:*",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "dotenv": "^17.4.2",

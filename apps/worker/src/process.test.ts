@@ -7,14 +7,24 @@ describe("createAgentWorkerProcess", () => {
     const logs: unknown[] = [];
     const payload: AgentJobPayload = {
       prompt: "Summarize this template",
-      requestedAt: "2026-06-26T00:00:00.000Z"
+      runId: "run-1",
+      requestedAt: "2026-06-26T00:00:00.000Z",
     };
     let capturedProcessJob:
-      | ((job: { id?: string; name: string; data: AgentJobPayload }) => Promise<unknown>)
+      | ((job: {
+          id?: string;
+          name: string;
+          data: AgentJobPayload;
+        }) => Promise<unknown>)
       | undefined;
-    let capturedOnCompleted: ((job: { id?: string; name: string; data: AgentJobPayload }) => void) | undefined;
+    let capturedOnCompleted:
+      | ((job: { id?: string; name: string; data: AgentJobPayload }) => void)
+      | undefined;
     let capturedOnFailed:
-      | ((job: { id?: string; name: string; data: AgentJobPayload } | undefined, error: Error) => void)
+      | ((
+          job: { id?: string; name: string; data: AgentJobPayload } | undefined,
+          error: Error,
+        ) => void)
       | undefined;
     let closed = false;
 
@@ -25,7 +35,7 @@ describe("createAgentWorkerProcess", () => {
         AGENT_CAPABILITY_PROFILE: "development-all",
         ANTHROPIC_MODEL: "kimi-for-coding",
         CLAUDE_AGENT_MODEL: "kimi-for-coding",
-        EVE_AGENT_MODEL: "kimi-for-coding"
+        EVE_AGENT_MODEL: "kimi-for-coding",
       },
       logger: {
         info(data, message) {
@@ -33,7 +43,7 @@ describe("createAgentWorkerProcess", () => {
         },
         error(data, message) {
           logs.push(["error", data, message]);
-        }
+        },
       },
       createWorker({ processJob, onCompleted, onFailed }) {
         capturedProcessJob = processJob;
@@ -43,7 +53,7 @@ describe("createAgentWorkerProcess", () => {
         return {
           async close() {
             closed = true;
-          }
+          },
         };
       },
       async processJob(jobPayload) {
@@ -52,25 +62,39 @@ describe("createAgentWorkerProcess", () => {
           runtime: "claude",
           configured: false,
           model: "kimi-for-coding",
-          status: "skipped"
+          status: "skipped",
         };
-      }
+      },
     });
 
-    await expect(capturedProcessJob?.({ id: "job-1", name: "agent.run", data: payload })).resolves.toEqual({
+    await expect(
+      capturedProcessJob?.({ id: "job-1", name: "agent.run", data: payload }),
+    ).resolves.toEqual({
       promptLength: 23,
       runtime: "claude",
       configured: false,
       model: "kimi-for-coding",
-      status: "skipped"
+      status: "skipped",
     });
     capturedOnCompleted?.({ id: "job-1", name: "agent.run", data: payload });
     capturedOnFailed?.(undefined, new Error("boom"));
     await workerProcess.close();
 
     expect(closed).toBe(true);
-    expect(logs[0]).toEqual(["info", { jobId: "job-1", jobName: "agent.run" }, "processing agent job"]);
-    expect(logs[1]).toEqual(["info", { jobId: "job-1" }, "agent job completed"]);
-    expect(logs[2]).toEqual(["error", { jobId: undefined, error: expect.any(Error) }, "agent job failed"]);
+    expect(logs[0]).toEqual([
+      "info",
+      { jobId: "job-1", jobName: "agent.run" },
+      "processing agent job",
+    ]);
+    expect(logs[1]).toEqual([
+      "info",
+      { jobId: "job-1" },
+      "agent job completed",
+    ]);
+    expect(logs[2]).toEqual([
+      "error",
+      { jobId: undefined, error: expect.any(Error) },
+      "agent job failed",
+    ]);
   });
 });

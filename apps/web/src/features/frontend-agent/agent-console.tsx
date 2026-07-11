@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 import { Button } from "@agent-template/ui";
 import type { AgentRunEvent, AgentRunResult } from "@agent-template/shared";
 import { streamAgentChat } from "@/lib/agent-client";
@@ -12,6 +12,7 @@ type AgentConsoleStatus =
   | "submitting"
   | "running"
   | "completed"
+  | "cancelled"
   | "skipped"
   | "failed";
 
@@ -22,6 +23,7 @@ export function AgentConsole() {
   const [streamedOutput, setStreamedOutput] = useState("");
   const [error, setError] = useState("");
   const [status, setStatus] = useState<AgentConsoleStatus>("idle");
+  const abortControllerRef = useRef<AbortController | null>(null);
   const submitting = status === "submitting" || status === "running";
   const messageParts = buildAgentMessageParts(events);
 
@@ -39,9 +41,12 @@ export function AgentConsole() {
     }
 
     setStatus("submitting");
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
     try {
       const chatResult = await streamAgentChat({
         prompt,
+        signal: abortController.signal,
         onEvent(event) {
           setEvents((current) => appendRunEvent(current, event));
           if (event.kind === "text") {
@@ -60,8 +65,11 @@ export function AgentConsole() {
         chatResult.status === "skipped" ? "skipped" : chatResult.status,
       );
     } catch (caught) {
-      setError(getAgentChatErrorMessage(caught));
-      setStatus("failed");
+      const message = getAgentChatErrorMessage(caught);
+      setError(message);
+      setStatus(message === "Agent run 已取消。" ? "cancelled" : "failed");
+    } finally {
+      abortControllerRef.current = null;
     }
   }
 
@@ -85,6 +93,15 @@ export function AgentConsole() {
               ? "重试"
               : "发送给 Agent"}
         </Button>
+        {submitting ? (
+          <Button
+            onClick={() => abortControllerRef.current?.abort()}
+            type="button"
+            variant="outline"
+          >
+            取消运行
+          </Button>
+        ) : null}
         <p
           aria-live="polite"
           className={
@@ -198,6 +215,10 @@ function getStatusText(status: AgentConsoleStatus, error: string) {
     return "Agent runtime 未配置，未执行。";
   }
 
+  if (status === "cancelled") {
+    return "Agent run 已取消。";
+  }
+
   if (status === "failed") {
     return error;
   }
@@ -218,6 +239,10 @@ function getAgentChatErrorMessage(caught: unknown) {
 
   if (caught.message === "Unable to reach Agent chat API") {
     return "无法连接 Agent Chat API，请检查网络或后端服务。";
+  }
+
+  if (caught.message === "Agent chat cancelled") {
+    return "Agent run 已取消。";
   }
 
   return caught.message;

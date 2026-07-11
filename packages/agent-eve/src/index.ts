@@ -49,7 +49,9 @@ export type EveAgentRunResult =
 
 type EveClient = {
   session(): {
-    send(input: string): Promise<EveMessageResponse>;
+    send(
+      input: string | { message: string; signal?: AbortSignal },
+    ): Promise<EveMessageResponse>;
   };
 };
 
@@ -96,6 +98,7 @@ export async function runEveAgent(
   input: EveAgentRunInput,
   config: EveAgentConfig,
   options: {
+    abortController?: AbortController;
     createClient?: (host: string, config: EveAgentConfig) => EveClient;
     onEvent?: (event: AgentRunEvent) => void;
   } = {},
@@ -105,7 +108,13 @@ export async function runEveAgent(
   }
 
   const client = (options.createClient ?? createEveClient)(config.host, config);
-  const response = await client.session().send(input.prompt);
+  const response = await client
+    .session()
+    .send(
+      options.abortController
+        ? { message: input.prompt, signal: options.abortController.signal }
+        : input.prompt,
+    );
   const rawEvents: unknown[] = [];
   const events: AgentRunEvent[] = [];
 

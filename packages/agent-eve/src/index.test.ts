@@ -145,69 +145,75 @@ describe("Eve Agent runtime", () => {
 
   it("runs through the Eve client when configured", async () => {
     const events: unknown[] = [];
+    const sent: unknown[] = [];
+    const abortController = new AbortController();
 
     await expect(
       runEveAgent(
         { prompt: "Summarize this template" },
         parseEveAgentConfig({ EVE_AGENT_HOST: "http://eve.local" }),
         {
+          abortController,
           createClient: () => ({
             session: () => ({
-              send: async () => ({
-                sessionId: "eve-session-1",
-                async *[Symbol.asyncIterator]() {
-                  yield {
-                    data: {
-                      actions: [
-                        {
+              send: async (input) => {
+                sent.push(input);
+                return {
+                  sessionId: "eve-session-1",
+                  async *[Symbol.asyncIterator]() {
+                    yield {
+                      data: {
+                        actions: [
+                          {
+                            callId: "call-1",
+                            input: { limit: 1 },
+                            kind: "tool-call",
+                            toolName: "toolbox__list-agent-runs",
+                          },
+                        ],
+                        sequence: 1,
+                        stepIndex: 0,
+                        turnId: "turn-1",
+                      },
+                      type: "actions.requested",
+                    };
+                    yield {
+                      data: {
+                        result: {
                           callId: "call-1",
-                          input: { limit: 1 },
-                          kind: "tool-call",
+                          kind: "tool-result",
+                          output: [{ runId: "run-1" }],
                           toolName: "toolbox__list-agent-runs",
                         },
-                      ],
-                      sequence: 1,
-                      stepIndex: 0,
-                      turnId: "turn-1",
-                    },
-                    type: "actions.requested",
-                  };
-                  yield {
-                    data: {
-                      result: {
-                        callId: "call-1",
-                        kind: "tool-result",
-                        output: [{ runId: "run-1" }],
-                        toolName: "toolbox__list-agent-runs",
+                        sequence: 2,
+                        status: "completed",
+                        stepIndex: 0,
+                        turnId: "turn-1",
                       },
-                      sequence: 2,
-                      status: "completed",
-                      stepIndex: 0,
-                      turnId: "turn-1",
-                    },
-                    type: "action.result",
-                  };
-                  yield {
-                    data: {
-                      messageSoFar: "Do",
-                      sequence: 3,
-                      stepIndex: 0,
-                      turnId: "turn-1",
-                    },
-                    type: "message.appended",
-                  };
-                  yield {
-                    data: {
-                      finishReason: "stop",
-                      message: "Done",
-                      sequence: 4,
-                      stepIndex: 0,
-                      turnId: "turn-1",
-                    },
-                    type: "message.completed",
-                  };
-                },
-              }),
+                      type: "action.result",
+                    };
+                    yield {
+                      data: {
+                        messageSoFar: "Do",
+                        sequence: 3,
+                        stepIndex: 0,
+                        turnId: "turn-1",
+                      },
+                      type: "message.appended",
+                    };
+                    yield {
+                      data: {
+                        finishReason: "stop",
+                        message: "Done",
+                        sequence: 4,
+                        stepIndex: 0,
+                        turnId: "turn-1",
+                      },
+                      type: "message.completed",
+                    };
+                  },
+                };
+              },
             }),
           }),
           onEvent(event) {
@@ -241,6 +247,12 @@ describe("Eve Agent runtime", () => {
       { kind: "text", text: "Do" },
       { kind: "text", text: "Done" },
       { kind: "done", result: "Done" },
+    ]);
+    expect(sent).toEqual([
+      {
+        message: "Summarize this template",
+        signal: abortController.signal,
+      },
     ]);
   });
 });

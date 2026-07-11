@@ -2,9 +2,11 @@ import {
   AgentJobAcceptedSchema,
   AgentRunResultSchema,
   AgentRunEventSchema,
+  AgentRunSnapshotSchema,
   type AgentJobAccepted,
   type AgentRunEvent,
   type AgentRunResult,
+  type AgentRunSnapshot,
 } from "@agent-template/shared";
 
 export type { AgentJobAccepted };
@@ -17,6 +19,7 @@ type SubmitAgentJobOptions = {
 
 type StreamAgentChatOptions = SubmitAgentJobOptions & {
   onEvent?: (event: AgentRunEvent) => void;
+  signal?: AbortSignal;
 };
 
 export async function submitAgentJob({
@@ -59,6 +62,7 @@ export async function streamAgentChat({
   baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:14000",
   fetcher = fetch,
   onEvent,
+  signal,
 }: StreamAgentChatOptions): Promise<AgentRunResult> {
   const trimmedPrompt = prompt.trim();
 
@@ -73,8 +77,10 @@ export async function streamAgentChat({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt: trimmedPrompt }),
+      ...(signal ? { signal } : {}),
     });
   } catch {
+    if (signal?.aborted) throw new Error("Agent chat cancelled");
     throw new Error("Unable to reach Agent chat API");
   }
 
@@ -93,24 +99,31 @@ export async function streamAgentChat({
   let buffer = "";
   let result: AgentRunResult | undefined;
 
-  for (;;) {
-    const { done, value } = await reader.read();
-    buffer += decoder.decode(value, { stream: !done });
-    buffer = readSseMessages(buffer, (message) => {
-      const event = parseSseMessage(message);
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      buffer += decoder.decode(value, { stream: !done });
+      buffer = readSseMessages(buffer, (message) => {
+        const event = parseSseMessage(message);
 
-      if (event.type === "agent-event") {
-        onEvent?.(event.data);
-      } else if (event.type === "result") {
-        result = event.data;
-      } else {
-        throw new Error(event.data.message);
+        if (event.type === "agent-event") {
+          onEvent?.(event.data);
+        } else if (event.type === "result") {
+          result = event.data;
+        } else {
+          throw new Error(event.data.message);
+        }
+      });
+
+      if (done) {
+        break;
       }
-    });
-
-    if (done) {
-      break;
     }
+  } catch (error) {
+    if (signal?.aborted) {
+      throw new Error("Agent chat cancelled", { cause: error });
+    }
+    throw error;
   }
 
   if (!result) {
@@ -118,6 +131,38 @@ export async function streamAgentChat({
   }
 
   return result;
+}
+
+export async function fetchAgentRun(
+  runId: string,
+  options: { baseUrl?: string; fetcher?: typeof fetch } = {},
+): Promise<AgentRunSnapshot> {
+  return requestAgentRun("GET", runId, options);
+}
+
+export async function cancelAgentRun(
+  runId: string,
+  options: { baseUrl?: string; fetcher?: typeof fetch } = {},
+): Promise<AgentRunSnapshot> {
+  return requestAgentRun("DELETE", runId, options);
+}
+
+async function requestAgentRun(
+  method: "DELETE" | "GET",
+  runId: string,
+  {
+    baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:14000",
+    fetcher = fetch,
+  }: { baseUrl?: string; fetcher?: typeof fetch },
+) {
+  const response = await fetcher(
+    `${baseUrl}/agent/runs/${encodeURIComponent(runId)}`,
+    { method },
+  );
+  if (!response.ok) {
+    throw new Error(`Agent run request failed with status ${response.status}`);
+  }
+  return AgentRunSnapshotSchema.parse(await response.json());
 }
 
 function readSseMessages(buffer: string, onMessage: (message: string) => void) {
