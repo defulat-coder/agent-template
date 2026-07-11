@@ -20,9 +20,9 @@
 ## UI 规则
 
 - 用户可见文案默认中文。
-- shadcn/ui 相关改动优先参考 `.codex/skills/shadcn`。
-- React/Next.js 性能相关改动优先参考 `.codex/skills/react-best-practices`。
-- 复杂视觉和体验优化优先参考 `.codex/skills/impeccable`。
+- shadcn/ui 相关改动优先使用 `shadcn` Skill。
+- React/Next.js 性能相关改动优先使用 `vercel-react-best-practices` Skill。
+- 复杂视觉和体验优化优先使用 `impeccable` Skill。
 - 前端 Agent 体验可参考 `https://github.com/shadcn-labs/agentcn` 的 Agent preview、运行事件和 artifact tabs；不要从这里导入 Eve/Flue recipe 或后端 runtime 逻辑。
 - 当前 Web 只消费 shared Agent run events 和最终结果，不直接连接 MCP Server，也不代理 `tools/call`。
 - 交互式 Tool UI 尚未选定新方案；不得恢复已删除的 Host bridge、MCP App iframe 或 JSON Render 路径，新增前先记录 ADR。

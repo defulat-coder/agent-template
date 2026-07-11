@@ -18,9 +18,9 @@
 
 ## 设计规则
 
-- shadcn/ui 组件和组合模式参考 `.codex/skills/shadcn`。
-- UI 性能规则参考 `.codex/skills/react-best-practices`。
-- 高阶视觉打磨参考 `.codex/skills/impeccable`。
+- shadcn/ui 组件和组合模式使用 `shadcn` Skill。
+- UI 性能规则优先使用 `vercel-react-best-practices` Skill。
+- 高阶视觉打磨使用 `impeccable` Skill。
 
 ## 验证
 

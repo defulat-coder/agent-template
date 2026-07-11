@@ -44,6 +44,7 @@ pnpm db:seed
 ## Skills 管理
 
 - 项目协作 Skills（`.agents/skills/`）统一使用 `npx skills` 管理，不手工复制、更新、删除 Skill 目录或维护 Agent 发现路径。
+- 每个 `.agents/skills/*` 都必须有对应的 `skills-lock.json` 锁项；锁文件只由 `npx skills add/update/remove` 生成，不手工编辑。
 - 查找：先使用 `find-skills` 工作流，再运行 `npx skills find <query>`。
 - 安装：`npx skills add <source>`；使用项目级作用域，不加 `-g`，并按需选择 Skill 与目标 Agent。
 - 查看、更新、删除：`npx skills list`、`npx skills update [skills...] -p`、`npx skills remove [skills]`。
@@ -90,7 +91,7 @@ pnpm db:seed
 
 ## 提交规则
 
-- 涉及 Git 提交、提交信息、changelog 或提交规范时，必须使用 `.codex/skills/chinese-commit-conventions`。
+- 涉及 Git 提交、提交信息、changelog 或提交规范时，必须使用 `chinese-commit-conventions` Skill。
 - 每个明确任务或需求完成后，先完成架构审查和必要修复，再默认提交并推送到当前跟踪分支；用户明确说“不要提交”“不要推送”“先别提交”时除外。
 - 只查看、只分析、只给方案或没有文件改动时，不创建空提交。
 - 按功能点提交，不把无关改动混进同一个提交。
