@@ -41,14 +41,15 @@ pnpm db:seed
 
 默认验证前确认本机 PostgreSQL 与 Redis 已监听上述端口；`pnpm toolbox:verify:local` 会自行启动并清理临时 Toolbox。`docker compose up -d` 只用于用户明确要求的容器模式。
 
-## 技能安装
+## Skills 管理
 
-- 查找可用技能时统一使用 `find-skills`。
-- 真实技能目录：`.agents/skills/<skill-name>/`
-- Codex 发现路径：`.codex/skills/<skill-name> -> ../../.agents/skills/<skill-name>`
-- GitHub 技能用 sparse checkout 拉目标目录，再复制到 `.agents/skills/<skill-name>`。
-- 如果技能自带 Codex hook，合并到 `.codex/hooks.json`，不要覆盖已有 hook。
-- 不把已安装技能清单写进 AGENTS.md；这里只写安装方式和协作规则。
+- 项目协作 Skills（`.agents/skills/`）统一使用 `npx skills` 管理，不手工复制、更新、删除 Skill 目录或维护 Agent 发现路径。
+- 查找：先使用 `find-skills` 工作流，再运行 `npx skills find <query>`。
+- 安装：`npx skills add <source>`；使用项目级作用域，不加 `-g`，并按需选择 Skill 与目标 Agent。
+- 查看、更新、删除：`npx skills list`、`npx skills update [skills...] -p`、`npx skills remove [skills]`。
+- `.claude/skills/` 与 `packages/agent-eve/agent/skills/` 是运行时业务 Skills，不适用本节；继续由 `pnpm skills:generate:toolbox` 生成和同步。
+- 如果 Skill 自带 Codex hook，合并到 `.codex/hooks.json`，不要覆盖已有 hook。
+- 不把已安装 Skills 清单写进 AGENTS.md；这里只写管理方式和协作规则。
 
 ## Agent skills
 
