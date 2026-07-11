@@ -63,28 +63,25 @@ async function main() {
       prompt: "Recover crashed run",
     });
     createdRunIds.push(recoverable.id);
-    const claimedAt = new Date();
     const firstClaim = await repository.claim(recoverable.id, {
       executionToken: "local-verifier-execution-1",
       runtime: "claude",
       model: "local-verifier",
-      claimedAt,
-      leaseExpiresAt: new Date(claimedAt.getTime() + 1_000),
+      leaseDurationMs: 100,
     });
     assert.equal(firstClaim?.executionAttempt, 1);
     const earlyClaim = await repository.claim(recoverable.id, {
       executionToken: "local-verifier-execution-2",
       runtime: "claude",
       model: "local-verifier",
-      claimedAt: new Date(claimedAt.getTime() + 500),
-      leaseExpiresAt: new Date(claimedAt.getTime() + 1_500),
+      leaseDurationMs: 2_000,
     });
     assert.equal(earlyClaim, undefined);
+    await new Promise((resolve) => setTimeout(resolve, 120));
     assert.equal(
       await repository.heartbeat(recoverable.id, {
         executionToken: "local-verifier-execution-1",
-        heartbeatAt: new Date(claimedAt.getTime() + 1_001),
-        leaseExpiresAt: new Date(claimedAt.getTime() + 2_001),
+        leaseDurationMs: 2_000,
       }),
       "lost",
     );
@@ -92,8 +89,7 @@ async function main() {
       executionToken: "local-verifier-execution-2",
       runtime: "claude",
       model: "local-verifier",
-      claimedAt: new Date(claimedAt.getTime() + 1_001),
-      leaseExpiresAt: new Date(claimedAt.getTime() + 2_001),
+      leaseDurationMs: 2_000,
     });
     assert.equal(reclaimed?.executionAttempt, 2);
     assert.equal(
@@ -101,7 +97,7 @@ async function main() {
         executionToken: "local-verifier-execution-1",
         sequence: 0,
         event: { kind: "text", text: "stale" },
-        createdAt: new Date(claimedAt.getTime() + 1_100),
+        createdAt: new Date("2000-01-01T00:00:00.000Z"),
       }),
       false,
     );
@@ -109,7 +105,7 @@ async function main() {
       await repository.finishExecution(recoverable.id, {
         executionToken: "local-verifier-execution-1",
         status: "completed",
-        completedAt: new Date(claimedAt.getTime() + 1_200),
+        completedAt: new Date("2099-01-01T00:00:00.000Z"),
         output: "stale",
       }),
       undefined,
@@ -119,14 +115,14 @@ async function main() {
         executionToken: "local-verifier-execution-2",
         sequence: 0,
         event: { kind: "done", result: "recovered" },
-        createdAt: new Date(claimedAt.getTime() + 1_300),
+        createdAt: new Date("2099-01-01T00:00:00.000Z"),
       }),
       true,
     );
     const recovered = await repository.finishExecution(recoverable.id, {
       executionToken: "local-verifier-execution-2",
       status: "completed",
-      completedAt: new Date(claimedAt.getTime() + 1_400),
+      completedAt: new Date("2099-01-01T00:00:00.000Z"),
       output: "recovered",
     });
     assert.equal(recovered?.status, "completed");
@@ -137,15 +133,14 @@ async function main() {
       prompt: "Cancel crashed execution",
     });
     createdRunIds.push(cancelledCrash.id);
-    const expiredClaimedAt = new Date(Date.now() - 2_000);
     await repository.claim(cancelledCrash.id, {
       executionToken: "local-verifier-cancelled-execution",
       runtime: "claude",
       model: "local-verifier",
-      claimedAt: expiredClaimedAt,
-      leaseExpiresAt: new Date(expiredClaimedAt.getTime() + 1_000),
+      leaseDurationMs: 100,
     });
     await repository.requestCancellation(cancelledCrash.id, new Date());
+    await new Promise((resolve) => setTimeout(resolve, 120));
     const finalizedCancellation = await lifecycle.resume(cancelledCrash.id, {});
     assert.equal(finalizedCancellation.status, "cancelled");
     assert.equal(finalizedCancellation.events[0]?.kind, "cancelled");

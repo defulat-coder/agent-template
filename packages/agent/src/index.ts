@@ -15,6 +15,7 @@ export { defaultClaudeAgentModel, defaultEveAgentModel };
 export type { AgentRunResult };
 export {
   createAgentRunLifecycle,
+  defaultAgentRunLeaseDurationMs,
   type AgentRunLifecycle,
   type AgentRunLifecycleExecutionOptions,
   type AgentRunRepository,

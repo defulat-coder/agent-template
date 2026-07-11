@@ -10,6 +10,8 @@ Every `queued -> running` transition claims a renewable Agent run execution leas
 
 Execution events and terminal state updates are conditional on the current fencing token. Heartbeat renewal also verifies cancellation and token ownership. A replaced executor aborts and cannot overwrite the new attempt, even if its runtime returns late.
 
+PostgreSQL `clock_timestamp()` is the only authority for lease claim, expiry, renewal, event acceptance, and terminal acceptance. Process timestamps remain business metadata and cannot extend, expire, or revive a lease.
+
 The lifecycle interface owns lease duration and monitoring. The Prisma adapter owns atomic claim, heartbeat, fenced event insert, and fenced finish operations. BullMQ locks and attempt counters remain delivery mechanics, not Agent run state.
 
 ## Consequences
@@ -19,4 +21,5 @@ The lifecycle interface owns lease duration and monitoring. The Prisma adapter o
 - Partial events from an expired attempt remain ordered evidence. A reclaimed attempt appends from the next sequence.
 - `executionAttempt`, `heartbeatAt`, and `leaseExpiresAt` are visible in Agent run snapshots and Toolbox observability; the fencing token is never exposed.
 - Lease duration must exceed the heartbeat interval. Temporary database failures fail closed by aborting the current executor rather than allowing unfenced writes.
+- Worker clock skew cannot cause early reclaim or late write acceptance.
 - Local verification covers pre-expiry rejection, post-expiry reclaim, stale event rejection, stale terminal rejection, and successful completion by the new executor.

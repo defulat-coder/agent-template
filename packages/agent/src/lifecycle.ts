@@ -46,16 +46,14 @@ export type AgentRunRepository = {
       executionToken: string;
       runtime: "claude" | "eve";
       model: string;
-      claimedAt: Date;
-      leaseExpiresAt: Date;
+      leaseDurationMs: number;
     },
   ): Promise<StoredAgentRun | undefined>;
   heartbeat(
     id: string,
     input: {
       executionToken: string;
-      heartbeatAt: Date;
-      leaseExpiresAt: Date;
+      leaseDurationMs: number;
     },
   ): Promise<"active" | "cancelled" | "lost">;
   appendExecutionEvent(
@@ -112,6 +110,8 @@ export type AgentRunLifecycleExecutionOptions = {
   onEvent?: (event: AgentRunEvent) => void;
 };
 
+export const defaultAgentRunLeaseDurationMs = 60_000;
+
 export function createAgentRunLifecycle(input: {
   repository: AgentRunRepository;
   execute: ExecuteAgentRun;
@@ -120,7 +120,8 @@ export function createAgentRunLifecycle(input: {
   now?: () => Date;
 }): AgentRunLifecycle {
   const now = input.now ?? (() => new Date());
-  const leaseDurationMs = input.leaseDurationMs ?? 60_000;
+  const leaseDurationMs =
+    input.leaseDurationMs ?? defaultAgentRunLeaseDurationMs;
 
   async function queue(runInput: unknown) {
     const parsed = AgentRunInputSchema.parse(runInput);
@@ -145,13 +146,11 @@ export function createAgentRunLifecycle(input: {
     const runtime = env.AGENT_RUNTIME === "eve" ? "eve" : "claude";
     const model = readRuntimeModel(env, runtime);
     const executionToken = randomUUID();
-    const claimedAt = now();
     const started = await input.repository.claim(runId, {
       executionToken,
       runtime,
       model,
-      claimedAt,
-      leaseExpiresAt: addMilliseconds(claimedAt, leaseDurationMs),
+      leaseDurationMs,
     });
 
     if (!started) {
@@ -189,7 +188,6 @@ export function createAgentRunLifecycle(input: {
       input.repository,
       input.cancellationPollMs ?? 250,
       leaseDurationMs,
-      now,
     );
     let sequence = started.events.length;
     let eventWrites = Promise.resolve();
@@ -403,18 +401,15 @@ function monitorExecution(
   repository: AgentRunRepository,
   intervalMs: number,
   leaseDurationMs: number,
-  now: () => Date,
 ) {
   let checking = false;
   const interval = setInterval(() => {
     if (checking || controller.signal.aborted) return;
     checking = true;
-    const heartbeatAt = now();
     void repository
       .heartbeat(runId, {
         executionToken,
-        heartbeatAt,
-        leaseExpiresAt: addMilliseconds(heartbeatAt, leaseDurationMs),
+        leaseDurationMs,
       })
       .then((state) => {
         if (state === "cancelled") {
@@ -444,10 +439,6 @@ class AgentRunExecutionLeaseLostError extends Error {
 
 function isExecutionLeaseLost(error: unknown) {
   return error instanceof AgentRunExecutionLeaseLostError;
-}
-
-function addMilliseconds(date: Date, milliseconds: number) {
-  return new Date(date.getTime() + milliseconds);
 }
 
 function isAbortError(error: unknown) {

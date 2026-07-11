@@ -45,6 +45,7 @@
 | completed  | 收紧 Ecommerce baseline eligibility        | Strong          | 五张 fixture 表必须全有或全无；部分 schema drift fail closed，并有真实数据库负向验证    |
 | completed  | 让 Agent run Tool 读取 durable record      | Strong          | 生命周期、失败与 Tool 调用统计改查 AgentRun/Event；TemplateEvent 只保留样例巡检         |
 | completed  | 建立 Agent run execution lease 与 fencing  | Strong          | 过期 running 可 reclaim；attempt/token/heartbeat 原子保护 event 与 terminal write       |
+| completed  | 统一 execution lease 数据库时钟            | Strong          | claim/heartbeat/event/finish 只用 PostgreSQL clock；Worker 时间只作业务 metadata        |
 | completed  | 同步 Toolbox 生成产物                      | Strong          | production 配置、官方原始 Skill 与 runtime Skill 均由同一事实源生成并通过 stale gate    |
 | completed  | 固定 Toolbox UTC 日桶                      | Strong          | 销售日显式按 UTC 转换，不再依赖 PostgreSQL session timezone                             |
 | completed  | 规范化 Toolbox MCP URL                     | Worth exploring | `/mcp/` 与 `/mcp` 归一为一个 MCP path，Claude/Eve 共享 parser 不再重复追加              |
@@ -58,6 +59,14 @@
 - 每轮完成后用中文 Conventional Commit 提交。
 
 ## 已完成
+
+### 统一 execution lease 数据库时钟
+
+- 日期：2026-07-11
+- locality：lease ownership 的全部时间判断集中在 PostgreSQL adapter，并统一使用 `clock_timestamp()`。
+- deletion test：若使用 Worker 本地时钟，偏差补偿会扩散到每个执行者；数据库时钟作为单一仲裁者不会移动复杂度。
+- leverage：同一时钟同时保护 claim、heartbeat、execution event 与 terminal write，快慢 Worker 都不能提前 reclaim 或迟到提交。
+- 聚焦验证：unit repository 使用独立可控时钟；真实 PostgreSQL 用极端未来业务 event/completed 时间证明 lease 判定不读取进程时间。
 
 ### 建立 Agent run execution lease 与 fencing
 

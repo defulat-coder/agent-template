@@ -120,8 +120,9 @@ describe("Agent run lifecycle", () => {
   });
 
   it("reclaims an expired execution and fences the stale executor", async () => {
-    const repository = createInMemoryRepository();
     const requestedAt = new Date("2026-07-11T00:00:00.000Z");
+    let repositoryNow = requestedAt;
+    const repository = createInMemoryRepository(() => repositoryNow);
     await repository.create({
       id: "run-lease",
       prompt: "Recover",
@@ -132,24 +133,23 @@ describe("Agent run lifecycle", () => {
       executionToken: "execution-1",
       runtime: "claude",
       model: "test-model",
-      claimedAt: requestedAt,
-      leaseExpiresAt: new Date("2026-07-11T00:00:10.000Z"),
+      leaseDurationMs: 10_000,
     });
     expect(first?.executionAttempt).toBe(1);
+    repositoryNow = new Date("2026-07-11T00:00:09.000Z");
     await expect(
       repository.claim("run-lease", {
         executionToken: "execution-2",
         runtime: "claude",
         model: "test-model",
-        claimedAt: new Date("2026-07-11T00:00:09.000Z"),
-        leaseExpiresAt: new Date("2026-07-11T00:00:19.000Z"),
+        leaseDurationMs: 10_000,
       }),
     ).resolves.toBeUndefined();
+    repositoryNow = new Date("2026-07-11T00:00:11.000Z");
     await expect(
       repository.heartbeat("run-lease", {
         executionToken: "execution-1",
-        heartbeatAt: new Date("2026-07-11T00:00:11.000Z"),
-        leaseExpiresAt: new Date("2026-07-11T00:00:21.000Z"),
+        leaseDurationMs: 10_000,
       }),
     ).resolves.toBe("lost");
 
@@ -157,8 +157,7 @@ describe("Agent run lifecycle", () => {
       executionToken: "execution-2",
       runtime: "claude",
       model: "test-model",
-      claimedAt: new Date("2026-07-11T00:00:11.000Z"),
-      leaseExpiresAt: new Date("2026-07-11T00:00:21.000Z"),
+      leaseDurationMs: 10_000,
     });
     expect(reclaimed?.executionAttempt).toBe(2);
     await expect(
@@ -200,8 +199,9 @@ describe("Agent run lifecycle", () => {
   });
 
   it("finalizes cancellation when a crashed execution lease expires", async () => {
-    const repository = createInMemoryRepository();
     const requestedAt = new Date("2026-07-11T00:00:00.000Z");
+    let repositoryNow = requestedAt;
+    const repository = createInMemoryRepository(() => repositoryNow);
     const lifecycle = createAgentRunLifecycle({
       repository,
       execute: async () => {
@@ -218,13 +218,13 @@ describe("Agent run lifecycle", () => {
       executionToken: "execution-1",
       runtime: "claude",
       model: "test-model",
-      claimedAt: requestedAt,
-      leaseExpiresAt: new Date("2026-07-11T00:00:10.000Z"),
+      leaseDurationMs: 10_000,
     });
     await repository.requestCancellation(
       "run-cancelled-crash",
       new Date("2026-07-11T00:00:05.000Z"),
     );
+    repositoryNow = new Date("2026-07-11T00:00:11.000Z");
 
     await expect(
       lifecycle.resume("run-cancelled-crash", {}),
@@ -240,7 +240,7 @@ describe("Agent run lifecycle", () => {
   });
 });
 
-function createInMemoryRepository(): AgentRunRepository {
+function createInMemoryRepository(now = () => new Date()): AgentRunRepository {
   const runs = new Map<string, StoredAgentRun>();
   return {
     async create(input) {
@@ -269,14 +269,15 @@ function createInMemoryRepository(): AgentRunRepository {
     },
     async claim(id, input) {
       const run = runs.get(id);
+      const claimedAt = now();
       const reclaimable =
         run?.status === "running" &&
         run.leaseExpiresAt !== null &&
-        run.leaseExpiresAt <= input.claimedAt;
+        run.leaseExpiresAt <= claimedAt;
       if (run && reclaimable && run.cancelRequestedAt) {
         Object.assign(run, {
           status: "cancelled" as const,
-          completedAt: input.claimedAt,
+          completedAt: claimedAt,
           reason: "Agent run was cancelled after its execution lease expired",
           executionToken: null,
           leaseExpiresAt: null,
@@ -292,26 +293,30 @@ function createInMemoryRepository(): AgentRunRepository {
       Object.assign(run, {
         ...input,
         executionAttempt: run.executionAttempt + 1,
-        heartbeatAt: input.claimedAt,
-        startedAt: run.startedAt ?? input.claimedAt,
+        heartbeatAt: claimedAt,
+        leaseExpiresAt: new Date(claimedAt.getTime() + input.leaseDurationMs),
+        startedAt: run.startedAt ?? claimedAt,
         status: "running" as const,
       });
       return run;
     },
     async heartbeat(id, input) {
       const run = runs.get(id);
+      const heartbeatAt = now();
       if (
         !run ||
         run.status !== "running" ||
         run.executionToken !== input.executionToken ||
         !run.leaseExpiresAt ||
-        run.leaseExpiresAt <= input.heartbeatAt
+        run.leaseExpiresAt <= heartbeatAt
       ) {
         return "lost";
       }
       if (run.cancelRequestedAt) return "cancelled";
-      run.heartbeatAt = input.heartbeatAt;
-      run.leaseExpiresAt = input.leaseExpiresAt;
+      run.heartbeatAt = heartbeatAt;
+      run.leaseExpiresAt = new Date(
+        heartbeatAt.getTime() + input.leaseDurationMs,
+      );
       return "active";
     },
     async appendExecutionEvent(id, input) {
@@ -321,7 +326,7 @@ function createInMemoryRepository(): AgentRunRepository {
         run.status !== "running" ||
         run.executionToken !== input.executionToken ||
         !run.leaseExpiresAt ||
-        run.leaseExpiresAt <= input.createdAt ||
+        run.leaseExpiresAt <= now() ||
         run.events.some((event) => event.sequence === input.sequence)
       ) {
         return false;
@@ -343,7 +348,7 @@ function createInMemoryRepository(): AgentRunRepository {
         run.status !== "running" ||
         run.executionToken !== input.executionToken ||
         !run.leaseExpiresAt ||
-        run.leaseExpiresAt <= input.completedAt
+        run.leaseExpiresAt <= now()
       ) {
         return undefined;
       }

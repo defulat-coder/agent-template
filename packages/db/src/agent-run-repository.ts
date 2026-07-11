@@ -10,15 +10,6 @@ const storedRunInclude = {
   events: { orderBy: { sequence: "asc" as const } },
 };
 
-const toPrismaStatus = {
-  queued: "QUEUED",
-  running: "RUNNING",
-  completed: "COMPLETED",
-  failed: "FAILED",
-  skipped: "SKIPPED",
-  cancelled: "CANCELLED",
-} as const;
-
 const fromPrismaStatus = {
   QUEUED: "queued",
   RUNNING: "running",
@@ -53,44 +44,42 @@ export function createPrismaAgentRunRepository(client: PrismaClient) {
         executionToken: string;
         runtime: "claude" | "eve";
         model: string;
-        claimedAt: Date;
-        leaseExpiresAt: Date;
+        leaseDurationMs: number;
       },
     ) {
-      await client.agentRun.updateMany({
-        where: {
-          id,
-          status: "RUNNING",
-          cancelRequestedAt: { not: null },
-          leaseExpiresAt: { lte: input.claimedAt },
-        },
-        data: {
-          status: "CANCELLED",
-          completedAt: input.claimedAt,
-          reason: "Agent run was cancelled after its execution lease expired",
-          executionToken: null,
-          leaseExpiresAt: null,
-        },
-      });
+      await client.$executeRaw`
+        UPDATE public."AgentRun"
+        SET
+          status = 'cancelled',
+          "completedAt" = clock_timestamp(),
+          reason = 'Agent run was cancelled after its execution lease expired',
+          "executionToken" = NULL,
+          "leaseExpiresAt" = NULL,
+          "updatedAt" = clock_timestamp()
+        WHERE id = ${id}
+          AND status = 'running'
+          AND "cancelRequestedAt" IS NOT NULL
+          AND "leaseExpiresAt" <= clock_timestamp()
+      `;
       const updated = await client.$executeRaw`
         UPDATE public."AgentRun"
         SET
           status = 'running',
           "executionAttempt" = "executionAttempt" + 1,
           "executionToken" = ${input.executionToken},
-          "leaseExpiresAt" = ${input.leaseExpiresAt},
-          "heartbeatAt" = ${input.claimedAt},
+          "leaseExpiresAt" = clock_timestamp() + (${input.leaseDurationMs} * INTERVAL '1 millisecond'),
+          "heartbeatAt" = clock_timestamp(),
           runtime = ${input.runtime},
           model = ${input.model},
-          "startedAt" = COALESCE("startedAt", ${input.claimedAt}),
-          "updatedAt" = ${input.claimedAt}
+          "startedAt" = COALESCE("startedAt", clock_timestamp()),
+          "updatedAt" = clock_timestamp()
         WHERE id = ${id}
           AND "cancelRequestedAt" IS NULL
           AND (
             status = 'queued'
             OR (
               status = 'running'
-              AND "leaseExpiresAt" <= ${input.claimedAt}
+              AND "leaseExpiresAt" <= clock_timestamp()
             )
           )
       `;
@@ -100,24 +89,22 @@ export function createPrismaAgentRunRepository(client: PrismaClient) {
       id: string,
       input: {
         executionToken: string;
-        heartbeatAt: Date;
-        leaseExpiresAt: Date;
+        leaseDurationMs: number;
       },
     ) {
-      const updated = await client.agentRun.updateMany({
-        where: {
-          id,
-          status: "RUNNING",
-          executionToken: input.executionToken,
-          cancelRequestedAt: null,
-          leaseExpiresAt: { gt: input.heartbeatAt },
-        },
-        data: {
-          heartbeatAt: input.heartbeatAt,
-          leaseExpiresAt: input.leaseExpiresAt,
-        },
-      });
-      if (updated.count === 1) return "active" as const;
+      const updated = await client.$executeRaw`
+        UPDATE public."AgentRun"
+        SET
+          "heartbeatAt" = clock_timestamp(),
+          "leaseExpiresAt" = clock_timestamp() + (${input.leaseDurationMs} * INTERVAL '1 millisecond'),
+          "updatedAt" = clock_timestamp()
+        WHERE id = ${id}
+          AND status = 'running'
+          AND "executionToken" = ${input.executionToken}
+          AND "cancelRequestedAt" IS NULL
+          AND "leaseExpiresAt" > clock_timestamp()
+      `;
+      if (updated === 1) return "active" as const;
 
       const current = await client.agentRun.findUnique({
         where: { id },
@@ -152,7 +139,7 @@ export function createPrismaAgentRunRepository(client: PrismaClient) {
         WHERE id = ${runId}
           AND status = 'running'
           AND "executionToken" = ${input.executionToken}
-          AND "leaseExpiresAt" > ${input.createdAt}
+          AND "leaseExpiresAt" > clock_timestamp()
         ON CONFLICT ("runId", sequence) DO NOTHING
       `;
       return inserted === 1;
@@ -193,24 +180,23 @@ export function createPrismaAgentRunRepository(client: PrismaClient) {
         sessionId?: string;
       },
     ) {
-      const updated = await client.agentRun.updateMany({
-        where: {
-          id,
-          status: "RUNNING",
-          executionToken: input.executionToken,
-          leaseExpiresAt: { gt: input.completedAt },
-        },
-        data: {
-          status: toPrismaStatus[input.status],
-          completedAt: input.completedAt,
-          output: input.output ?? null,
-          reason: input.reason ?? null,
-          sessionId: input.sessionId ?? null,
-          executionToken: null,
-          leaseExpiresAt: null,
-        },
-      });
-      if (updated.count !== 1) return undefined;
+      const updated = await client.$executeRaw`
+        UPDATE public."AgentRun"
+        SET
+          status = ${input.status}::public."AgentRunStatus",
+          "completedAt" = ${input.completedAt},
+          output = ${input.output ?? null},
+          reason = ${input.reason ?? null},
+          "sessionId" = ${input.sessionId ?? null},
+          "executionToken" = NULL,
+          "leaseExpiresAt" = NULL,
+          "updatedAt" = clock_timestamp()
+        WHERE id = ${id}
+          AND status = 'running'
+          AND "executionToken" = ${input.executionToken}
+          AND "leaseExpiresAt" > clock_timestamp()
+      `;
+      if (updated !== 1) return undefined;
       const run = await find(id);
       if (!run) throw new Error(`Agent run ${id} was not found`);
       return run;
