@@ -14,6 +14,9 @@ importers:
       '@agent-template/db':
         specifier: workspace:*
         version: link:packages/db
+      '@agent-template/shared':
+        specifier: workspace:*
+        version: link:packages/shared
       '@agent-template/toolbox-config':
         specifier: workspace:*
         version: link:packages/toolbox-config

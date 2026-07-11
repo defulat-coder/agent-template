@@ -14,3 +14,5 @@ coverage
 packages/db/generated
 /packages/ecommerce-fixture/generated
 *.tsbuildinfo
+/.zread/state.json
+/.zread/wiki/drafts/

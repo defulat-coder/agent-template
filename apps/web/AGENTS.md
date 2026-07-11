@@ -26,6 +26,7 @@
 - 本文件、项目既有技术栈和组件模式优先于动态 UI Skill；未经要求不得迁移框架、组件库或动画库。
 - 前端 Agent 体验可参考 `https://github.com/shadcn-labs/agentcn` 的 Agent preview、运行事件和 artifact tabs；不要从这里导入 Eve/Flue recipe 或后端 runtime 逻辑。
 - 当前 Web 只消费 shared Agent run events 和最终结果，不直接连接 MCP Server，也不代理 `tools/call`。
+- `/docs` 只消费根目录 `.zread/wiki/current` 指向版本的 `wiki.json` 与 Markdown；目录顺序、标题、分组和 slug 以 manifest 为准，不扫描或猜测生成目录结构。
 - 交互式 Tool UI 尚未选定新方案；不得恢复已删除的 Host bridge、MCP App iframe 或 JSON Render 路径，新增前先记录 ADR。
 
 ## 验证

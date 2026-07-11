@@ -14,6 +14,7 @@
 - 按影响范围运行 `pnpm --filter <package> lint|typecheck|test`；跨模块改动再运行全仓门禁。
 - 默认在本地验证；只有用户明确要求时才运行 Docker Compose 或内部调用它的 verifier。
 - 服务端口：Web `13000`、API `14000`、Toolbox `15000`、PostgreSQL `15432`、Redis `16379`；`pnpm toolbox:verify:local` 自行管理临时 Toolbox。
+- 项目 Wiki 由固定版本 ZRead CLI 通过 `pnpm docs:zread:update` 生成，产物事实源是 `.zread/wiki/current` 指向版本的 `wiki.json` 与 Markdown；生成页不得手工维护，CI 只允许手动触发并通过 PR 更新。
 
 ## 工程原则
 
@@ -48,6 +49,7 @@
 - `apps/*` 使用 Agent runtime 时只通过 `@agent-template/agent`，不直接依赖具体 runtime package；runtime 仅由部署环境的 `AGENT_RUNTIME=claude|eve` 选择。
 - Claude/Eve 各自持有 Toolbox MCP Client；`@agent-template/toolbox-config` 只维护配置与 schema；Web 不直连 MCP Server。
 - `AGENT_CAPABILITY_PROFILE` 只收窄模型可见 Tool；生产授权由 Toolbox OIDC、Tool scope 和数据库权限强制。
+- Web `/docs` 直接构建 `.zread/wiki` 的当前版本，不把 `zread browse` 作为部署进程；生成必须在隔离 clone 与隔离 HOME 中执行，只发布校验后的当前版本。长期决策见 `docs/adr/0016-zread-generated-project-wiki.md`。
 
 ## 提交规则
 
