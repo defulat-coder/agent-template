@@ -87,7 +87,7 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - "15000:15000"
+      - "127.0.0.1:15000:15000"
     volumes:
       - ./apps/toolbox/tools.yaml:/app/tools.yaml:ro
 

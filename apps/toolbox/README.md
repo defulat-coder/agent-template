@@ -86,6 +86,8 @@ pnpm toolbox:verify:docker
 
 该门禁会启动 PostgreSQL 与 Toolbox、生成 Prisma Client、应用已提交 migration、写入 fixture、重建 Toolbox，然后精确断言裸 MCP `tools/list` 和电商 Tool 的确定性返回值。
 
+容器内 Toolbox 监听 `0.0.0.0:15000` 供 Compose 网络中的 API、Worker 和 Eve 使用；宿主机端口只绑定 `127.0.0.1:15000`。开发配置不启用 OIDC，禁止改回所有网卡暴露。
+
 验证日销售、渠道和商品排行：
 
 ```bash

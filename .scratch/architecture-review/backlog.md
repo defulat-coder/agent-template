@@ -40,6 +40,7 @@
 | completed | 固定 Toolbox UTC 日桶                      | Strong          | 销售日显式按 UTC 转换，不再依赖 PostgreSQL session timezone                          |
 | completed | 规范化 Toolbox MCP URL                    | Worth exploring | `/mcp/` 与 `/mcp` 归一为一个 MCP path，Claude/Eve 共享 parser 不再重复追加            |
 | completed | 收紧认证连接 capability profile           | Strong          | Bearer token 连接必须显式选择岗位 profile，不允许 `development-all` fail-open         |
+| completed | 收窄本地 Toolbox 容器暴露面               | Worth exploring | 宿主机 MCP 端口只绑定 loopback，容器网络访问保持不变                                  |
 
 ## 执行规则
 
@@ -48,6 +49,14 @@
 - 每轮完成后用中文 Conventional Commit 提交。
 
 ## 已完成
+
+### 收窄本地 Toolbox 容器暴露面
+
+- 日期：2026-07-11
+- locality：容器内监听与宿主机暴露分别留在 Compose adapter 两侧；API/Worker/Eve 继续走内部网络，宿主机只允许 loopback。
+- deletion test：删除 loopback host binding 会让无 OIDC 的开发 MCP endpoint 重新暴露到所有网卡，因此该限制属于容器 adapter 的必要安全配置。
+- leverage：不改变 runtime URL、Toolbox 配置或容器间调用即可收窄外部 interface。
+- 聚焦验证：YAML 解析和 host port 精确断言，不启动 Docker。
 
 ### 收紧认证连接 capability profile
 
