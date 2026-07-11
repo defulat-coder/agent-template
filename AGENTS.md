@@ -48,3 +48,7 @@
 - 按功能点提交，不把无关改动混进同一个提交。
 - 提交前检查 `git status --short --branch`。
 - 不提交 `.env`、构建产物、缓存目录、`node_modules`。
+
+## 提交归属
+
+- AI 提交必须包含自身 `Co-Authored-By: <name> <email>` trailer。

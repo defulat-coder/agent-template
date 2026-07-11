@@ -8,12 +8,12 @@
 
 ## 命令
 
-| 任务 | 命令 |
-| --- | --- |
-| 启动 QA 环境 | `pnpm qa:web:start` |
-| 切换场景 | `pnpm qa:web:scenario <name>` |
-| 完整检查 | `pnpm qa:web:check` |
-| 单测 | `pnpm --filter @agent-template/web-qa test -- src/server.test.ts` |
+| 任务         | 命令                                                              |
+| ------------ | ----------------------------------------------------------------- |
+| 启动 QA 环境 | `pnpm qa:web:start`                                               |
+| 切换场景     | `pnpm qa:web:scenario <name>`                                     |
+| 完整检查     | `pnpm qa:web:check`                                               |
+| 单测         | `pnpm --filter @agent-template/web-qa test -- src/server.test.ts` |
 
 ## Browser 流程
 
@@ -28,7 +28,3 @@
 - 不把 QA fixture 接入 `AGENT_RUNTIME`，不调用真实模型、数据库、Redis 或 Toolbox。
 - 不给 `apps/web-qa` 添加 `dev` script，避免根 `pnpm dev` 自动启动 QA 环境。
 - 场景变化集中在 `src/scenarios.ts`；新增场景必须有 HTTP contract test 和至少一个 flow。
-
-## 提交
-
-- 遵循根 `AGENTS.md`；AI 提交包含自身 `Co-Authored-By`。
