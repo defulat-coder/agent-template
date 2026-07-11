@@ -1,7 +1,7 @@
 import { createWebQaServer } from "./server.js";
+import { webQaTopology } from "./environment.js";
 
-const host = "127.0.0.1";
-const port = 14_100;
+const { host, port } = webQaTopology.fixture;
 const server = createWebQaServer();
 
 server.listen(port, host, () => {
