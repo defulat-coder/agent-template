@@ -1,12 +1,10 @@
-import { defineAgent, type AgentDefinition } from "eve";
+import { defineAgent } from "eve";
 import { createEveAnthropicModel } from "../src/config";
 
-const agent: AgentDefinition = defineAgent({
+export default defineAgent({
   model: createEveAnthropicModel(process.env),
   modelContextWindowTokens: 128_000,
   compaction: {
-    modelContextWindowTokens: 128_000
-  }
+    modelContextWindowTokens: 128_000,
+  },
 });
-
-export default agent;

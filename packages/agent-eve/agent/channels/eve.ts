@@ -1,16 +1,35 @@
 import { eveChannel } from "eve/channels/eve";
 import { localDev, type AuthFn, vercelOidc } from "eve/channels/auth";
+import { matchesEveServiceToken } from "../lib/service-auth";
 
-function apiServiceAuth(): AuthFn<Request> {
+type EveAuthEnvironment = Partial<
+  Pick<NodeJS.ProcessEnv, "EVE_AGENT_SERVICE_TOKEN" | "NODE_ENV">
+>;
+
+function apiServiceAuth(expected: string | undefined): AuthFn<Request> {
   return (request) => {
-    const expected = process.env.EVE_AGENT_SERVICE_TOKEN;
-
     if (expected) {
-      return request.headers.get("x-agent-template-eve-token") === expected ? servicePrincipal() : null;
+      return matchesEveServiceToken(
+        request.headers.get("x-agent-template-eve-token"),
+        expected,
+      )
+        ? servicePrincipal()
+        : null;
     }
 
-    return isLocalServiceHost(new URL(request.url).hostname) ? servicePrincipal() : null;
+    return null;
   };
+}
+
+export function createEveAuthPolicy(
+  environment: EveAuthEnvironment = process.env,
+): readonly AuthFn<Request>[] {
+  const serviceToken = environment.EVE_AGENT_SERVICE_TOKEN;
+  const deploymentAuth = [apiServiceAuth(serviceToken), vercelOidc()];
+
+  return environment.NODE_ENV === "production" || serviceToken
+    ? deploymentAuth
+    : [...deploymentAuth, localDev()];
 }
 
 function servicePrincipal() {
@@ -18,14 +37,10 @@ function servicePrincipal() {
     attributes: {},
     authenticator: "agent-template-api",
     principalId: "agent-template-api",
-    principalType: "service" as const
+    principalType: "service" as const,
   };
 }
 
-function isLocalServiceHost(hostname: string) {
-  return hostname === "eve-agent" || hostname === "localhost" || hostname === "127.0.0.1";
-}
-
 export default eveChannel({
-  auth: [apiServiceAuth(), vercelOidc(), localDev()]
+  auth: createEveAuthPolicy(),
 });

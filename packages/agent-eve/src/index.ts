@@ -199,6 +199,7 @@ function createEveClient(
 ): EveReadinessClient & EveRunClient {
   return new Client({
     host,
+    redirect: "error",
     ...(config.serviceToken
       ? { headers: { "x-agent-template-eve-token": config.serviceToken } }
       : {}),

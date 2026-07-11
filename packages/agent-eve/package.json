@@ -2,6 +2,9 @@
   "name": "@agent-template/agent-eve",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": "24.x"
+  },
   "exports": {
     ".": "./src/index.ts"
   },
@@ -16,11 +19,12 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^4.0.7",
     "@agent-template/shared": "workspace:*",
     "@agent-template/toolbox-config": "workspace:*",
+    "@ai-sdk/anthropic": "^4.0.7",
     "ai": "^7.0.14",
     "eve": "latest",
+    "just-bash": "^3.0.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {

@@ -86,8 +86,11 @@ ANTHROPIC_MODEL=kimi-for-coding
 CLAUDE_AGENT_MODEL=kimi-for-coding
 EVE_AGENT_MODEL=kimi-for-coding
 EVE_AGENT_HOST=http://localhost:13010
+EVE_AGENT_SERVICE_TOKEN=<Docker 或非 loopback 服务调用 Token>
 CLAUDE_CODE_AUTO_COMPACT_WINDOW=262144
 ```
+
+未配置服务 Token 的非生产 loopback 调用可使用 Eve 官方 `localDev()`；生产环境会关闭该入口。使用 `AGENT_RUNTIME=eve` 的 Docker Compose 部署和其他非 loopback 服务调用必须显式配置 `EVE_AGENT_SERVICE_TOKEN`，且 Eve 端口只绑定宿主机 `127.0.0.1`。
 
 `AGENT_RUNTIME=claude|eve` 只通过环境变量选择。未配置 API Key 时，API 仍可启动；`/health` 分别显示当前 runtime 的 `configured` 与 `readiness`。生产检查只探测所选 runtime，设置短超时且不会向模型发送 prompt。
 

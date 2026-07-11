@@ -142,7 +142,7 @@ services:
       toolbox:
         condition: service_started
     ports:
-      - "13010:13010"
+      - "127.0.0.1:13010:13010"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:13010/eve/v1/health >/dev/null"]
       interval: 10s

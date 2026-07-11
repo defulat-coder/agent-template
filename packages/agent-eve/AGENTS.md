@@ -2,7 +2,7 @@
 
 ## 职责
 
-`packages/agent-eve` 是基于官方 `vercel/eve` npm 包的 Eve filesystem-first runtime，`agent/` 是该 runtime 的 authored surface。
+`packages/agent-eve` 是官方 Eve filesystem-first app；package 根是 app root，`agent/` 使用官方推荐的 nested authored surface。
 
 ## 能力边界
 
@@ -11,19 +11,21 @@
 - `EVE_AGENT_MODEL` 由 `src/config.ts` 统一读取，runtime state 和 `agent/agent.ts` 必须同源。
 - `EVE_AGENT_HOST` 是 Eve execution adapter 连接官方 Eve HTTP API 的运行配置；未配置时 execution 返回 skipped。
 - `checkEveAgentReadiness` 必须使用当前安装版本的官方 `Client.health()`，不在 API 重写 Eve health 协议。
-- `EVE_AGENT_SERVICE_TOKEN` 是 API/Worker 到 Eve HTTP channel 的可选服务凭证；配置后 client 发送 `x-agent-template-eve-token`，Eve channel 校验该 header。
+- 未配置服务 Token 的非生产 loopback 开发由官方 `localDev()` 处理；生产或已配置 Token 时必须关闭该入口。Docker Eve runtime 与非 loopback 服务调用必须配置 `EVE_AGENT_SERVICE_TOKEN`，使用恒定时间比较校验 `x-agent-template-eve-token`，Client 必须拒绝 HTTP redirect。
 - Eve 本地服务默认监听 `13010`，API/Worker 通过 `EVE_AGENT_HOST` 连接；Docker 只用于显式容器模式。
 - Kimi Code 通过 `@ai-sdk/anthropic` 的 Anthropic-compatible provider 接入 Eve authored surface。
 - Eve 默认使用 `ANTHROPIC_BASE_URL=https://api.kimi.com/coding/`、`ANTHROPIC_MODEL=kimi-for-coding`、`ANTHROPIC_API_KEY`。
 - Kimi 模型不是 Eve/AI Gateway catalog 内置模型，`agent/agent.ts` 必须显式设置 `modelContextWindowTokens` 和 `compaction.modelContextWindowTokens`，避免 Eve 编译期查不到 context window metadata。
 - `agent/instructions.md` 放基础 system prompt。
 - `agent/channels/eve.ts` 放 Eve HTTP route auth；不要删除 API service auth，否则 `@agent-template/agent-eve` client 会被 Eve session route 拒绝。
-- `agent/tools/web_search.ts` 禁用 Eve provider-managed `web_search`；Kimi Anthropic-compatible stream 会返回缺少 `id` 的 server tool block，启用后会触发 Eve/AI SDK 类型校验失败。
-- `agent/tools`、`agent/skills`、`agent/channels`、`agent/hooks`、`agent/sandbox`、`agent/subagents` 按 Eve 语义增长。
+- `agent/tools/` 显式禁用不需要的 `bash`、`web_fetch`、`web_search`、`write_file`；保留只读文件工具供 packaged Skill 读取 references。
+- `agent/sandbox.ts` 固定使用官方 `justbash()` 后端；该 Agent 只需隔离虚拟文件系统，不依赖 Docker、VM、真实二进制或 sandbox 网络。
+- `agent/skills`、`agent/connections`、`agent/channels`、`agent/hooks`、`agent/sandbox`、`agent/subagents` 按 Eve filesystem slot 语义增长。
 - 电商业务 Skill 以 Toolbox 官方 `skills-generate` 产物为来源，通过根目录 `pnpm skills:generate:toolbox` 同步到 Eve 与 Claude authored surface。
-- 运行时 Skill 只安装适配后的 `SKILL.md`，并调用 `toolbox__*` connection tools；不要把官方生成的数据库直连脚本复制进 Agent skill 目录。
+- Eve 侧生成 `defineDynamic` + `defineSkill` TypeScript package，把语义目录作为 inline sibling file；在 `session.started` 按与 Toolbox connection 相同的 capability profile 只暴露完整 Tool 集合可见的 Skill。
+- 运行时 Skill 只调用 `toolbox__*` connection tools；不要把官方生成的数据库直连脚本复制进 Agent Skill。
 - Toolbox 通过 `agent/connections/toolbox.ts` 的 `defineMcpClientConnection` 直连；URL、Bearer token 与 Tool allowlist 读取 `@agent-template/toolbox-config`。
-- Eve 的 Toolbox 工具使用官方 `defineDynamic` 在 `session.started` 按 `AGENT_CAPABILITY_PROFILE` 解析；profile 由部署环境选择，不从模型输入或普通请求参数读取。
+- Toolbox connection 在 Eve app 启动时按部署环境的 `AGENT_CAPABILITY_PROFILE` 建立静态 allowlist，动态 Skill 使用同一共享配置；不要把 profile 作为模型输入或普通请求参数。
 - Eve stream 事件需要转换成 shared `AgentRunEvent`，至少覆盖 `message.completed`、`actions.requested`、`action.result` 和失败事件，保证 API Chat SSE 与前端 timeline 可用。
 - `actions.requested` / `action.result` 必须投影同一 `callId/toolName`；缺失关联字段时输出 `unknown`，不要伪造 Tool identity。
 - Eve 本地生成的 `.eve/`、`.output/` 和 `.workflow-data/` 不提交，也不能进入 Vitest 扫描面。
@@ -43,10 +45,10 @@
 
 ## 官方参考
 
-- Eve introduction: `https://eve.dev/docs/introduction`
-- vercel/eve: `https://github.com/vercel/eve`
-- MCP protocol introduction: `https://modelcontextprotocol.io/docs/getting-started/intro`
-- Kimi Code docs: `https://www.kimi.com/code/docs/`
+- Eve project layout: `https://eve.dev/docs/reference/project-layout`
+- Eve instructions and default harness: `https://eve.dev/docs/instructions`, `https://eve.dev/docs/concepts/default-harness`
+- Eve dynamic capabilities: `https://eve.dev/docs/guides/dynamic-capabilities`
+- Eve auth, security and sandbox: `https://eve.dev/docs/guides/auth-and-route-protection`, `https://eve.dev/docs/concepts/security-model`, `https://eve.dev/docs/sandbox`
 
 ## 验证
 

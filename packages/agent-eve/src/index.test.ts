@@ -22,24 +22,24 @@ describe("Eve Agent runtime", () => {
 
     for (const skillName of skillNames) {
       const skill = readFileSync(
-        new URL(`../agent/skills/${skillName}/SKILL.md`, import.meta.url),
+        new URL(`../agent/skills/${skillName}.ts`, import.meta.url),
         "utf8",
       );
 
-      expect(skill).toContain(`name: ${skillName}`);
+      expect(skill).toContain("defineDynamic");
+      expect(skill).toContain("hasToolboxCapabilities(requiredTools)");
       expect(skill).toContain("Toolbox MCP");
       expect(skill).toContain("Business semantic catalog");
-      expect(skill).toMatch(/^### `toolbox__[a-z0-9_-]+`$/m);
-
-      const semanticCatalog = readFileSync(
-        new URL(
-          `../agent/skills/${skillName}/references/ecommerce-semantic-catalog.yaml`,
-          import.meta.url,
-        ),
-        "utf8",
-      );
-      expect(semanticCatalog).toContain("kind: business-semantic-catalog");
+      expect(skill).toContain("### `toolbox__");
+      expect(skill).toContain("ecommerceSemanticCatalog");
     }
+
+    expect(
+      readFileSync(
+        new URL("../agent/lib/ecommerce-semantic-catalog.ts", import.meta.url),
+        "utf8",
+      ),
+    ).toContain("kind: business-semantic-catalog");
   });
 
   it("points at the package-local authored surface", () => {
@@ -88,9 +88,32 @@ describe("Eve Agent runtime", () => {
       readFileSync(new URL("../package.json", import.meta.url), "utf8"),
     ) as {
       dependencies?: Record<string, string>;
+      engines?: Record<string, string>;
     };
 
     expect(packageJson.dependencies?.eve).toBe("latest");
+    expect(packageJson.dependencies?.["just-bash"]).toBe("^3.0.1");
+    expect(packageJson.dependencies?.microsandbox).toBeUndefined();
+    expect(packageJson.engines?.node).toBe("24.x");
+  });
+
+  it("pins the portable official sandbox backend for the read-only harness", async () => {
+    const sandbox = (await import("../agent/sandbox")).default as {
+      backend?: { name?: string };
+    };
+
+    expect(sandbox.backend?.name).toBe("just-bash");
+  });
+
+  it("keeps always-on instructions focused on stable runtime behavior", () => {
+    const instructions = readFileSync(
+      new URL("../agent/instructions.md", import.meta.url),
+      "utf8",
+    );
+
+    expect(instructions).toContain("默认使用中文");
+    expect(instructions).toContain("Toolbox");
+    expect(instructions).not.toContain("add tools");
   });
 
   it("loads the authored surface through eve defineAgent", async () => {
@@ -123,12 +146,19 @@ describe("Eve Agent runtime", () => {
     expect(Array.isArray(channel.routes)).toBe(true);
   });
 
-  it("disables Eve provider-managed web search for Kimi compatibility", async () => {
-    const webSearch = (await import("../agent/tools/web_search")).default as {
-      kind?: string;
-    };
+  it("disables unneeded privileged default harness tools", async () => {
+    const disabledTools = await Promise.all([
+      import("../agent/tools/bash"),
+      import("../agent/tools/web_fetch"),
+      import("../agent/tools/web_search"),
+      import("../agent/tools/write_file"),
+    ]);
 
-    expect(webSearch.kind).toBe("eve:disabled-tool");
+    for (const tool of disabledTools) {
+      expect((tool.default as { kind?: string }).kind).toBe(
+        "eve:disabled-tool",
+      );
+    }
   });
 
   it("uses one model source for runtime state and authored surface", () => {

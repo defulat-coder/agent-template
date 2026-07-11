@@ -106,10 +106,12 @@ const claudeManifestPath = join(
 const checkOnly = process.argv.includes("--check");
 const staleOutputs: string[] = [];
 const generatedBusinessSkillMetadata: GeneratedBusinessSkillMetadata[] = [];
-const outputRoots = {
-  claude: join(claudePackageRoot, ".claude/skills"),
-  eve: join(evePackageRoot, "agent/skills"),
-};
+const claudeSkillsRoot = join(claudePackageRoot, ".claude/skills");
+const eveSkillsRoot = join(evePackageRoot, "agent/skills");
+const eveSemanticCatalogModule = join(
+  evePackageRoot,
+  "agent/lib/ecommerce-semantic-catalog.ts",
+);
 
 main().catch((error: unknown) => {
   console.error(error);
@@ -118,6 +120,20 @@ main().catch((error: unknown) => {
 
 async function main() {
   try {
+    const eveSemanticCatalogSource = await renderEveSemanticCatalogModule();
+    if (checkOnly) {
+      if (
+        !existsSync(eveSemanticCatalogModule) ||
+        readFileSync(eveSemanticCatalogModule, "utf8") !==
+          eveSemanticCatalogSource
+      ) {
+        staleOutputs.push(eveSemanticCatalogModule);
+      }
+    } else {
+      mkdirSync(dirname(eveSemanticCatalogModule), { recursive: true });
+      writeFileSync(eveSemanticCatalogModule, eveSemanticCatalogSource, "utf8");
+    }
+
     for (const skill of businessSkills) {
       execFileSync(
         toolboxExecutable,
@@ -174,46 +190,65 @@ async function main() {
         cpSync(generatedSkill, rawOutputSkill, { recursive: true });
       }
 
-      for (const [runtime, outputRoot] of Object.entries(outputRoots)) {
-        const outputSkill = join(outputRoot, skill.name);
-        const outputMarkdown = join(outputSkill, "SKILL.md");
-        const outputSemanticCatalog = join(
-          outputSkill,
+      const claudeSkill = join(claudeSkillsRoot, skill.name);
+      const claudeMarkdown = join(claudeSkill, "SKILL.md");
+      const claudeSemanticCatalog = join(
+        claudeSkill,
+        "references/ecommerce-semantic-catalog.yaml",
+      );
+      const formattedClaudeMarkdown = await format(
+        useRuntimeToolNames(adaptedMarkdown, toolNames, "claude"),
+        { parser: "markdown" },
+      );
+      const eveSkill = join(eveSkillsRoot, `${skill.name}.ts`);
+      const formattedEveMarkdown = await format(
+        useRuntimeToolNames(adaptedMarkdown, toolNames, "eve"),
+        { parser: "markdown" },
+      );
+      const eveSource = await renderEveDynamicSkill(
+        skill,
+        formattedEveMarkdown,
+        validatedToolNames,
+      );
+
+      if (checkOnly) {
+        const expectedClaudeFiles = [
+          "SKILL.md",
           "references/ecommerce-semantic-catalog.yaml",
-        );
-        const markdown = await format(
-          useRuntimeToolNames(adaptedMarkdown, toolNames, runtime),
-          { parser: "markdown" },
-        );
-
-        if (checkOnly) {
-          const expectedFiles = [
-            "SKILL.md",
-            "references/ecommerce-semantic-catalog.yaml",
-          ];
-          const outputFiles = existsSync(outputSkill)
-            ? listRelativeFiles(outputSkill)
-            : [];
-          if (
-            JSON.stringify(outputFiles) !== JSON.stringify(expectedFiles) ||
-            !existsSync(outputMarkdown) ||
-            readFileSync(outputMarkdown, "utf8") !== markdown ||
-            !existsSync(outputSemanticCatalog) ||
-            !readFileSync(outputSemanticCatalog).equals(
-              readFileSync(ecommerceSemanticCatalog),
-            )
-          ) {
-            staleOutputs.push(outputMarkdown);
-          }
-          continue;
+        ];
+        const claudeFiles = existsSync(claudeSkill)
+          ? listRelativeFiles(claudeSkill)
+          : [];
+        if (
+          JSON.stringify(claudeFiles) !== JSON.stringify(expectedClaudeFiles) ||
+          !existsSync(claudeMarkdown) ||
+          readFileSync(claudeMarkdown, "utf8") !== formattedClaudeMarkdown ||
+          !existsSync(claudeSemanticCatalog) ||
+          !readFileSync(claudeSemanticCatalog).equals(
+            readFileSync(ecommerceSemanticCatalog),
+          )
+        ) {
+          staleOutputs.push(claudeMarkdown);
         }
-
-        rmSync(outputSkill, { force: true, recursive: true });
-        mkdirSync(outputSkill, { recursive: true });
-        writeFileSync(outputMarkdown, markdown, "utf8");
-        mkdirSync(dirname(outputSemanticCatalog), { recursive: true });
-        copyFileSync(ecommerceSemanticCatalog, outputSemanticCatalog);
+        if (
+          existsSync(join(eveSkillsRoot, skill.name)) ||
+          !existsSync(eveSkill) ||
+          readFileSync(eveSkill, "utf8") !== eveSource
+        ) {
+          staleOutputs.push(eveSkill);
+        }
+        continue;
       }
+
+      rmSync(claudeSkill, { force: true, recursive: true });
+      mkdirSync(claudeSkill, { recursive: true });
+      writeFileSync(claudeMarkdown, formattedClaudeMarkdown, "utf8");
+      mkdirSync(dirname(claudeSemanticCatalog), { recursive: true });
+      copyFileSync(ecommerceSemanticCatalog, claudeSemanticCatalog);
+
+      rmSync(join(eveSkillsRoot, skill.name), { force: true, recursive: true });
+      mkdirSync(eveSkillsRoot, { recursive: true });
+      writeFileSync(eveSkill, eveSource, "utf8");
     }
 
     synchronizeManagedOutputs();
@@ -267,6 +302,51 @@ ${workflow}
 
 涉及业务术语、指标、维度或枚举取值时，先读取 \`references/ecommerce-semantic-catalog.yaml\`。只使用其中认证的术语、口径和 Tool；遇到标记为 \`clarify\` 的术语，先向用户澄清，不要猜测或生成任意 SQL。
 ${toolReference}`;
+}
+
+async function renderEveDynamicSkill(
+  skill: BusinessSkill,
+  markdown: string,
+  requiredTools: readonly ToolboxToolName[],
+) {
+  const body = markdown.replace(/^---\n[\s\S]*?\n---\n+/u, "");
+
+  return format(
+    `import { defineDynamic, defineSkill } from "eve/skills";
+import { hasToolboxCapabilities } from "../lib/capability-profile";
+import { ecommerceSemanticCatalog } from "../lib/ecommerce-semantic-catalog";
+
+const requiredTools = ${JSON.stringify(requiredTools)} as const;
+const skill = defineSkill(${JSON.stringify(
+      {
+        description: skill.description,
+        markdown: body,
+        files: {
+          "references/ecommerce-semantic-catalog.yaml":
+            "__ECOMMERCE_SEMANTIC_CATALOG__",
+        },
+      },
+      null,
+      2,
+    ).replace('"__ECOMMERCE_SEMANTIC_CATALOG__"', "ecommerceSemanticCatalog")});
+
+export default defineDynamic({
+  events: {
+    "session.started": () =>
+      hasToolboxCapabilities(requiredTools) ? skill : null,
+  },
+});
+`,
+    { parser: "typescript" },
+  );
+}
+
+async function renderEveSemanticCatalogModule() {
+  const catalog = readFileSync(ecommerceSemanticCatalog, "utf8");
+  return format(
+    `export const ecommerceSemanticCatalog = ${JSON.stringify(catalog)};\n`,
+    { parser: "typescript" },
+  );
 }
 
 function directoriesMatch(expectedRoot: string, actualRoot: string) {
@@ -325,11 +405,12 @@ function synchronizeManagedOutputs() {
 
     for (const skillName of previousSkills) {
       if (!currentSkills.includes(skillName)) {
-        for (const outputRoot of [
-          rawOutputRoot,
-          ...Object.values(outputRoots),
+        for (const obsoleteSkill of [
+          join(rawOutputRoot, skillName),
+          join(claudeSkillsRoot, skillName),
+          join(eveSkillsRoot, skillName),
+          join(eveSkillsRoot, `${skillName}.ts`),
         ]) {
-          const obsoleteSkill = join(outputRoot, skillName);
           if (existsSync(obsoleteSkill)) {
             staleOutputs.push(obsoleteSkill);
           }
@@ -341,8 +422,13 @@ function synchronizeManagedOutputs() {
 
   for (const skillName of previousSkills) {
     if (!currentSkills.includes(skillName)) {
-      for (const outputRoot of [rawOutputRoot, ...Object.values(outputRoots)]) {
-        rmSync(join(outputRoot, skillName), { force: true, recursive: true });
+      for (const obsoleteSkill of [
+        join(rawOutputRoot, skillName),
+        join(claudeSkillsRoot, skillName),
+        join(eveSkillsRoot, skillName),
+        join(eveSkillsRoot, `${skillName}.ts`),
+      ]) {
+        rmSync(obsoleteSkill, { force: true, recursive: true });
       }
     }
   }
@@ -554,7 +640,7 @@ function validateEveDiscovery() {
   });
   const jsonStart = output.indexOf("{");
   const info = JSON.parse(output.slice(jsonStart)) as {
-    artifacts?: { discoveryManifest?: string };
+    artifacts?: { compiledManifest?: string; discoveryManifest?: string };
     diagnostics?: { errors?: number };
     skills?: unknown;
   };
@@ -567,9 +653,20 @@ function validateEveDiscovery() {
   const discoveredConnections =
     discovery?.connections?.map((connection) => connection.connectionName) ??
     [];
+  const compiled = info.artifacts?.compiledManifest
+    ? (JSON.parse(readFileSync(info.artifacts.compiledManifest, "utf8")) as {
+        dynamicSkills?: Array<{ slug?: string }>;
+      })
+    : undefined;
+  const dynamicSkills =
+    compiled?.dynamicSkills?.map((skill) => skill.slug) ?? [];
   const missingSkills = businessSkills
     .map((skill) => skill.name)
-    .filter((skillName) => !discoveredSkills.includes(skillName));
+    .filter(
+      (skillName) =>
+        !discoveredSkills.includes(skillName) &&
+        !dynamicSkills.includes(skillName),
+    );
 
   if (
     info.diagnostics?.errors !== 0 ||

@@ -3,7 +3,11 @@ import { parseToolboxAgentConfig } from "@agent-template/toolbox-config";
 
 const toolbox = parseToolboxAgentConfig({
   ...process.env,
-  TOOLBOX_URL: process.env.TOOLBOX_URL ?? "http://localhost:15000",
+  TOOLBOX_URL:
+    process.env.TOOLBOX_URL ??
+    (process.env.NODE_ENV === "production"
+      ? undefined
+      : "http://localhost:15000"),
 });
 
 if (!toolbox) {

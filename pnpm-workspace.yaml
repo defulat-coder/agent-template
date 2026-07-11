@@ -3,9 +3,11 @@ packages:
   - packages/*
 
 allowBuilds:
+  '@mongodb-js/zstd': false
   '@prisma/engines': true
   esbuild: true
   msgpackr-extract: true
+  node-liblzma: false
   prisma: true
   sharp: true
 
