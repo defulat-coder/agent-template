@@ -38,6 +38,7 @@
 | completed | 建立持久化 Agent run lifecycle             | Strong          | Chat/Queue 共用状态机与 PostgreSQL record，BullMQ 只投递 `runId`                      |
 | completed | 同步 Toolbox 生成产物                      | Strong          | production 配置、官方原始 Skill 与 runtime Skill 均由同一事实源生成并通过 stale gate |
 | completed | 固定 Toolbox UTC 日桶                      | Strong          | 销售日显式按 UTC 转换，不再依赖 PostgreSQL session timezone                          |
+| completed | 规范化 Toolbox MCP URL                    | Worth exploring | `/mcp/` 与 `/mcp` 归一为一个 MCP path，Claude/Eve 共享 parser 不再重复追加            |
 
 ## 执行规则
 
@@ -46,6 +47,14 @@
 - 每轮完成后用中文 Conventional Commit 提交。
 
 ## 已完成
+
+### 规范化 Toolbox MCP URL
+
+- 日期：2026-07-11
+- locality：尾斜杠处理集中在 `parseToolboxAgentConfig`，Claude 与 Eve adapter 不再各自承担 URL 纠错。
+- deletion test：删除共享规范化会让 `/mcp/` 重新变为 `/mcp/mcp`，错误同时扩散到两个 runtime。
+- leverage：一个共享 interface 测试覆盖两个 MCP Client adapter。
+- 聚焦验证：toolbox-config lint/typecheck/test。
 
 ### 建立持久化 Agent run lifecycle
 
