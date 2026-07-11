@@ -103,6 +103,12 @@
       "skillPath": "skills/engineering/improve-codebase-architecture/SKILL.md",
       "computedHash": "8bf292143ca93b00276a0de0fc5f84f2381f4690c5b0d32e99fa283a072f392f"
     },
+    "loopy": {
+      "source": "Forward-Future/loopy",
+      "sourceType": "github",
+      "skillPath": "skills/loopy/SKILL.md",
+      "computedHash": "f22d8ce0bc7079e5c411e149d7bfa6fc1ca8d988f31d3d4c411dce97bd649ef9"
+    },
     "next-cache-components-adoption": {
       "source": "vercel/next.js",
       "sourceType": "github",
