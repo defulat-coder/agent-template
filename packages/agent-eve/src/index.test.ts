@@ -177,6 +177,11 @@ describe("Eve Agent runtime", () => {
           abortController,
           createClient: () => ({
             session: () => ({
+              state: {
+                continuationToken: "continuation-1",
+                sessionId: "eve-session-1",
+                streamIndex: 4,
+              },
               send: async (input) => {
                 sent.push(input);
                 return {
@@ -262,6 +267,11 @@ describe("Eve Agent runtime", () => {
       ],
       output: "Done",
       sessionId: "eve-session-1",
+      sessionState: {
+        continuationToken: "continuation-1",
+        sessionId: "eve-session-1",
+        streamIndex: 4,
+      },
     });
     expect(events).toEqual([
       {

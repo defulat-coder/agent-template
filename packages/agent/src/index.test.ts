@@ -136,7 +136,7 @@ describe("Agent runtime selector", () => {
         { kind: "done", result: "Done" },
       ],
       output: "Done",
-      sessionId: "eve-session-1",
+      runtimeSessionId: "eve-session-1",
     });
 
     expect(events).toEqual([{ kind: "text", text: "Working" }]);

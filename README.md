@@ -57,6 +57,7 @@ pnpm agent-runtime:check:bundle
 apps/
   web/       Next.js + React + Tailwind CSS
   api/       Fastify HTTP API
+  cli/       Incur 可安装命令行客户端
   worker/    BullMQ 后台任务进程
   toolbox/   MCP Toolbox tools.yaml
 packages/
@@ -65,6 +66,7 @@ packages/
   ecommerce-fixture/ 独立 schema 的合成零售验证数据
   logger/        Pino logger 封装
   agent/         Agent runtime 公共边界
+  agent-client/  Web、CLI 与 Node 服务共用的 HTTP/SSE Client
   agent-claude/  Claude Agent SDK runtime
   agent-eve/     Eve runtime
   toolbox-config/ Toolbox 共享配置与能力 Profile
@@ -92,3 +94,50 @@ CLAUDE_CODE_AUTO_COMPACT_WINDOW=262144
 API 与 Worker 不静态加载两套 runtime。公共 selector 根据部署环境动态加载 Claude 或 Eve adapter；构建门禁保证两者位于独立 chunk，未选择的框架不会在进程启动时初始化。
 
 Chat SSE 与 queued job 共用持久化 Agent run lifecycle。`POST /agent/jobs` 返回的 `id` 即 `runId`；通过 `GET /agent/runs/:runId` 查询状态，通过 `DELETE /agent/runs/:runId` 请求取消。PostgreSQL 保存 ordered events 和 terminal result，BullMQ 只负责投递同一个 `runId`。
+
+## Agent CLI
+
+`apps/cli` 使用 Incur 提供可安装的 `agent-template` 命令。CLI 只调用版本化 Agent API，不加载 Fastify、Prisma、BullMQ 或具体 Agent runtime。
+
+服务端配置：
+
+```bash
+AGENT_API_TOKEN=<至少 16 位的服务端 Token>
+```
+
+生产环境必须配置该 Token。CLI 或其他服务使用：
+
+```bash
+export AGENT_TEMPLATE_API_URL=https://agent.example.com
+export AGENT_TEMPLATE_TOKEN=<Agent API Token>
+
+agent-template doctor
+agent-template chat "分析最近失败的订单"
+agent-template conversations list
+agent-template conversations send <conversation-id> "继续分析"
+agent-template runs list --status running
+agent-template runs watch <run-id> --format jsonl
+agent-template runs cancel <run-id>
+```
+
+本地构建和打包：
+
+```bash
+pnpm --filter @agent-template/cli build
+pnpm --filter @agent-template/cli pack
+```
+
+打包产物可直接交给其他服务安装：
+
+```bash
+npm install --global ./agent-template-cli-0.1.0.tgz
+agent-template doctor
+```
+
+发布到组织私有 Registry 后，安装命令为 `npm install --global @agent-template/cli --registry <registry-url>`。
+
+发布前将 `@agent-template/cli` 替换为组织拥有的 npm scope，并发布到组织的私有 Registry。CLI bundle 已包含内部 `agent-client` 与 shared schemas，安装方只需要 Node.js 22 或更高版本。
+
+版本化接口位于 `/v1/agent/*`。Agent conversation 是平台拥有的多轮会话；Runtime session ID 和 Eve continuation token 只作为服务端 continuation state 保存，不会暴露给 CLI。
+
+旧版 `/agent/*` 路由只在开发和测试环境默认开启；生产环境默认关闭。如迁移期仍需保留，显式设置 `AGENT_LEGACY_ROUTES_ENABLED=true`，并由网关负责访问控制。

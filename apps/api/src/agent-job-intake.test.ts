@@ -58,6 +58,7 @@ describe("createAgentJobIntake", () => {
 function createRunSnapshot() {
   return {
     id: "run-1",
+    conversationId: null,
     prompt: "Summarize this template",
     requestedAt: "2026-06-26T00:00:00.000Z",
     startedAt: null,
@@ -71,7 +72,6 @@ function createRunSnapshot() {
     model: null,
     output: null,
     reason: null,
-    sessionId: null,
     events: [],
   };
 }
@@ -93,6 +93,7 @@ function createAgentRunLifecycleStub(
     queue: async () => snapshot,
     run: skipped,
     resume: skipped,
+    list: async () => ({ items: [], nextCursor: null }),
     get: async () => snapshot,
     cancel: async () => snapshot,
     failQueued: async () => snapshot,

@@ -1,5 +1,18 @@
 export { defaultClaudeAgentModel, defaultEveAgentModel } from "./agent-runtime";
 export {
+  AgentConversationCreateInputSchema,
+  AgentConversationListQuerySchema,
+  AgentConversationPageSchema,
+  AgentConversationSummarySchema,
+  AgentConversationViewSchema,
+  AgentConversationBusyError,
+  type AgentConversationCreateInput,
+  type AgentConversationListQuery,
+  type AgentConversationPage,
+  type AgentConversationSummary,
+  type AgentConversationView,
+} from "./agent-conversation";
+export {
   DependencyStateSchema,
   HealthStatusSchema,
   createHealthStatus,
@@ -24,11 +37,19 @@ export {
   AgentRunRecordedEventSchema,
   AgentRunSnapshotSchema,
   AgentRunStatusSchema,
+  AgentRunListQuerySchema,
+  AgentRunPageSchema,
+  AgentRunStreamFrameSchema,
+  AgentRunSummarySchema,
   type AgentRunInput,
   type AgentRunResult,
   type AgentRunRecordedEvent,
   type AgentRunSnapshot,
   type AgentRunStatus,
+  type AgentRunListQuery,
+  type AgentRunPage,
+  type AgentRunStreamFrame,
+  type AgentRunSummary,
 } from "./agent-run";
 export {
   AgentArtifactSchema,

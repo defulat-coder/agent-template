@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import {
+  AgentConversationBusyError,
   AgentRunEventSchema,
+  type AgentRunListQuery,
   type AgentRunEvent as SharedAgentRunEvent,
   type AgentRunStatus as SharedAgentRunStatus,
 } from "@agent-template/shared";
@@ -19,6 +21,15 @@ const fromPrismaStatus = {
   CANCELLED: "cancelled",
 } as const satisfies Record<string, SharedAgentRunStatus>;
 
+const toPrismaStatus = {
+  queued: "QUEUED",
+  running: "RUNNING",
+  completed: "COMPLETED",
+  failed: "FAILED",
+  skipped: "SKIPPED",
+  cancelled: "CANCELLED",
+} as const;
+
 export function createPrismaAgentRunRepository(client: PrismaClient) {
   async function find(id: string) {
     const run = await client.agentRun.findUnique({
@@ -29,15 +40,72 @@ export function createPrismaAgentRunRepository(client: PrismaClient) {
   }
 
   return {
-    async create(input: { id: string; prompt: string; requestedAt: Date }) {
-      return mapStoredRun(
-        await client.agentRun.create({
-          data: { ...input, status: "QUEUED" },
-          include: storedRunInclude,
-        }),
-      );
+    async create(input: {
+      id: string;
+      prompt: string;
+      requestedAt: Date;
+      conversationId?: string;
+    }) {
+      try {
+        return mapStoredRun(
+          await client.agentRun.create({
+            data: { ...input, status: "QUEUED" },
+            include: storedRunInclude,
+          }),
+        );
+      } catch (error) {
+        if (input.conversationId && isActiveConversationConflict(error)) {
+          throw new AgentConversationBusyError(input.conversationId, {
+            cause: error,
+          });
+        }
+        throw error;
+      }
     },
     find,
+    async list(input: AgentRunListQuery) {
+      const cursor = input.cursor ? decodeCursor(input.cursor) : undefined;
+      const where = {
+        ...(input.conversationId
+          ? { conversationId: input.conversationId }
+          : {}),
+        ...(input.runtime ? { runtime: input.runtime } : {}),
+        ...(input.status?.length
+          ? {
+              status: {
+                in: input.status.map((status) => toPrismaStatus[status]),
+              },
+            }
+          : {}),
+        ...(cursor
+          ? {
+              OR: [
+                { requestedAt: { lt: cursor.requestedAt } },
+                {
+                  requestedAt: cursor.requestedAt,
+                  id: { lt: cursor.id },
+                },
+              ],
+            }
+          : {}),
+      } satisfies Prisma.AgentRunWhereInput;
+      const runs = await client.agentRun.findMany({
+        where,
+        include: storedRunInclude,
+        orderBy: [{ requestedAt: "desc" }, { id: "desc" }],
+        take: input.limit + 1,
+      });
+      const hasNext = runs.length > input.limit;
+      const items = runs.slice(0, input.limit);
+      const last = items.at(-1);
+      return {
+        items: items.map(mapStoredRun),
+        nextCursor:
+          hasNext && last
+            ? encodeCursor({ requestedAt: last.requestedAt, id: last.id })
+            : null,
+      };
+    },
     async claim(
       id: string,
       input: {
@@ -179,29 +247,47 @@ export function createPrismaAgentRunRepository(client: PrismaClient) {
         completedAt: Date;
         output?: string;
         reason?: string;
-        sessionId?: string;
+        runtimeSessionId?: string;
+        runtimeContinuation?: unknown;
       },
     ) {
-      const updated = await client.$executeRaw`
-        UPDATE public."AgentRun"
-        SET
-          status = ${input.status}::public."AgentRunStatus",
-          "completedAt" = ${input.completedAt},
-          output = ${input.output ?? null},
-          reason = ${input.reason ?? null},
-          "sessionId" = ${input.sessionId ?? null},
-          "executionToken" = NULL,
-          "leaseExpiresAt" = NULL,
-          "updatedAt" = clock_timestamp()
-        WHERE id = ${id}
-          AND status = 'running'
-          AND "executionToken" = ${input.executionToken}
-          AND "leaseExpiresAt" > clock_timestamp()
-      `;
-      if (updated !== 1) return undefined;
-      const run = await find(id);
-      if (!run) throw new Error(`Agent run ${id} was not found`);
-      return run;
+      return client.$transaction(async (transaction) => {
+        const updated = await transaction.$executeRaw`
+          UPDATE public."AgentRun"
+          SET
+            status = ${input.status}::public."AgentRunStatus",
+            "completedAt" = ${input.completedAt},
+            output = ${input.output ?? null},
+            reason = ${input.reason ?? null},
+            "runtimeSessionId" = ${input.runtimeSessionId ?? null},
+            "executionToken" = NULL,
+            "leaseExpiresAt" = NULL,
+            "updatedAt" = clock_timestamp()
+          WHERE id = ${id}
+            AND status = 'running'
+            AND "executionToken" = ${input.executionToken}
+            AND "leaseExpiresAt" > clock_timestamp()
+        `;
+        if (updated !== 1) return undefined;
+        if (input.runtimeContinuation) {
+          await transaction.$executeRaw`
+            UPDATE public."AgentConversation" AS conversation
+            SET
+              "runtimeContinuationState" = ${JSON.stringify(input.runtimeContinuation)}::jsonb,
+              "updatedAt" = clock_timestamp()
+            FROM public."AgentRun" AS run
+            WHERE run.id = ${id}
+              AND run."conversationId" = conversation.id
+              AND conversation.runtime = ${readContinuationRuntime(input.runtimeContinuation)}
+          `;
+        }
+        const run = await transaction.agentRun.findUnique({
+          where: { id },
+          include: storedRunInclude,
+        });
+        if (!run) throw new Error(`Agent run ${id} was not found`);
+        return mapStoredRun(run);
+      });
     },
     async failQueued(id: string, input: { completedAt: Date; reason: string }) {
       await client.agentRun.updateMany({
@@ -250,6 +336,7 @@ function mapStoredRun(
 ) {
   return {
     id: run.id,
+    conversationId: run.conversationId,
     prompt: run.prompt,
     requestedAt: run.requestedAt,
     startedAt: run.startedAt,
@@ -269,7 +356,7 @@ function mapStoredRun(
     model: run.model,
     output: run.output,
     reason: run.reason,
-    sessionId: run.sessionId,
+    runtimeSessionId: run.runtimeSessionId,
     events: run.events.map((event) => ({
       sequence: event.sequence,
       executionAttempt: event.executionAttempt,
@@ -277,4 +364,62 @@ function mapStoredRun(
       createdAt: event.createdAt,
     })),
   };
+}
+
+function encodeCursor(input: { requestedAt: Date; id: string }) {
+  return Buffer.from(
+    JSON.stringify({
+      requestedAt: input.requestedAt.toISOString(),
+      id: input.id,
+    }),
+  ).toString("base64url");
+}
+
+function decodeCursor(cursor: string) {
+  try {
+    const parsed = JSON.parse(
+      Buffer.from(cursor, "base64url").toString("utf8"),
+    );
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      typeof parsed.requestedAt !== "string" ||
+      typeof parsed.id !== "string"
+    ) {
+      throw new Error("invalid cursor");
+    }
+    const requestedAt = new Date(parsed.requestedAt);
+    if (Number.isNaN(requestedAt.getTime())) throw new Error("invalid cursor");
+    return { requestedAt, id: parsed.id };
+  } catch {
+    throw new Error("Agent run cursor is invalid");
+  }
+}
+
+function readContinuationRuntime(input: unknown) {
+  if (
+    typeof input === "object" &&
+    input !== null &&
+    "runtime" in input &&
+    (input.runtime === "claude" || input.runtime === "eve")
+  ) {
+    return input.runtime;
+  }
+  throw new Error("Agent runtime continuation is invalid");
+}
+
+function isActiveConversationConflict(error: unknown) {
+  if (
+    !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+    error.code !== "P2002"
+  ) {
+    return false;
+  }
+  const target = error.meta?.target;
+  return (
+    (Array.isArray(target) && target.includes("conversationId")) ||
+    target === "AgentRun_one_active_per_conversation_idx" ||
+    error.message.includes("AgentRun_one_active_per_conversation_idx") ||
+    error.message.includes("conversationId")
+  );
 }

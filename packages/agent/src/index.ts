@@ -10,14 +10,28 @@ import {
   type DependencyState,
 } from "@agent-template/shared";
 import { ToolboxCapabilityProfileSchema } from "@agent-template/toolbox-config";
+import {
+  AgentRuntimeContinuationSchema,
+  type AgentExecutionResult,
+  type AgentRuntimeContinuation,
+} from "./runtime-continuation.js";
 
 export { defaultClaudeAgentModel, defaultEveAgentModel };
 export type { AgentRunResult };
+export {
+  AgentConversationNotFoundError,
+  AgentConversationRuntimeConflictError,
+  createAgentConversationLifecycle,
+  type AgentConversationLifecycle,
+  type AgentConversationRepository,
+  type StoredAgentConversation,
+} from "./conversation.js";
 export {
   createAgentRunLifecycle,
   defaultAgentRunLeaseDurationMs,
   type AgentRunLifecycle,
   type AgentRunLifecycleExecutionOptions,
+  type AgentRunLifecycleQueueOptions,
   type AgentRunRepository,
   type StoredAgentRun,
   type StoredAgentRunEvent,
@@ -45,6 +59,12 @@ export const AgentRuntimeEnvSchema = z.object({
 export type AgentRuntimeName = z.infer<typeof AgentRuntimeNameSchema>;
 export type AgentRuntimeEnv = z.infer<typeof AgentRuntimeEnvSchema>;
 
+export {
+  AgentRuntimeContinuationSchema,
+  type AgentExecutionResult,
+  type AgentRuntimeContinuation,
+};
+
 export type AgentRuntimeState = {
   runtime: AgentRuntimeName;
   configured: boolean;
@@ -53,6 +73,8 @@ export type AgentRuntimeState = {
 
 export type RunAgentOptions = {
   abortController?: AbortController;
+  captureContinuation?: boolean;
+  continuation?: AgentRuntimeContinuation;
   loadClaude?: () => Promise<ClaudeRuntimeModule>;
   loadEve?: () => Promise<EveRuntimeModule>;
   onEvent?: (event: AgentRunEvent) => void;
@@ -148,10 +170,18 @@ export async function runAgent(
   input: unknown,
   env: Record<string, unknown>,
   options: RunAgentOptions = {},
-): Promise<AgentRunResult> {
+): Promise<AgentExecutionResult> {
   const parsed = AgentRunInputSchema.parse(input);
   const runtimeEnv = parseAgentRuntimeEnv(env);
   const agentState = getAgentRuntimeStateFromEnv(runtimeEnv);
+  const continuation = options.continuation
+    ? AgentRuntimeContinuationSchema.parse(options.continuation)
+    : undefined;
+  if (continuation && continuation.runtime !== agentState.runtime) {
+    throw new Error(
+      `Agent runtime continuation belongs to ${continuation.runtime}, not ${agentState.runtime}`,
+    );
+  }
   const eventOptions = {
     ...(options.onEvent ? { onEvent: options.onEvent } : {}),
     ...(options.abortController
@@ -165,7 +195,12 @@ export async function runAgent(
           return runtime.runEveAgent(
             parsed,
             runtime.parseEveAgentConfig(runtimeEnv),
-            eventOptions,
+            {
+              ...eventOptions,
+              ...(continuation?.runtime === "eve"
+                ? { sessionState: toEveSessionState(continuation.sessionState) }
+                : {}),
+            },
           );
         })()
       : await (async () => {
@@ -173,7 +208,13 @@ export async function runAgent(
           return runtime.runClaudeAgent(
             parsed,
             runtime.parseClaudeAgentConfig(runtimeEnv),
-            eventOptions,
+            {
+              ...eventOptions,
+              persistSession: options.captureContinuation ?? false,
+              ...(continuation?.runtime === "claude"
+                ? { resumeSessionId: continuation.sessionId }
+                : {}),
+            },
           );
         })();
 
@@ -182,8 +223,13 @@ export async function runAgent(
     runtime: agentState.runtime,
     configured: agentState.configured,
     model: agentState.model,
-    ...("sessionId" in run ? { sessionId: run.sessionId } : {}),
+    ...("sessionId" in run ? { runtimeSessionId: run.sessionId } : {}),
   };
+  const runtimeContinuation = readRuntimeContinuation(
+    agentState.runtime,
+    run,
+    options.captureContinuation ?? false,
+  );
 
   if (run.status === "completed") {
     return {
@@ -191,6 +237,7 @@ export async function runAgent(
       status: run.status,
       events: [...run.events],
       output: run.output,
+      ...(runtimeContinuation ? { runtimeContinuation } : {}),
     };
   }
   if (run.status === "failed") {
@@ -199,9 +246,48 @@ export async function runAgent(
       status: run.status,
       events: [...run.events],
       reason: run.reason,
+      ...(runtimeContinuation ? { runtimeContinuation } : {}),
     };
   }
-  return { ...resultBase, status: run.status, reason: run.reason };
+  return {
+    ...resultBase,
+    status: run.status,
+    reason: run.reason,
+    ...(runtimeContinuation ? { runtimeContinuation } : {}),
+  };
+}
+
+function readRuntimeContinuation(
+  runtime: AgentRuntimeName,
+  run: Awaited<
+    | ReturnType<ClaudeRuntimeModule["runClaudeAgent"]>
+    | ReturnType<EveRuntimeModule["runEveAgent"]>
+  >,
+  capture: boolean,
+): AgentRuntimeContinuation | undefined {
+  if (!capture) return undefined;
+  if (runtime === "claude" && "sessionId" in run && run.sessionId) {
+    return { runtime, sessionId: run.sessionId };
+  }
+  if (runtime === "eve" && "sessionState" in run && run.sessionState) {
+    return AgentRuntimeContinuationSchema.parse({
+      runtime,
+      sessionState: run.sessionState,
+    });
+  }
+  return undefined;
+}
+
+function toEveSessionState(
+  state: Extract<AgentRuntimeContinuation, { runtime: "eve" }>["sessionState"],
+) {
+  return {
+    streamIndex: state.streamIndex,
+    ...(state.continuationToken
+      ? { continuationToken: state.continuationToken }
+      : {}),
+    ...(state.sessionId ? { sessionId: state.sessionId } : {}),
+  };
 }
 
 function loadClaudeRuntime(): Promise<ClaudeRuntimeModule> {

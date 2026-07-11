@@ -2,35 +2,41 @@ import { PassThrough } from "node:stream";
 import cors from "@fastify/cors";
 import Fastify, { type FastifyInstance } from "fastify";
 import {
+  createAgentConversationLifecycle,
   createAgentRunLifecycle,
   runAgent,
+  type AgentConversationLifecycle,
+  type AgentExecutionResult,
   type AgentRunLifecycle,
-  type AgentRunResult,
   type RunAgentOptions,
 } from "@agent-template/agent";
-import { createPrismaAgentRunRepository, prisma } from "@agent-template/db";
-import { createLoggerOptions } from "@agent-template/logger";
 import {
-  AgentRunInputSchema,
-  type AgentRunEvent,
-} from "@agent-template/shared";
-import { loadEnv, type Env } from "./env.js";
+  createPrismaAgentConversationRepository,
+  createPrismaAgentRunRepository,
+  prisma,
+} from "@agent-template/db";
+import { createLoggerOptions } from "@agent-template/logger";
+import { AgentRunInputSchema } from "@agent-template/shared";
+import { areLegacyAgentRoutesEnabled, loadEnv, type Env } from "./env.js";
 import { getHealth } from "./health.js";
 import {
   createAgentJobIntake,
   type AgentJobIntake,
 } from "./agent-job-intake.js";
+import { registerV1AgentApi } from "./agent-api-v1.js";
+import { sendEventStream, writeSseEvent } from "./sse.js";
 
 export type BuildAppOptions = {
   env?: Env;
   checkExternal?: boolean;
+  agentConversationLifecycle?: AgentConversationLifecycle;
   agentJobIntake?: AgentJobIntake;
   agentRunLifecycle?: AgentRunLifecycle;
   runAgent?: (
     input: unknown,
     env: Record<string, unknown>,
     options?: RunAgentOptions,
-  ) => Promise<AgentRunResult>;
+  ) => Promise<AgentExecutionResult>;
 };
 
 export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
@@ -42,6 +48,12 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     createAgentRunLifecycle({
       repository: createPrismaAgentRunRepository(prisma),
       execute: runChatAgent,
+    });
+  const agentConversationLifecycle =
+    options.agentConversationLifecycle ??
+    createAgentConversationLifecycle({
+      repository: createPrismaAgentConversationRepository(prisma),
+      runs: agentRunLifecycle,
     });
   const agentJobIntake =
     options.agentJobIntake ??
@@ -55,25 +67,50 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
 
   app.get("/health", async () => getHealth(env, { checkExternal }));
 
+  if (areLegacyAgentRoutesEnabled(env)) {
+    registerLegacyAgentRoutes(app, {
+      env,
+      agentJobIntake,
+      agentRunLifecycle,
+    });
+  }
+  registerV1AgentApi(app, {
+    env,
+    agentConversationLifecycle,
+    agentJobIntake,
+    agentRunLifecycle,
+  });
+
+  return app;
+}
+
+function registerLegacyAgentRoutes(
+  app: FastifyInstance,
+  input: {
+    env: Env;
+    agentJobIntake: AgentJobIntake;
+    agentRunLifecycle: AgentRunLifecycle;
+  },
+) {
   app.post("/agent/jobs", async (request, reply) => {
-    const result = await agentJobIntake.enqueue(request.body);
+    const result = await input.agentJobIntake.enqueue(request.body);
     return reply.code(202).send(result);
   });
 
   app.get("/agent/runs/:runId", async (request, reply) => {
     const { runId } = request.params as { runId: string };
-    const run = await agentRunLifecycle.get(runId);
+    const run = await input.agentRunLifecycle.get(runId);
     return run ?? reply.code(404).send({ message: "Agent run not found" });
   });
 
   app.delete("/agent/runs/:runId", async (request, reply) => {
     const { runId } = request.params as { runId: string };
-    const run = await agentRunLifecycle.cancel(runId);
+    const run = await input.agentRunLifecycle.cancel(runId);
     return run ?? reply.code(404).send({ message: "Agent run not found" });
   });
 
   app.post("/agent/chat", async (request, reply) => {
-    const input = AgentRunInputSchema.parse(request.body);
+    const runInput = AgentRunInputSchema.parse(request.body);
     const stream = new PassThrough();
     const abortController = new AbortController();
     const abortRun = () => abortController.abort("Agent Chat disconnected");
@@ -81,13 +118,12 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
 
     void (async () => {
       try {
-        const result = await agentRunLifecycle.run(input, env, {
+        const result = await input.agentRunLifecycle.run(runInput, input.env, {
           abortSignal: abortController.signal,
           onEvent(event) {
             writeSseEvent(stream, "agent-event", event);
           },
         });
-
         writeSseEvent(stream, "result", result);
       } catch (caught) {
         writeSseEvent(stream, "error", {
@@ -100,22 +136,6 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       }
     })();
 
-    return reply
-      .header("Cache-Control", "no-cache, no-transform")
-      .header("Connection", "keep-alive")
-      .header("Content-Type", "text/event-stream; charset=utf-8")
-      .header("X-Accel-Buffering", "no")
-      .send(stream);
+    return sendEventStream(reply, stream);
   });
-
-  return app;
-}
-
-function writeSseEvent(
-  stream: PassThrough,
-  event: string,
-  data: AgentRunEvent | AgentRunResult | { message: string },
-) {
-  stream.write(`event: ${event}\n`);
-  stream.write(`data: ${JSON.stringify(data)}\n\n`);
 }

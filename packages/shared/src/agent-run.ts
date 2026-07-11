@@ -27,7 +27,7 @@ const AgentRunResultBaseSchema = z.object({
   configured: z.boolean(),
   model: z.string(),
   runId: z.string().optional(),
-  sessionId: z.string().optional(),
+  conversationId: z.string().optional(),
 });
 
 export const AgentRunResultSchema = z.discriminatedUnion("status", [
@@ -55,6 +55,7 @@ export const AgentRunResultSchema = z.discriminatedUnion("status", [
 
 export const AgentRunSnapshotSchema = z.object({
   id: z.string(),
+  conversationId: z.string().nullable(),
   prompt: z.string(),
   requestedAt: z.string().datetime(),
   startedAt: z.string().datetime().nullable(),
@@ -68,12 +69,55 @@ export const AgentRunSnapshotSchema = z.object({
   model: z.string().nullable(),
   output: z.string().nullable(),
   reason: z.string().nullable(),
-  sessionId: z.string().nullable(),
   events: z.array(AgentRunRecordedEventSchema),
 });
+
+export const AgentRunSummarySchema = AgentRunSnapshotSchema.omit({
+  events: true,
+  output: true,
+  prompt: true,
+}).extend({
+  promptPreview: z.string(),
+});
+
+export const AgentRunListQuerySchema = z.object({
+  conversationId: z.string().min(1).optional(),
+  cursor: z.string().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  runtime: z.enum(["claude", "eve"]).optional(),
+  status: z.array(AgentRunStatusSchema).optional(),
+});
+
+export const AgentRunPageSchema = z.object({
+  items: z.array(AgentRunSummarySchema),
+  nextCursor: z.string().nullable(),
+});
+
+export const AgentRunStreamFrameSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("accepted"),
+    runId: z.string(),
+    conversationId: z.string().optional(),
+  }),
+  z.object({
+    type: z.literal("event"),
+    runId: z.string(),
+    sequence: z.number().int().nonnegative(),
+    event: AgentRunEventSchema,
+  }),
+  z.object({
+    type: z.literal("terminal"),
+    runId: z.string(),
+    result: AgentRunResultSchema,
+  }),
+]);
 
 export type AgentRunInput = z.infer<typeof AgentRunInputSchema>;
 export type AgentRunResult = z.infer<typeof AgentRunResultSchema>;
 export type AgentRunRecordedEvent = z.infer<typeof AgentRunRecordedEventSchema>;
 export type AgentRunStatus = z.infer<typeof AgentRunStatusSchema>;
 export type AgentRunSnapshot = z.infer<typeof AgentRunSnapshotSchema>;
+export type AgentRunSummary = z.infer<typeof AgentRunSummarySchema>;
+export type AgentRunListQuery = z.infer<typeof AgentRunListQuerySchema>;
+export type AgentRunPage = z.infer<typeof AgentRunPageSchema>;
+export type AgentRunStreamFrame = z.infer<typeof AgentRunStreamFrameSchema>;

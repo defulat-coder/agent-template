@@ -9,6 +9,7 @@
 - `api`: Fastify HTTP API。
 - `worker`: BullMQ 后台任务进程。
 - `toolbox`: MCP Toolbox for Databases 配置目录，提供 Agent 可加载的数据库工具。
+- `cli`: 基于 Incur 的可安装 Agent 平台命令行客户端。
 
 ## 开发规则
 

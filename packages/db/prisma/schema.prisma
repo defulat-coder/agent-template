@@ -31,28 +31,44 @@ enum AgentRunStatus {
 }
 
 model AgentRun {
-  id                String          @id @default(cuid())
+  id                String             @id @default(cuid())
+  conversationId    String?
+  conversation      AgentConversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
   prompt            String
-  requestedAt       DateTime        @db.Timestamptz(3)
-  startedAt         DateTime?       @db.Timestamptz(3)
-  completedAt       DateTime?       @db.Timestamptz(3)
-  cancelRequestedAt DateTime?       @db.Timestamptz(3)
+  requestedAt       DateTime           @db.Timestamptz(3)
+  startedAt         DateTime?          @db.Timestamptz(3)
+  completedAt       DateTime?          @db.Timestamptz(3)
+  cancelRequestedAt DateTime?          @db.Timestamptz(3)
   status            AgentRunStatus
-  executionAttempt  Int             @default(0)
+  executionAttempt  Int                @default(0)
   executionToken    String?
-  leaseExpiresAt    DateTime?       @db.Timestamptz(3)
-  heartbeatAt       DateTime?       @db.Timestamptz(3)
+  leaseExpiresAt    DateTime?          @db.Timestamptz(3)
+  heartbeatAt       DateTime?          @db.Timestamptz(3)
   runtime           String?
   model             String?
   output            String?
   reason            String?
-  sessionId         String?
-  createdAt         DateTime        @default(now()) @db.Timestamptz(3)
-  updatedAt         DateTime        @updatedAt @db.Timestamptz(3)
+  runtimeSessionId  String?
+  createdAt         DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime           @updatedAt @db.Timestamptz(3)
   events            AgentRunEvent[]
 
   @@index([status, createdAt])
   @@index([status, leaseExpiresAt])
+  @@index([conversationId, createdAt])
+  @@schema("public")
+}
+
+model AgentConversation {
+  id                       String     @id @default(cuid())
+  title                    String?
+  runtime                  String
+  runtimeContinuationState Json?
+  createdAt                DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt                DateTime   @updatedAt @db.Timestamptz(3)
+  runs                     AgentRun[]
+
+  @@index([updatedAt, id])
   @@schema("public")
 }
 

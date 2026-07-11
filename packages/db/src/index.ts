@@ -16,4 +16,5 @@ if (process.env.NODE_ENV !== "production") {
 
 export type { PrismaClient };
 export { createPrismaAgentRunRepository } from "./agent-run-repository.js";
+export { createPrismaAgentConversationRepository } from "./agent-conversation-repository.js";
 export { defaultDatabaseUrl, getDatabaseUrl } from "./config.js";

@@ -29,6 +29,24 @@ describe("GET /health", () => {
       capabilityProfile: "development-all",
     });
   });
+
+  it("does not register unauthenticated legacy Agent routes in production", async () => {
+    const app = buildApp({
+      env: loadEnv({
+        NODE_ENV: "production",
+        AGENT_API_TOKEN: "production-agent-token",
+      }),
+      checkExternal: false,
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/agent/chat",
+      payload: { prompt: "Run agent" },
+    });
+
+    expect(response.statusCode).toBe(404);
+  });
 });
 
 describe("POST /agent/jobs", () => {
@@ -203,6 +221,7 @@ describe("getHealth", () => {
 function createRunSnapshot(): AgentRunSnapshot {
   return {
     id: "run-1",
+    conversationId: null,
     prompt: "Run agent",
     requestedAt: "2026-06-26T00:00:00.000Z",
     startedAt: null,
@@ -216,7 +235,6 @@ function createRunSnapshot(): AgentRunSnapshot {
     model: null,
     output: null,
     reason: null,
-    sessionId: null,
     events: [],
   };
 }
@@ -245,6 +263,7 @@ function createAgentRunLifecycleStub(
       runtime: "claude",
       status: "skipped",
     }),
+    list: async () => ({ items: [], nextCursor: null }),
     get: async () => snapshot,
     cancel: async () => snapshot,
     failQueued: async () => snapshot,

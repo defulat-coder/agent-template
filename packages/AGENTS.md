@@ -10,6 +10,7 @@
 - `ecommerce-fixture`: 独立 schema 的确定性 Toolbox 业务验证数据，不进入平台 runtime。
 - `logger`: Pino logger 统一配置。
 - `agent`: Agent runtime contract、selector 和公共入口。
+- `agent-client`: Web、CLI 和其他 Node 调用方共用的 Agent HTTP/SSE Client。
 - `agent-claude`: Claude Agent SDK backed runtime。
 - `agent-eve`: Eve filesystem-first runtime 和 `agent/` authored surface。
 - `toolbox-config`: Claude/Eve 共用的 Toolbox URL、Bearer token、能力 Profile 和业务语义 schema。

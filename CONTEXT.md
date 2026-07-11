@@ -28,6 +28,18 @@ _Avoid_: Configured flag, model ping
 One execution of an Agent from a prompt through the selected Agent runtime. It may be started by Chat SSE or by a queued Agent job.
 _Avoid_: Agent work, job result
 
+**Agent conversation**:
+A platform-owned, ordered series of Agent runs that preserves one multi-turn interaction independently of any Agent runtime's private session identifiers.
+_Avoid_: Runtime session, chat connection
+
+**Agent runtime continuation**:
+Server-private state that lets one Agent runtime continue an Agent conversation. Its shape belongs to the selected Agent runtime adapter and is never a client-facing conversation identifier.
+_Avoid_: Conversation ID, public session token
+
+**Agent runtime session ID**:
+An opaque identifier returned by an Agent runtime for runtime-specific inspection or resumption. It may be part of Agent runtime continuation, but it does not identify an Agent conversation.
+_Avoid_: Agent conversation ID, platform session ID
+
 **Agent run record**:
 The durable source of truth for one Agent run's status, ordered events, terminal result, and cancellation request.
 _Avoid_: Queue job, log record

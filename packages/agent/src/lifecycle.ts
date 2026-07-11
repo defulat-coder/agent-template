@@ -1,11 +1,21 @@
 import { randomUUID } from "node:crypto";
 import {
   AgentRunInputSchema,
+  AgentRunListQuerySchema,
+  AgentRunResultSchema,
+  AgentRunSummarySchema,
   type AgentRunEvent,
+  type AgentRunListQuery,
+  type AgentRunPage,
   type AgentRunResult,
   type AgentRunSnapshot,
+  type AgentRunSummary,
   type AgentRunStatus,
 } from "@agent-template/shared";
+import type {
+  AgentExecutionResult,
+  AgentRuntimeContinuation,
+} from "./runtime-continuation.js";
 
 export type StoredAgentRunEvent = {
   sequence: number;
@@ -18,6 +28,7 @@ type AgentRunEventWrite = Omit<StoredAgentRunEvent, "executionAttempt">;
 
 export type StoredAgentRun = {
   id: string;
+  conversationId: string | null;
   prompt: string;
   requestedAt: Date;
   startedAt: Date | null;
@@ -32,7 +43,7 @@ export type StoredAgentRun = {
   model: string | null;
   output: string | null;
   reason: string | null;
-  sessionId: string | null;
+  runtimeSessionId: string | null;
   events: StoredAgentRunEvent[];
 };
 
@@ -41,8 +52,13 @@ export type AgentRunRepository = {
     id: string;
     prompt: string;
     requestedAt: Date;
+    conversationId?: string;
   }): Promise<StoredAgentRun>;
   find(id: string): Promise<StoredAgentRun | undefined>;
+  list(input: AgentRunListQuery): Promise<{
+    items: StoredAgentRun[];
+    nextCursor: string | null;
+  }>;
   claim(
     id: string,
     input: {
@@ -72,7 +88,8 @@ export type AgentRunRepository = {
       completedAt: Date;
       output?: string;
       reason?: string;
-      sessionId?: string;
+      runtimeSessionId?: string;
+      runtimeContinuation?: AgentRuntimeContinuation;
     },
   ): Promise<StoredAgentRun | undefined>;
   failQueued(
@@ -87,12 +104,17 @@ type ExecuteAgentRun = (
   env: Record<string, unknown>,
   options: {
     abortController?: AbortController;
+    captureContinuation?: boolean;
+    continuation?: AgentRuntimeContinuation;
     onEvent?: (event: AgentRunEvent) => void;
   },
-) => Promise<AgentRunResult>;
+) => Promise<AgentExecutionResult>;
 
 export type AgentRunLifecycle = {
-  queue(input: unknown): Promise<AgentRunSnapshot>;
+  queue(
+    input: unknown,
+    options?: AgentRunLifecycleQueueOptions,
+  ): Promise<AgentRunSnapshot>;
   run(
     input: unknown,
     env: Record<string, unknown>,
@@ -104,13 +126,21 @@ export type AgentRunLifecycle = {
     options?: AgentRunLifecycleExecutionOptions,
   ): Promise<AgentRunResult>;
   get(runId: string): Promise<AgentRunSnapshot | undefined>;
+  list(query?: unknown): Promise<AgentRunPage>;
   cancel(runId: string): Promise<AgentRunSnapshot | undefined>;
   failQueued(runId: string, reason: string): Promise<AgentRunSnapshot>;
 };
 
 export type AgentRunLifecycleExecutionOptions = {
   abortSignal?: AbortSignal;
+  captureContinuation?: boolean;
+  continuation?: AgentRuntimeContinuation;
+  conversationId?: string;
   onEvent?: (event: AgentRunEvent) => void;
+};
+
+export type AgentRunLifecycleQueueOptions = {
+  conversationId?: string;
 };
 
 export const defaultAgentRunLeaseDurationMs = 60_000;
@@ -126,7 +156,10 @@ export function createAgentRunLifecycle(input: {
   const leaseDurationMs =
     input.leaseDurationMs ?? defaultAgentRunLeaseDurationMs;
 
-  async function queue(runInput: unknown) {
+  async function queue(
+    runInput: unknown,
+    options: AgentRunLifecycleQueueOptions = {},
+  ) {
     const parsed = AgentRunInputSchema.parse(runInput);
     const requestedAt = readRequestedAt(runInput) ?? now();
     return toSnapshot(
@@ -134,6 +167,9 @@ export function createAgentRunLifecycle(input: {
         id: randomUUID(),
         prompt: parsed.prompt,
         requestedAt,
+        ...(options.conversationId
+          ? { conversationId: options.conversationId }
+          : {}),
       }),
     );
   }
@@ -199,6 +235,10 @@ export function createAgentRunLifecycle(input: {
     try {
       const result = await input.execute({ prompt: started.prompt }, env, {
         abortController: controller,
+        ...(options.captureContinuation !== undefined
+          ? { captureContinuation: options.captureContinuation }
+          : {}),
+        ...(options.continuation ? { continuation: options.continuation } : {}),
         onEvent(event) {
           emittedEvents.push(event);
           const storedEvent = {
@@ -227,7 +267,12 @@ export function createAgentRunLifecycle(input: {
       }
 
       const completedAt = now();
-      const session = result.sessionId ? { sessionId: result.sessionId } : {};
+      const runtimeSession = result.runtimeSessionId
+        ? { runtimeSessionId: result.runtimeSessionId }
+        : {};
+      const continuation = result.runtimeContinuation
+        ? { runtimeContinuation: result.runtimeContinuation }
+        : {};
       const finished = await input.repository.finishExecution(
         runId,
         result.status === "completed"
@@ -236,18 +281,26 @@ export function createAgentRunLifecycle(input: {
               status: result.status,
               completedAt,
               output: result.output,
-              ...session,
+              ...runtimeSession,
+              ...continuation,
             }
           : {
               executionToken,
               status: result.status,
               completedAt,
               reason: result.reason,
-              ...session,
+              ...runtimeSession,
+              ...continuation,
             },
       );
       if (!finished) throw new AgentRunExecutionLeaseLostError(runId);
-      return { ...result, runId: finished.id };
+      return AgentRunResultSchema.parse({
+        ...result,
+        runId: finished.id,
+        ...(finished.conversationId
+          ? { conversationId: finished.conversationId }
+          : {}),
+      });
     } catch (error) {
       await eventWrites;
       if (
@@ -319,13 +372,25 @@ export function createAgentRunLifecycle(input: {
   return {
     queue,
     async run(runInput, env, options) {
-      const created = await queue(runInput);
+      const created = await queue(runInput, {
+        ...(options?.conversationId
+          ? { conversationId: options.conversationId }
+          : {}),
+      });
       return resume(created.id, env, options);
     },
     resume,
     async get(runId) {
       const run = await input.repository.find(runId);
       return run ? toSnapshot(run) : undefined;
+    },
+    async list(query) {
+      const parsed = AgentRunListQuerySchema.parse(query ?? {});
+      const page = await input.repository.list(parsed);
+      return {
+        items: page.items.map(toSummary),
+        nextCursor: page.nextCursor,
+      };
     },
     async cancel(runId) {
       const run = await input.repository.find(runId);
@@ -459,8 +524,8 @@ function resultFromStoredRun(run: StoredAgentRun): AgentRunResult {
     configured: run.status !== "skipped",
     model: run.model ?? "unknown",
     runId: run.id,
+    ...(run.conversationId ? { conversationId: run.conversationId } : {}),
     events: run.events.map((item) => item.event),
-    ...(run.sessionId ? { sessionId: run.sessionId } : {}),
   };
 
   if (run.status === "completed") {
@@ -486,6 +551,7 @@ function requireTerminalValue(run: StoredAgentRun, field: "output" | "reason") {
 function toSnapshot(run: StoredAgentRun): AgentRunSnapshot {
   return {
     id: run.id,
+    conversationId: run.conversationId,
     prompt: run.prompt,
     requestedAt: run.requestedAt.toISOString(),
     startedAt: run.startedAt?.toISOString() ?? null,
@@ -499,7 +565,6 @@ function toSnapshot(run: StoredAgentRun): AgentRunSnapshot {
     model: run.model,
     output: run.output,
     reason: run.reason,
-    sessionId: run.sessionId,
     events: run.events.map((item) => ({
       sequence: item.sequence,
       executionAttempt: item.executionAttempt,
@@ -507,4 +572,13 @@ function toSnapshot(run: StoredAgentRun): AgentRunSnapshot {
       event: item.event,
     })),
   };
+}
+
+function toSummary(run: StoredAgentRun): AgentRunSummary {
+  const snapshot = toSnapshot(run);
+  return AgentRunSummarySchema.parse({
+    ...snapshot,
+    promptPreview:
+      run.prompt.length > 120 ? `${run.prompt.slice(0, 117)}...` : run.prompt,
+  });
 }

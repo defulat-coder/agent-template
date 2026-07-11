@@ -9,7 +9,7 @@
 - 使用 App Router，页面入口在 `app/`。
 - 共享 UI 组件从 `@agent-template/ui` 引入。
 - 共享类型和响应 schema 从 `@agent-template/shared` 引入。
-- API base URL 使用 `NEXT_PUBLIC_API_BASE_URL`，默认 `http://localhost:14000`。
+- 浏览器通过同源 `/api/agent/chat` 调用 Next.js Route Handler；Route Handler 使用服务端 `AGENT_API_URL` 和 `AGENT_TEMPLATE_TOKEN` 访问 Agent API。
 
 ## 不应该做
 

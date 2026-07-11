@@ -11,6 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@agent-template/agent-client": "workspace:*",
     "@agent-template/shared": "workspace:*",
     "@agent-template/ui": "workspace:*",
     "next": "^16.2.9",

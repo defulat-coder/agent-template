@@ -18,6 +18,7 @@ type SubmitAgentJobOptions = {
 };
 
 type StreamAgentChatOptions = SubmitAgentJobOptions & {
+  conversationId?: string;
   onEvent?: (event: AgentRunEvent) => void;
   signal?: AbortSignal;
 };
@@ -58,8 +59,9 @@ export async function submitAgentJob({
 }
 
 export async function streamAgentChat({
+  conversationId,
   prompt,
-  baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:14000",
+  baseUrl = "/api",
   fetcher = fetch,
   onEvent,
   signal,
@@ -76,7 +78,10 @@ export async function streamAgentChat({
     response = await fetcher(`${baseUrl}/agent/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: trimmedPrompt }),
+      body: JSON.stringify({
+        prompt: trimmedPrompt,
+        ...(conversationId ? { conversationId } : {}),
+      }),
       ...(signal ? { signal } : {}),
     });
   } catch {

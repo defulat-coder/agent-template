@@ -261,6 +261,7 @@ function createInMemoryRepository(now = () => new Date()): AgentRunRepository {
     async create(input) {
       const run: StoredAgentRun = {
         ...input,
+        conversationId: input.conversationId ?? null,
         startedAt: null,
         completedAt: null,
         cancelRequestedAt: null,
@@ -273,7 +274,7 @@ function createInMemoryRepository(now = () => new Date()): AgentRunRepository {
         model: null,
         output: null,
         reason: null,
-        sessionId: null,
+        runtimeSessionId: null,
         events: [],
       };
       runs.set(run.id, run);
@@ -281,6 +282,10 @@ function createInMemoryRepository(now = () => new Date()): AgentRunRepository {
     },
     async find(id) {
       return runs.get(id);
+    },
+    async list(input) {
+      const items = [...runs.values()].slice(0, input.limit);
+      return { items, nextCursor: null };
     },
     async claim(id, input) {
       const run = runs.get(id);

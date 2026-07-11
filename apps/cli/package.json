@@ -1,0 +1,37 @@
+{
+  "name": "@agent-template/cli",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "bin": {
+    "agent-template": "./dist/bin.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "dev": "tsx src/bin.ts",
+    "start": "node dist/bin.js",
+    "build": "tsup",
+    "lint": "eslint src",
+    "typecheck": "node ../../scripts/tsc7.mjs -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "incur": ">=0.4.10 <1.0.0"
+  },
+  "devDependencies": {
+    "@agent-template/agent-client": "workspace:*",
+    "@agent-template/shared": "workspace:*",
+    "@types/node": "^26.0.1",
+    "tsup": "^8.5.1",
+    "tsx": "^4.22.4",
+    "vitest": "^4.1.9"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "restricted"
+  }
+}

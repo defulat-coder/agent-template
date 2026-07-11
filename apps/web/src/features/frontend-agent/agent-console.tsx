@@ -19,6 +19,7 @@ type AgentConsoleStatus =
 export function AgentConsole() {
   const [prompt, setPrompt] = useState("");
   const [events, setEvents] = useState<AgentRunEvent[]>([]);
+  const [conversationId, setConversationId] = useState<string>();
   const [result, setResult] = useState<AgentRunResult | null>(null);
   const [streamedOutput, setStreamedOutput] = useState("");
   const [error, setError] = useState("");
@@ -45,6 +46,7 @@ export function AgentConsole() {
     abortControllerRef.current = abortController;
     try {
       const chatResult = await streamAgentChat({
+        ...(conversationId ? { conversationId } : {}),
         prompt,
         signal: abortController.signal,
         onEvent(event) {
@@ -60,6 +62,9 @@ export function AgentConsole() {
       });
 
       setResult(chatResult);
+      if (chatResult.conversationId) {
+        setConversationId(chatResult.conversationId);
+      }
       setStreamedOutput(getAgentRunResultText(chatResult));
       setStatus(
         chatResult.status === "skipped" ? "skipped" : chatResult.status,

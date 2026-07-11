@@ -50,6 +50,7 @@ describe("AgentRunResultSchema", () => {
   it("keeps persistence metadata in snapshot event envelopes", () => {
     const snapshot = {
       id: "run-1",
+      conversationId: null,
       prompt: "Run",
       requestedAt: "2026-07-11T00:00:00.000Z",
       startedAt: "2026-07-11T00:00:01.000Z",
@@ -63,7 +64,6 @@ describe("AgentRunResultSchema", () => {
       model: "test-model",
       output: "Done",
       reason: null,
-      sessionId: null,
       events: [
         {
           sequence: 3,
@@ -75,11 +75,32 @@ describe("AgentRunResultSchema", () => {
     };
 
     expect(AgentRunSnapshotSchema.parse(snapshot)).toEqual(snapshot);
+    expect(
+      AgentRunSnapshotSchema.parse({
+        ...snapshot,
+        runtimeSessionId: "private-runtime-session",
+      }),
+    ).toEqual(snapshot);
     expect(() =>
       AgentRunSnapshotSchema.parse({
         ...snapshot,
         events: [{ kind: "done", result: "Done" }],
       }),
     ).toThrow();
+  });
+
+  it("does not expose runtime continuation handles in terminal results", () => {
+    const result = AgentRunResultSchema.parse({
+      configured: true,
+      events: [],
+      model: "kimi-for-coding",
+      output: "Done",
+      promptLength: 9,
+      runtime: "claude",
+      runtimeSessionId: "private-runtime-session",
+      status: "completed",
+    });
+
+    expect(result).not.toHaveProperty("runtimeSessionId");
   });
 });

@@ -190,6 +190,8 @@ export async function runClaudeAgent(
     abortController?: AbortController;
     loadSdk?: () => Promise<ClaudeAgentSdk>;
     onEvent?: (event: AgentRunEvent) => void;
+    persistSession?: boolean;
+    resumeSessionId?: string;
   } = {},
 ): Promise<ClaudeAgentRunResult> {
   if (!config.apiKey && !config.authToken) {
@@ -219,7 +221,8 @@ export async function runClaudeAgent(
       maxTurns: defaultClaudeAgentMaxTurns,
       mcpServers: createClaudeToolboxMcpServers(config),
       permissionMode: "dontAsk",
-      persistSession: false,
+      persistSession: options.persistSession ?? false,
+      ...(options.resumeSessionId ? { resume: options.resumeSessionId } : {}),
       settingSources: ["project"],
       skills: "all",
       tools: [],

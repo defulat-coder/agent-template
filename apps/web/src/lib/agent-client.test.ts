@@ -125,6 +125,30 @@ describe("streamAgentChat", () => {
     expect(events).toEqual([{ kind: "text", text: "Working" }]);
   });
 
+  it("continues an existing platform conversation", async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      body: createStream(
+        'event: result\ndata: {"promptLength":8,"runtime":"claude","configured":true,"model":"test","status":"completed","events":[],"output":"Done","runId":"run-2","conversationId":"conversation-1"}\n\n',
+      ),
+      ok: true,
+    });
+
+    await streamAgentChat({
+      conversationId: "conversation-1",
+      prompt: "Continue",
+      fetcher,
+    });
+
+    expect(fetcher).toHaveBeenCalledWith("/api/agent/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        prompt: "Continue",
+        conversationId: "conversation-1",
+      }),
+    });
+  });
+
   it("reports caller cancellation separately", async () => {
     const controller = new AbortController();
     controller.abort();
@@ -146,6 +170,7 @@ describe("Agent run lifecycle client", () => {
   it("loads and cancels a durable Agent run", async () => {
     const snapshot = {
       id: "run-1",
+      conversationId: null,
       prompt: "Run agent",
       requestedAt: "2026-07-11T00:00:00.000Z",
       startedAt: null,
@@ -159,7 +184,6 @@ describe("Agent run lifecycle client", () => {
       model: null,
       output: null,
       reason: null,
-      sessionId: null,
       events: [],
     };
     const fetcher = vi.fn().mockResolvedValue({

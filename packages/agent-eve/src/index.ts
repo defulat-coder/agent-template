@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Client } from "eve/client";
+import { Client, type SessionState } from "eve/client";
 import type { AgentRunEvent, DependencyState } from "@agent-template/shared";
 import { defaultEveAgentModel, readEveAgentModel } from "./config.js";
 
@@ -39,12 +39,14 @@ export type EveAgentRunResult =
       events: AgentRunEvent[];
       output: string;
       sessionId: string;
+      sessionState?: SessionState;
     }
   | {
       status: "failed";
       events: AgentRunEvent[];
       reason: string;
       sessionId?: string;
+      sessionState?: SessionState;
     };
 
 type EveReadinessClient = {
@@ -52,7 +54,8 @@ type EveReadinessClient = {
 };
 
 type EveRunClient = {
-  session(): {
+  session(state?: SessionState): {
+    readonly state: SessionState;
     send(
       input: string | { message: string; signal?: AbortSignal },
     ): Promise<EveMessageResponse>;
@@ -135,6 +138,7 @@ export async function runEveAgent(
     abortController?: AbortController;
     createClient?: (host: string, config: EveAgentConfig) => EveRunClient;
     onEvent?: (event: AgentRunEvent) => void;
+    sessionState?: SessionState;
   } = {},
 ): Promise<EveAgentRunResult> {
   if (!config.host) {
@@ -142,13 +146,12 @@ export async function runEveAgent(
   }
 
   const client = (options.createClient ?? createEveClient)(config.host, config);
-  const response = await client
-    .session()
-    .send(
-      options.abortController
-        ? { message: input.prompt, signal: options.abortController.signal }
-        : input.prompt,
-    );
+  const session = client.session(options.sessionState);
+  const response = await session.send(
+    options.abortController
+      ? { message: input.prompt, signal: options.abortController.signal }
+      : input.prompt,
+  );
   const rawEvents: unknown[] = [];
   const events: AgentRunEvent[] = [];
 
@@ -173,6 +176,7 @@ export async function runEveAgent(
       events: [...events, event],
       reason,
       sessionId: response.sessionId,
+      sessionState: session.state,
     };
   }
 
@@ -185,6 +189,7 @@ export async function runEveAgent(
     events: [...events, event],
     output,
     sessionId: response.sessionId,
+    sessionState: session.state,
   };
 }
 
