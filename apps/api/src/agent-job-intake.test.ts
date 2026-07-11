@@ -47,9 +47,7 @@ describe("createAgentJobIntake", () => {
         "add",
         "agent.run",
         {
-          prompt: "Summarize this template",
           runId: "run-1",
-          requestedAt: "2026-06-26T00:00:00.000Z",
         },
       ],
       ["close"],

@@ -10,7 +10,7 @@ export const AgentJobRequestSchema = AgentRunInputSchema.extend({
   requestedAt: z.string().datetime(),
 });
 
-export const AgentJobPayloadSchema = AgentJobRequestSchema.extend({
+export const AgentJobPayloadSchema = z.object({
   runId: z.string().min(1),
 });
 

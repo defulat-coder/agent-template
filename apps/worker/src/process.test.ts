@@ -6,9 +6,7 @@ describe("createAgentWorkerProcess", () => {
   it("assembles worker processing, events, and shutdown behind one interface", async () => {
     const logs: unknown[] = [];
     const payload: AgentJobPayload = {
-      prompt: "Summarize this template",
       runId: "run-1",
-      requestedAt: "2026-06-26T00:00:00.000Z",
     };
     let capturedProcessJob:
       | ((job: {
@@ -58,7 +56,7 @@ describe("createAgentWorkerProcess", () => {
       },
       async processJob(jobPayload) {
         return {
-          promptLength: jobPayload.prompt.length,
+          promptLength: jobPayload.runId.length,
           runtime: "claude",
           configured: false,
           model: "kimi-for-coding",
@@ -71,7 +69,7 @@ describe("createAgentWorkerProcess", () => {
     await expect(
       capturedProcessJob?.({ id: "job-1", name: "agent.run", data: payload }),
     ).resolves.toEqual({
-      promptLength: 23,
+      promptLength: 5,
       runtime: "claude",
       configured: false,
       model: "kimi-for-coding",

@@ -41,6 +41,7 @@
 | completed  | 按部署选择动态加载 runtime adapter         | Strong          | 公共 selector 保留同步 config，execution/readiness 只加载所选 adapter                   |
 | completed  | 修正 ADR 与模块规则的 Host 漂移            | Strong          | superseded ADR 仅保留历史；当前规则统一指向 runtime-owned MCP 与 Toolbox 授权           |
 | completed  | 隔离平台数据库与 Ecommerce fixture         | Strong          | 平台留在 `public`；fixture 独立 package/schema/migration/seed，Tool SQL 显式限定 schema |
+| completed  | 收紧 Agent job queue payload seam          | Strong          | BullMQ 只携带 `runId`；Worker process 强制注入 lifecycle resume，不保留 runtime 旁路    |
 | completed  | 同步 Toolbox 生成产物                      | Strong          | production 配置、官方原始 Skill 与 runtime Skill 均由同一事实源生成并通过 stale gate    |
 | completed  | 固定 Toolbox UTC 日桶                      | Strong          | 销售日显式按 UTC 转换，不再依赖 PostgreSQL session timezone                             |
 | completed  | 规范化 Toolbox MCP URL                     | Worth exploring | `/mcp/` 与 `/mcp` 归一为一个 MCP path，Claude/Eve 共享 parser 不再重复追加              |
@@ -54,6 +55,14 @@
 - 每轮完成后用中文 Conventional Commit 提交。
 
 ## 已完成
+
+### 收紧 Agent job queue payload seam
+
+- 日期：2026-07-11
+- locality：Agent job 的 prompt、requestedAt 与终态只保存在 Agent run record；BullMQ payload interface 只剩 `runId`。
+- deletion test：删除 Worker process 的默认 runtime 调用会消除绕过持久化 lifecycle 的第二条执行路径，而不会把复杂度移到别处。
+- leverage：API intake、BullMQ queue 与 Worker process 共用单字段 schema；生产装配和测试都必须显式注入 `AgentRunLifecycle.resume`。
+- 聚焦验证：shared、API、Worker 的 lint/typecheck/test/build；`pnpm agent-runs:verify:local` 验证真实 PostgreSQL lifecycle。
 
 ### 隔离平台数据库与 Ecommerce fixture
 

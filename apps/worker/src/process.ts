@@ -1,5 +1,5 @@
 import { Worker } from "bullmq";
-import { runAgent, type AgentRunResult } from "@agent-template/agent";
+import type { AgentRunResult } from "@agent-template/agent";
 import { createLogger } from "@agent-template/logger";
 import { agentQueueName, type AgentJobPayload } from "@agent-template/shared";
 import { createBullMqConnectionOptions } from "@agent-template/shared/node";
@@ -36,13 +36,17 @@ export type CreateAgentWorkerProcessOptions = {
   env: WorkerEnv;
   logger?: ProcessLogger;
   createWorker?: (options: CreateWorkerOptions) => AgentWorker;
-  processJob?: (payload: AgentJobPayload, env: WorkerEnv) => Promise<AgentRunResult>;
+  processJob(payload: AgentJobPayload, env: WorkerEnv): Promise<AgentRunResult>;
 };
 
 function createBullMqWorker(options: CreateWorkerOptions): AgentWorker {
-  const worker = new Worker<AgentJobPayload>(agentQueueName, options.processJob, {
-    connection: createBullMqConnectionOptions(options.env.REDIS_URL)
-  });
+  const worker = new Worker<AgentJobPayload>(
+    agentQueueName,
+    options.processJob,
+    {
+      connection: createBullMqConnectionOptions(options.env.REDIS_URL),
+    },
+  );
 
   worker.on("completed", options.onCompleted);
   worker.on("failed", options.onFailed);
@@ -50,36 +54,36 @@ function createBullMqWorker(options: CreateWorkerOptions): AgentWorker {
   return worker;
 }
 
-export function createAgentWorkerProcess(options: CreateAgentWorkerProcessOptions): AgentWorkerProcess {
+export function createAgentWorkerProcess(
+  options: CreateAgentWorkerProcessOptions,
+): AgentWorkerProcess {
   const logger = options.logger ?? createLogger({ service: "worker" });
-  const processJob =
-    options.processJob ??
-    ((payload, env) => {
-      return runAgent(payload, env);
-    });
   const worker = (options.createWorker ?? createBullMqWorker)({
     env: options.env,
     logger,
     async processJob(job) {
       logger.info({ jobId: job.id, jobName: job.name }, "processing agent job");
-      return processJob(job.data, options.env);
+      return options.processJob(job.data, options.env);
     },
     onCompleted(job) {
       logger.info({ jobId: job.id }, "agent job completed");
     },
     onFailed(job, error) {
       logger.error({ jobId: job?.id, error }, "agent job failed");
-    }
+    },
   });
 
   return {
     close() {
       return worker.close();
-    }
+    },
   };
 }
 
-export function registerWorkerShutdown(workerProcess: AgentWorkerProcess, signalTarget: NodeJS.Process = process): void {
+export function registerWorkerShutdown(
+  workerProcess: AgentWorkerProcess,
+  signalTarget: NodeJS.Process = process,
+): void {
   signalTarget.on("SIGTERM", async () => {
     await workerProcess.close();
   });

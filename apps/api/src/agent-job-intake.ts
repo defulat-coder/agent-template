@@ -44,7 +44,7 @@ async function enqueueAgentJob(
 ): Promise<AgentJobAccepted> {
   const request = AgentJobRequestSchema.parse(input);
   const run = await options.agentRunLifecycle.queue(request);
-  const payload = { ...request, runId: run.id } satisfies AgentJobPayload;
+  const payload = { runId: run.id } satisfies AgentJobPayload;
   const queue = (options.createQueue ?? createAgentQueue)(options.redisUrl);
 
   try {
