@@ -21,16 +21,20 @@ annotations:
   idempotentHint: true
   openWorldHint: false
 statement: |
-  WITH settled_orders AS (
+  WITH toolbox_window AS MATERIALIZED (
+    SELECT * FROM public.validate_toolbox_time_window($1::timestamptz, $2::timestamptz)
+  ),
+  settled_orders AS (
     SELECT
       "paidAt"::date AS "salesDate",
       "customerId",
       "paidTotal",
       "refundedTotal"
     FROM "EcommerceOrder"
+    CROSS JOIN toolbox_window
     WHERE status IN ('PAID', 'FULFILLED', 'REFUNDED')
-      AND "paidAt" >= $1::timestamptz
-      AND "paidAt" < $2::timestamptz
+      AND "paidAt" >= toolbox_window.window_from
+      AND "paidAt" < toolbox_window.window_to
   )
   SELECT
     "salesDate",
@@ -63,6 +67,9 @@ annotations:
   idempotentHint: true
   openWorldHint: false
 statement: |
+  WITH toolbox_window AS MATERIALIZED (
+    SELECT * FROM public.validate_toolbox_time_window($1::timestamptz, $2::timestamptz)
+  )
   SELECT
     channel::text AS channel,
     COUNT(*)::int AS "paidOrderCount",
@@ -72,9 +79,10 @@ statement: |
     COALESCE(SUM("paidTotal" - "refundedTotal"), 0) AS "netSales",
     COALESCE(ROUND(AVG("paidTotal" - "refundedTotal"), 2), 0) AS "averageOrderValue"
   FROM "EcommerceOrder"
+  CROSS JOIN toolbox_window
   WHERE status IN ('PAID', 'FULFILLED', 'REFUNDED')
-    AND "paidAt" >= $1::timestamptz
-    AND "paidAt" < $2::timestamptz
+    AND "paidAt" >= toolbox_window.window_from
+    AND "paidAt" < toolbox_window.window_to
   GROUP BY channel
   ORDER BY "netSales" DESC, channel ASC;
 parameters:
@@ -99,6 +107,9 @@ annotations:
   idempotentHint: true
   openWorldHint: false
 statement: |
+  WITH toolbox_window AS MATERIALIZED (
+    SELECT * FROM public.validate_toolbox_time_window($1::timestamptz, $2::timestamptz)
+  )
   SELECT
     customer.region,
     COUNT(*)::int AS "paidOrderCount",
@@ -112,9 +123,10 @@ statement: |
     ) AS "averageOrderValue"
   FROM "EcommerceOrder" AS orders
   JOIN "EcommerceCustomer" AS customer ON customer.id = orders."customerId"
+  CROSS JOIN toolbox_window
   WHERE orders.status IN ('PAID', 'FULFILLED', 'REFUNDED')
-    AND orders."paidAt" >= $1::timestamptz
-    AND orders."paidAt" < $2::timestamptz
+    AND orders."paidAt" >= toolbox_window.window_from
+    AND orders."paidAt" < toolbox_window.window_to
   GROUP BY customer.region
   ORDER BY "netSales" DESC, customer.region ASC;
 parameters:
@@ -138,6 +150,9 @@ annotations:
   idempotentHint: true
   openWorldHint: false
 statement: |
+  WITH toolbox_window AS MATERIALIZED (
+    SELECT * FROM public.validate_toolbox_time_window($1::timestamptz, $2::timestamptz)
+  )
   SELECT
     customer.segment::text AS "customerSegment",
     COUNT(*)::int AS "paidOrderCount",
@@ -151,9 +166,10 @@ statement: |
     ) AS "averageOrderValue"
   FROM "EcommerceOrder" AS orders
   JOIN "EcommerceCustomer" AS customer ON customer.id = orders."customerId"
+  CROSS JOIN toolbox_window
   WHERE orders.status IN ('PAID', 'FULFILLED', 'REFUNDED')
-    AND orders."paidAt" >= $1::timestamptz
-    AND orders."paidAt" < $2::timestamptz
+    AND orders."paidAt" >= toolbox_window.window_from
+    AND orders."paidAt" < toolbox_window.window_to
   GROUP BY customer.segment
   ORDER BY "netSales" DESC, "customerSegment" ASC;
 parameters:
@@ -177,7 +193,10 @@ annotations:
   idempotentHint: true
   openWorldHint: false
 statement: |
-  WITH settled_items AS (
+  WITH toolbox_window AS MATERIALIZED (
+    SELECT * FROM public.validate_toolbox_time_window($1::timestamptz, $2::timestamptz)
+  ),
+  settled_items AS (
     SELECT
       item."productId",
       item.quantity,
@@ -187,9 +206,10 @@ statement: |
       ) AS "netMerchandiseSales"
     FROM "EcommerceOrderItem" AS item
     JOIN "EcommerceOrder" AS orders ON orders.id = item."orderId"
+    CROSS JOIN toolbox_window
     WHERE orders.status IN ('PAID', 'FULFILLED', 'REFUNDED')
-      AND orders."paidAt" >= $1::timestamptz
-      AND orders."paidAt" < $2::timestamptz
+      AND orders."paidAt" >= toolbox_window.window_from
+      AND orders."paidAt" < toolbox_window.window_to
   )
   SELECT
     product.sku,
@@ -238,7 +258,10 @@ annotations:
   idempotentHint: true
   openWorldHint: false
 statement: |
-  WITH settled_items AS (
+  WITH toolbox_window AS MATERIALIZED (
+    SELECT * FROM public.validate_toolbox_time_window($1::timestamptz, $2::timestamptz)
+  ),
+  settled_items AS (
     SELECT
       item.category,
       item.quantity,
@@ -248,9 +271,10 @@ statement: |
       ) AS "netMerchandiseSales"
     FROM "EcommerceOrderItem" AS item
     JOIN "EcommerceOrder" AS orders ON orders.id = item."orderId"
+    CROSS JOIN toolbox_window
     WHERE orders.status IN ('PAID', 'FULFILLED', 'REFUNDED')
-      AND orders."paidAt" >= $1::timestamptz
-      AND orders."paidAt" < $2::timestamptz
+      AND orders."paidAt" >= toolbox_window.window_from
+      AND orders."paidAt" < toolbox_window.window_to
   )
   SELECT
     category,
@@ -281,6 +305,9 @@ annotations:
   idempotentHint: true
   openWorldHint: false
 statement: |
+  WITH toolbox_window AS MATERIALIZED (
+    SELECT * FROM public.validate_toolbox_time_window($1::timestamptz, $2::timestamptz)
+  )
   SELECT
     orders."orderNumber",
     orders.status::text AS status,
@@ -297,8 +324,9 @@ statement: |
     COUNT(*) OVER()::int AS "totalCount"
   FROM "EcommerceOrder" AS orders
   JOIN "EcommerceCustomer" AS customer ON customer.id = orders."customerId"
-  WHERE orders."placedAt" >= $1::timestamptz
-    AND orders."placedAt" < $2::timestamptz
+  CROSS JOIN toolbox_window
+  WHERE orders."placedAt" >= toolbox_window.window_from
+    AND orders."placedAt" < toolbox_window.window_to
   ORDER BY orders."placedAt" DESC, orders.id DESC
   LIMIT $3
   OFFSET $4;
@@ -390,6 +418,9 @@ annotations:
   idempotentHint: true
   openWorldHint: false
 statement: |
+  WITH toolbox_window AS MATERIALIZED (
+    SELECT * FROM public.validate_toolbox_time_window($1::timestamptz, $2::timestamptz)
+  )
   SELECT
     orders."orderNumber",
     customer."customerCode",
@@ -397,13 +428,14 @@ statement: |
     orders.channel::text AS channel,
     orders."paidAt",
     orders."paidTotal",
-    ROUND(EXTRACT(EPOCH FROM ($2::timestamptz - orders."paidAt")) / 3600, 2) AS "hoursWaiting",
+    ROUND(EXTRACT(EPOCH FROM (toolbox_window.window_to - orders."paidAt")) / 3600, 2) AS "hoursWaiting",
     COUNT(*) OVER()::int AS "totalCount"
   FROM "EcommerceOrder" AS orders
   JOIN "EcommerceCustomer" AS customer ON customer.id = orders."customerId"
+  CROSS JOIN toolbox_window
   WHERE orders.status = 'PAID'
-    AND orders."paidAt" >= $1::timestamptz
-    AND orders."paidAt" < $2::timestamptz
+    AND orders."paidAt" >= toolbox_window.window_from
+    AND orders."paidAt" < toolbox_window.window_to
     AND orders."fulfilledAt" IS NULL
   ORDER BY orders."paidAt" ASC, orders.id ASC
   LIMIT $3
@@ -488,10 +520,14 @@ annotations:
   idempotentHint: true
   openWorldHint: false
 statement: |
+  WITH toolbox_window AS MATERIALIZED (
+    SELECT * FROM public.validate_toolbox_time_window($1::timestamptz, $2::timestamptz)
+  )
   SELECT id, type, payload, "createdAt"
   FROM "TemplateEvent"
-  WHERE "createdAt" >= $1::timestamptz
-    AND "createdAt" < $2::timestamptz
+  CROSS JOIN toolbox_window
+  WHERE "createdAt" >= toolbox_window.window_from
+    AND "createdAt" < toolbox_window.window_to
   ORDER BY "createdAt" DESC, id DESC
   LIMIT $3;
 parameters:
@@ -521,6 +557,9 @@ annotations:
   idempotentHint: true
   openWorldHint: false
 statement: |
+  WITH toolbox_window AS MATERIALIZED (
+    SELECT * FROM public.validate_toolbox_time_window($1::timestamptz, $2::timestamptz)
+  )
   SELECT
     type,
     COUNT(*)::int AS "eventCount",
@@ -528,8 +567,9 @@ statement: |
     MIN("createdAt") AS "firstEventAt",
     MAX("createdAt") AS "lastEventAt"
   FROM "TemplateEvent"
-  WHERE "createdAt" >= $1::timestamptz
-    AND "createdAt" < $2::timestamptz
+  CROSS JOIN toolbox_window
+  WHERE "createdAt" >= toolbox_window.window_from
+    AND "createdAt" < toolbox_window.window_to
   GROUP BY type
   ORDER BY "eventCount" DESC, type ASC;
 parameters:
@@ -645,6 +685,9 @@ annotations:
   idempotentHint: true
   openWorldHint: false
 statement: |
+  WITH toolbox_window AS MATERIALIZED (
+    SELECT * FROM public.validate_toolbox_time_window($1::timestamptz, $2::timestamptz)
+  )
   SELECT
     payload->>'runId' AS "runId",
     payload->>'reason' AS reason,
@@ -655,9 +698,10 @@ statement: |
     END AS retryable,
     "createdAt" AS "failedAt"
   FROM "TemplateEvent"
+  CROSS JOIN toolbox_window
   WHERE type = 'agent.run.failed'
-    AND "createdAt" >= $1::timestamptz
-    AND "createdAt" < $2::timestamptz
+    AND "createdAt" >= toolbox_window.window_from
+    AND "createdAt" < toolbox_window.window_to
   ORDER BY "createdAt" DESC, id DESC
   LIMIT $3;
 parameters:
@@ -687,7 +731,10 @@ annotations:
   idempotentHint: true
   openWorldHint: false
 statement: |
-  WITH invocation_events AS (
+  WITH toolbox_window AS MATERIALIZED (
+    SELECT * FROM public.validate_toolbox_time_window($1::timestamptz, $2::timestamptz)
+  ),
+  invocation_events AS (
     SELECT
       payload->>'toolName' AS "toolName",
       CASE
@@ -695,9 +742,10 @@ statement: |
         ELSE NULL
       END AS "latencyMs"
     FROM "TemplateEvent"
+    CROSS JOIN toolbox_window
     WHERE type = 'toolbox.tool.invoked'
-      AND "createdAt" >= $1::timestamptz
-      AND "createdAt" < $2::timestamptz
+      AND "createdAt" >= toolbox_window.window_from
+      AND "createdAt" < toolbox_window.window_to
   )
   SELECT
     "toolName",

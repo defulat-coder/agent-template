@@ -35,6 +35,7 @@
 | completed | 由 Agent runtime 持有 MCP Client            | Strong          | Claude/Eve 各自使用框架原生 Client，共享包只持有配置与 schema                         |
 | completed | 阻止 Toolbox token 进入 Claude subprocess  | Strong          | ambient Toolbox env 在创建 Claude subprocess env 时显式删除并有回归测试               |
 | completed | 恢复 Toolbox 执行级时间窗护栏              | Strong          | PostgreSQL 统一拒绝反向或超过 31 天的窗口，原生 MCP 验收穿过真实 seam                 |
+| completed | 同步 Toolbox 生成产物                      | Strong          | production 配置、官方原始 Skill 与 runtime Skill 均由同一事实源生成并通过 stale gate |
 
 ## 执行规则
 
@@ -43,6 +44,14 @@
 - 每轮完成后用中文 Conventional Commit 提交。
 
 ## 已完成
+
+### 同步 Toolbox 生成产物
+
+- 日期：2026-07-11
+- locality：`apps/toolbox/tools.yaml` 的时间窗 invariant 已投影到 production 配置和四个官方原始 Skill，runtime Skill 继续由同一生成 module 管理。
+- deletion test：删除生成 gate 会重新允许 source、production 和 Skill 资产各自漂移，因此该 gate 继续保留。
+- leverage：一次 `pnpm toolbox:check` 同时验证 production、Claude、Eve 与官方原始 Skill 输出。
+- 聚焦验证：Node 24 下 `pnpm toolbox:check`。
 
 ### 恢复 Toolbox 执行级时间窗护栏
 
