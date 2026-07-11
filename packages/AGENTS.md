@@ -12,6 +12,7 @@
 - `agent`: Agent runtime contract、selector 和公共入口。
 - `agent-claude`: Claude Agent SDK backed runtime。
 - `agent-eve`: Eve filesystem-first runtime 和 `agent/` authored surface。
+- `toolbox-config`: Claude/Eve 共用的 Toolbox URL、Bearer token、能力 Profile 和业务语义 schema。
 
 ## 开发规则
 
