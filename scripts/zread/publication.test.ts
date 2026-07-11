@@ -13,10 +13,9 @@ test("replaces the current wiki after the staged copy is complete", async () => 
 
   try {
     await publishDirectoryAtomically(fixture.source, fixture.destination);
-
     assert.equal(
-      await readFile(path.join(fixture.destination, "quickstart.md"), "utf8"),
-      "new wiki",
+      await readFile(path.join(fixture.destination, "current"), "utf8"),
+      "new-version\n",
     );
   } finally {
     await rm(fixture.root, { recursive: true, force: true });
@@ -41,10 +40,9 @@ test("restores the previous wiki when promotion fails", async () => {
       }),
       /simulated promotion failure/,
     );
-
     assert.equal(
-      await readFile(path.join(fixture.destination, "quickstart.md"), "utf8"),
-      "old wiki",
+      await readFile(path.join(fixture.destination, "current"), "utf8"),
+      "old-version\n",
     );
   } finally {
     await rm(fixture.root, { recursive: true, force: true });
@@ -52,12 +50,12 @@ test("restores the previous wiki when promotion fails", async () => {
 });
 
 async function createFixture() {
-  const root = await mkdtemp(path.join(tmpdir(), "openwiki-publication-test-"));
+  const root = await mkdtemp(path.join(tmpdir(), "zread-publication-test-"));
   const source = path.join(root, "source");
-  const destination = path.join(root, "openwiki");
+  const destination = path.join(root, "wiki");
   await mkdir(source);
   await mkdir(destination);
-  await writeFile(path.join(source, "quickstart.md"), "new wiki");
-  await writeFile(path.join(destination, "quickstart.md"), "old wiki");
-  return { root, source, destination };
+  await writeFile(path.join(source, "current"), "new-version\n");
+  await writeFile(path.join(destination, "current"), "old-version\n");
+  return { destination, root, source };
 }

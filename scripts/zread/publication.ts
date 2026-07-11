@@ -1,5 +1,5 @@
-import { cp, rename, rm } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
+import { cp, rename, rm } from "node:fs/promises";
 
 export type DirectoryOperations = {
   copy: (source: string, destination: string) => Promise<void>;
@@ -53,7 +53,7 @@ export async function publishDirectoryAtomically(
       } catch (restoreError) {
         throw new AggregateError(
           [error, restoreError],
-          "OpenWiki publication failed and the previous wiki could not be restored",
+          "ZRead publication failed and the previous wiki could not be restored",
         );
       }
     }
