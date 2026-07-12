@@ -1,7 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronDown } from "lucide-react";
+import {
+  BookOpenText,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  FileCode2,
+} from "lucide-react";
 import { Badge } from "@agent-template/ui/components/badge";
 import {
   Breadcrumb,
@@ -72,19 +78,24 @@ export default async function DocsPage({ params }: DocsPageProps) {
   }
 
   const groups = groupCatalog(catalog);
+  const documentIndex = catalog.findIndex(
+    (entry) => entry.href === document.href,
+  );
+  const previousDocument = catalog[documentIndex - 1];
+  const nextDocument = catalog[documentIndex + 1];
 
   return (
     <main className="min-h-dvh bg-background text-foreground">
-      <header className="sticky top-0 z-20 border-b bg-background">
-        <div className="mx-auto flex min-h-16 max-w-7xl items-center justify-between gap-4 px-5 py-3 lg:px-8">
+      <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        <div className="mx-auto flex min-h-14 max-w-[90rem] items-center justify-between gap-4 px-4 lg:px-6">
           <Link className="flex items-center gap-3" href="/docs">
-            <Badge>AT</Badge>
+            <span className="grid size-8 place-items-center rounded-lg border bg-card shadow-xs">
+              <BookOpenText className="size-4" />
+            </span>
             <span>
-              <span className="block text-sm font-semibold">
-                Agent Template
-              </span>
-              <span className="block text-xs text-muted-foreground">
-                工程文档
+              <span className="block text-sm font-semibold">Open Wiki</span>
+              <span className="hidden text-xs text-muted-foreground sm:block">
+                Agent Template · ZRead
               </span>
             </span>
           </Link>
@@ -99,8 +110,8 @@ export default async function DocsPage({ params }: DocsPageProps) {
         </div>
       </header>
 
-      <div className="mx-auto max-w-7xl px-5 lg:grid lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-12 lg:px-8">
-        <aside className="py-6 lg:sticky lg:top-16 lg:h-[calc(100dvh-4rem)] lg:overflow-y-auto lg:py-10">
+      <div className="mx-auto max-w-[90rem] px-4 lg:grid lg:grid-cols-[260px_minmax(0,1fr)] lg:px-6">
+        <aside className="py-5 lg:sticky lg:top-14 lg:h-[calc(100dvh-3.5rem)] lg:border-r lg:py-8 lg:pr-6">
           <Collapsible className="lg:hidden">
             <CollapsibleTrigger asChild>
               <Button className="w-full justify-between" variant="outline">
@@ -120,15 +131,18 @@ export default async function DocsPage({ params }: DocsPageProps) {
             </CollapsibleContent>
           </Collapsible>
           <div className="hidden lg:flex lg:flex-col lg:gap-5">
-            <Badge className="w-fit" variant="outline">
-              Documentation
-            </Badge>
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                文档目录
+              </p>
+              <Badge variant="secondary">{catalog.length}</Badge>
+            </div>
             <DocsNavigation currentHref={document.href} groups={groups} />
           </div>
         </aside>
 
-        <article className="min-w-0 py-10 lg:border-l lg:py-14 lg:pl-12">
-          <Breadcrumb className="mb-8">
+        <article className="min-w-0 py-8 lg:py-12 lg:pl-12 xl:pl-16">
+          <Breadcrumb className="mb-6">
             <BreadcrumbList>
               <BreadcrumbItem>
                 <BreadcrumbLink asChild>
@@ -141,6 +155,12 @@ export default async function DocsPage({ params }: DocsPageProps) {
               </BreadcrumbItem>
             </BreadcrumbList>
           </Breadcrumb>
+
+          <div className="mb-6 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <Badge variant="outline">ZRead</Badge>
+            <FileCode2 className="size-3.5" />
+            <span className="font-mono">{document.relativePath}</span>
+          </div>
 
           <div className="max-w-3xl">
             <h1 className="mb-8 text-balance text-3xl font-semibold md:text-4xl">
@@ -155,6 +175,8 @@ export default async function DocsPage({ params }: DocsPageProps) {
               {document.content}
             </DocsMarkdown>
           </div>
+
+          <DocsPager next={nextDocument} previous={previousDocument} />
 
           <footer className="mt-16 flex max-w-3xl flex-col gap-6 text-sm leading-6 text-muted-foreground">
             <Separator />
@@ -180,12 +202,12 @@ function DocsNavigation({
   groups: ReadonlyMap<string, readonly ZReadCatalogEntry[]>;
 }) {
   return (
-    <nav aria-label="文档目录" className="flex flex-col gap-7">
+    <nav aria-label="文档目录" className="flex flex-col gap-6">
       {[...groups.entries()].map(([section, entries]) => (
         <section className="flex flex-col gap-2" key={section}>
-          <Badge className="w-fit" variant="secondary">
+          <h2 className="px-2 text-xs font-medium text-muted-foreground">
             {section}
-          </Badge>
+          </h2>
           <ul className="flex flex-col gap-1">
             {entries.map((entry) => {
               const active = entry.href === currentHref;
@@ -193,7 +215,7 @@ function DocsNavigation({
                 <li key={entry.relativePath}>
                   <Button
                     asChild
-                    className="h-auto w-full justify-start whitespace-normal text-left"
+                    className="h-auto min-h-8 w-full justify-start whitespace-normal px-2 py-1.5 text-left font-normal"
                     size="sm"
                     variant={active ? "secondary" : "ghost"}
                   >
@@ -210,6 +232,61 @@ function DocsNavigation({
           </ul>
         </section>
       ))}
+    </nav>
+  );
+}
+
+function DocsPager({
+  next,
+  previous,
+}: {
+  next?: ZReadCatalogEntry;
+  previous?: ZReadCatalogEntry;
+}) {
+  if (!previous && !next) {
+    return null;
+  }
+
+  return (
+    <nav
+      aria-label="文档翻页"
+      className="mt-14 grid max-w-3xl gap-3 sm:grid-cols-2"
+    >
+      {previous ? (
+        <Card className="py-0 transition-colors hover:bg-muted/50">
+          <Link className="flex items-center gap-3 p-4" href={previous.href}>
+            <ChevronLeft className="size-4 shrink-0 text-muted-foreground" />
+            <span className="min-w-0">
+              <span className="block text-xs text-muted-foreground">
+                上一篇
+              </span>
+              <span className="block truncate text-sm font-medium">
+                {previous.title}
+              </span>
+            </span>
+          </Link>
+        </Card>
+      ) : (
+        <span />
+      )}
+      {next ? (
+        <Card className="py-0 transition-colors hover:bg-muted/50">
+          <Link
+            className="flex items-center justify-end gap-3 p-4"
+            href={next.href}
+          >
+            <span className="min-w-0 text-right">
+              <span className="block text-xs text-muted-foreground">
+                下一篇
+              </span>
+              <span className="block truncate text-sm font-medium">
+                {next.title}
+              </span>
+            </span>
+            <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+          </Link>
+        </Card>
+      ) : null}
     </nav>
   );
 }

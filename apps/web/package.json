@@ -15,6 +15,7 @@
     "@agent-template/shared": "workspace:*",
     "@agent-template/ui": "workspace:*",
     "lucide-react": "^1.24.0",
+    "mermaid": "^11.16.0",
     "next": "^16.2.9",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",

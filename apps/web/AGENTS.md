@@ -27,8 +27,9 @@
 - 本文件、项目既有技术栈和组件模式优先于动态 UI Skill；未经要求不得迁移框架、组件库或动画库。
 - 前端 Agent 体验可参考 `https://github.com/shadcn-labs/agentcn` 的 Agent preview、运行事件和 artifact tabs；不要从这里导入 Eve/Flue recipe 或后端 runtime 逻辑。
 - 当前 Web 只消费 shared Agent run events 和最终结果，不直接连接 MCP Server，也不代理 `tools/call`。
-- `/docs` 只消费根目录 `.zread/wiki/current` 指向版本的 `wiki.json`、`sources.json` 与 Markdown；目录顺序、标题、分组、slug 和可公开源码路径以 canonical index 为准，不扫描或猜测生成目录结构。
-- `sources.json` 中的源码引用静态生成到 `/docs/source/*`，范围链接定位到起始行；禁止依赖远端代码托管地址、从 Markdown 临时扩大 allowlist 或开放任意仓库文件读取。
+- `/docs` 只消费根目录 `.zread/wiki/current` 指向版本的原生 `wiki.json` 及 manifest 明确列出的 Markdown；目录顺序、标题、分组和 slug 以 ZRead 原生产物为准，不扫描或猜测生成目录结构。
+- 只从当前 manifest 闭合的 Markdown 页面提取源码引用并静态生成 `/docs/source/*`，范围链接定位到起始行；未列入 manifest 的 Markdown 不得扩大 allowlist，禁止依赖远端代码托管地址或开放任意仓库文件读取。
+- Mermaid fenced code 使用浏览器端按需加载和 strict security level 渲染；普通 fenced code 保持 shadcn/typeset 源码展示，渲染失败必须显示原始图表文本。
 - 交互式 Tool UI 尚未选定新方案；不得恢复已删除的 Host bridge、MCP App iframe 或 JSON Render 路径，新增前先记录 ADR。
 
 ## 验证

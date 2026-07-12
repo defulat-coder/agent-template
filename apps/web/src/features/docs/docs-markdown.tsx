@@ -11,6 +11,8 @@ import {
   TableRow,
 } from "@agent-template/ui/components/table";
 import { createZReadHeadingId, resolveZReadHref } from "@/lib/zread-links";
+import { readMermaidDiagram } from "./docs-code";
+import { MermaidDiagram } from "./mermaid-diagram";
 
 export function DocsMarkdown({
   children,
@@ -55,7 +57,9 @@ export function DocsMarkdown({
               {children}
             </blockquote>
           ),
-          h1: ({ children }) => <h1 className="text-balance">{children}</h1>,
+          h1: ({ children }) => (
+            <h1 className="text-balance text-3xl md:text-4xl">{children}</h1>
+          ),
           h2: ({ children }) => (
             <h2
               className="text-balance"
@@ -73,6 +77,14 @@ export function DocsMarkdown({
             </h3>
           ),
           hr: () => <Separator className="my-10" />,
+          pre: ({ children }) => {
+            const diagram = readMermaidDiagram(children);
+            return diagram === null ? (
+              <pre>{children}</pre>
+            ) : (
+              <MermaidDiagram chart={diagram} />
+            );
+          },
           table: ({ children }) => <Table>{children}</Table>,
           tbody: ({ children }) => <TableBody>{children}</TableBody>,
           td: ({ children }) => (

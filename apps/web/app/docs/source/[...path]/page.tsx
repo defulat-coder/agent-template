@@ -1,8 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, FileCode2 } from "lucide-react";
 import { Badge } from "@agent-template/ui/components/badge";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@agent-template/ui/components/breadcrumb";
 import { Button } from "@agent-template/ui/components/button";
 import { findZReadWikiRoot } from "@/lib/zread-root";
 import { listZReadSourcePaths, readZReadSourceFile } from "@/lib/zread-sources";
@@ -39,22 +47,37 @@ export default async function SourcePage({ params }: SourcePageProps) {
 
   return (
     <main className="dark min-h-dvh bg-background text-foreground">
-      <header className="sticky top-0 z-20 border-b bg-background">
+      <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <div className="mx-auto flex min-h-16 max-w-[96rem] items-center justify-between gap-4 px-5 py-3 lg:px-8">
           <div className="min-w-0">
+            <Breadcrumb>
+              <BreadcrumbList>
+                <BreadcrumbItem>
+                  <BreadcrumbLink asChild>
+                    <Link href="/docs">Open Wiki</Link>
+                  </BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  <BreadcrumbPage className="flex min-w-0 items-center gap-2 font-mono">
+                    <FileCode2 className="size-3.5 shrink-0" />
+                    <span className="truncate">{source.sourcePath}</span>
+                  </BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
             <Button asChild size="sm" variant="ghost">
               <Link href="/docs">
                 <ArrowLeft data-icon="inline-start" />
-                返回工程文档
+                返回文档
               </Link>
             </Button>
-            <h1 className="mt-1 truncate font-mono text-sm text-muted-foreground">
-              {source.sourcePath}
-            </h1>
+            <Badge className="tabular-nums" variant="secondary">
+              {lines.length} 行
+            </Badge>
           </div>
-          <Badge className="shrink-0 tabular-nums" variant="secondary">
-            {lines.length} 行
-          </Badge>
         </div>
       </header>
 
