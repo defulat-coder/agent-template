@@ -49,7 +49,8 @@
 - 产品取舍、破坏性变更、成本明显扩大或外部约束不明时向用户确认；长期决策写入 `docs/adr/`，延期工作按 `docs/agents/issue-tracker.md` 建 issue，HTML 报告只放临时目录。
 - `apps/*` 使用 Agent runtime 时只通过 `@agent-template/agent`，不直接依赖具体 runtime package；runtime 仅由部署环境的 `AGENT_RUNTIME=claude|eve` 选择。
 - Claude/Eve 各自持有 Toolbox MCP Client；`@agent-template/toolbox-config` 只维护配置与 schema；Web 不直连 MCP Server。
-- `AGENT_CAPABILITY_PROFILE` 只组合完整的业务 Capability Pack，并编译出模型可见 Tool 与 Skill；生产授权仍由 Toolbox OIDC、Tool scope 和数据库权限强制。
+- 业务问数只通过 runtime-local `query_business_data` Tool 进入 `@agent-template/semantic-query`；模型不得直接看到或调用底层认证业务 Tool。平台观测 Tool 可按 profile 继续直连。
+- `AGENT_CAPABILITY_PROFILE` 只组合完整的业务 Capability Pack，并统一编译 `semanticExecutionTools`、`modelSurface.visibleTools/hiddenTools`、Skill 与语义目录；生产授权仍由 Toolbox OIDC、Tool scope 和数据库权限强制。
 - Web `/docs` 直接构建 `.zread/wiki` 的当前版本，不把 `zread browse` 作为部署进程；生成只使用项目本地 CLI 和 `.zread/config/` 的多文件配置，在隔离 clone 与隔离 HOME 中执行，校验后原样发布 ZRead 完整原生 Wiki 目录。长期决策见 `docs/adr/0016-zread-generated-project-wiki.md`。
 
 ## 提交规则

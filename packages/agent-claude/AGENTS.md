@@ -16,7 +16,8 @@
 - Kimi Code 通过 Anthropic-compatible env 接入：`ANTHROPIC_BASE_URL=https://api.kimi.com/coding/`、`ANTHROPIC_MODEL=kimi-for-coding`、`ANTHROPIC_API_KEY`。
 - 传给 Claude Agent SDK subprocess 的 `env` 必须合并 `process.env`，不要替换掉 `PATH`、`HOME` 等运行时变量。
 - Toolbox 通过 Claude Agent SDK 的 HTTP MCP server 配置直连；读取 `@agent-template/toolbox-config`，不要 import `apps/toolbox/tools.yaml`，不要把 `TOOLBOX_AUTH_TOKEN` 下发给 Claude Code subprocess env。
-- Claude 实际可见的 MCP 工具必须由 `AGENT_CAPABILITY_PROFILE` 生成 SDK `allowedTools`；不要在 runtime 内再维护一份硬编码全量名单，也不要把该 profile 冒充授权。
+- Claude 实际可见的远端 MCP 工具必须来自 activation 的 `modelSurface.visibleTools`，`modelSurface.hiddenTools` 必须映射到 SDK `disallowedTools`；启用业务 Pack 时额外暴露进程内 `query_business_data`，底层业务 Tool 仅在 `semanticExecutionTools` 内由该 Tool 的 runtime-owned MCP Client 执行。
+- `query_business_data` 只把用户原问题与 canonical candidate 交给 `@agent-template/semantic-query`；不得接受 Tool 名、SQL、表列名或身份范围。其 MCP Client 必须在成功和失败路径都关闭。
 - SDK `tool_use.id` 与后续 `tool_result.tool_use_id` 必须在 adapter 内关联，再输出 shared `callId/toolName` event。
 - 业务 Capability Pack Skill 由根目录的 Toolbox 官方生成器同步，不手工维护 runtime 副本，也不安装官方生成的数据库直连脚本。
 

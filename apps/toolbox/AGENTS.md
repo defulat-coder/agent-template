@@ -14,6 +14,7 @@
 - Toolset 与 Capability Pack 只用于 Skill 生成和模型能力分组，不代表运行时授权；授权由 Toolbox OIDC、Tool scope 和数据库强制。
 - `tools.yaml` 是 Tool、Toolset 和 annotations 的可执行事实源；`SEMANTIC_LAYER.md` 记录人类可读的业务指标与时间口径。
 - 智能问数的术语、指标、维度取值、歧义规则和 golden cases 维护在 `semantic/`；每个 Capability Pack 引用自己的领域目录，不把单一电商 catalog 写死进生成器或 runtime。
+- `semantic/` 与 `tools.yaml` 会生成 runtime catalog artifact；自然语言候选由 `@agent-template/semantic-query` 解析，Toolbox 仍只执行认证 prepared query，不在本目录放 resolver 运行时代码。
 - 业务术语必须先映射到语义目录的 canonical id，再路由到认证 Tool；不允许提示词直接生成 SQL、表名、列名或模型可控的租户范围。
 - 新增 Tool 遵循官方 `snake_case` 命名，新增 Toolset 使用 `kebab-case`；现有连字符 Tool 名是兼容契约，不添加重复别名。
 - 只读 SQL Tool 必须显式声明 `readOnlyHint`、`destructiveHint`、`idempotentHint` 和 `openWorldHint`。

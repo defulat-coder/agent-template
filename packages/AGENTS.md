@@ -9,6 +9,7 @@
 - `db`: 平台 `public` schema、Prisma Client 和 Agent run repository。
 - `ecommerce-fixture`: 独立 schema 的确定性跨域零售业务验证数据，不进入平台 runtime；物理名称为兼容边界。
 - `logger`: Pino logger 统一配置。
+- `semantic-query`: 自然语言候选到认证语义计划、Tool 执行和结果信封的共享深 module；不读取 env、不创建 MCP Client。
 - `agent`: Agent runtime contract、selector 和公共入口。
 - `agent-client`: Web、CLI 和其他 Node 调用方共用的 Agent HTTP/SSE Client。
 - `agent-claude`: Claude Agent SDK backed runtime。

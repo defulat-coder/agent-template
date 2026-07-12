@@ -70,13 +70,14 @@ packages/
   agent-client/  Web、CLI 与 Node 服务共用的 HTTP/SSE Client
   agent-claude/  Claude Agent SDK runtime
   agent-eve/     Eve runtime
-  toolbox-config/ Toolbox Capability Pack、Profile 与连接配置
+  semantic-query/ 确定性业务语义解析、查询计划与结果 envelope
+  toolbox-config/ Toolbox Capability Pack、Profile、目录与连接配置
   shared/        共享 Zod schema 和 TypeScript 类型
 ```
 
 `apps/toolbox/tools.yaml` 定义生产 Agent 可加载的数据库工具。`public` 只提供 Agent 平台观测；隔离的 `ecommerce_fixture` 提供可关联的合成电商、订单、财务、物流、库存采购和营销数据。业务能力按 Capability Pack 绑定 Toolset、生产 scope、语义目录与官方生成 Skill，部署只需选择 `AGENT_CAPABILITY_PROFILE`。`pnpm db:seed` 会分别 seed 平台与独立 fixture；`pnpm db:verify:boundaries` 验证业务表没有泄漏回 `public`。指标口径和 MCP annotations 见 [Toolbox 业务语义契约](apps/toolbox/SEMANTIC_LAYER.md)，智能问数的术语到字段/取值映射见 [智能问数落地](apps/toolbox/INTELLIGENT_QUERY.md)，完整的参数、索引和 MCP 验证命令见 [apps/toolbox/README.md](apps/toolbox/README.md)。prebuilt generic tools 仅用于开发期探索，不作为生产 Agent 默认能力。
 
-Claude 与 Eve 分别通过各自框架的原生 MCP Client 直连 Toolbox：Claude 使用 SDK HTTP MCP server，Eve 使用 `agent/connections/toolbox.ts`。两者共用 `TOOLBOX_URL`、`TOOLBOX_AUTH_TOKEN` 和 `AGENT_CAPABILITY_PROFILE`；Profile 原子展开对应的 Tool 与 Skill，但两套 runtime 不共享 client lifecycle，也不经过 API 代理。
+Claude 与 Eve 分别持有各自的 Toolbox MCP Client，并共用 `TOOLBOX_URL`、`TOOLBOX_AUTH_TOKEN` 和 `AGENT_CAPABILITY_PROFILE`。平台观测 Tool 可按 Profile 直接暴露；业务 Profile 只向模型暴露 runtime-local `query_business_data`，由 `@agent-template/semantic-query` 将模型候选确定性解析为认证 Tool 调用。两套 runtime 不共享 client lifecycle，也不经过 API 代理。
 
 Kimi Code 通过 Anthropic-compatible 协议接入两套 Agent runtime：
 

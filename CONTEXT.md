@@ -80,6 +80,22 @@ _Avoid_: Prompt glossary, table dictionary
 A structured analytical request whose metric, dimensions, filters, and time window are selected from a Business semantic catalog. It does not mean arbitrary natural-language SQL.
 _Avoid_: Raw SQL, unrestricted NL2SQL
 
+**Semantic query proposal**:
+An untrusted candidate interpretation of one business question, expressed only with catalog names, intent names, metric or dimension identifiers, and the user's original time wording. It never contains a Tool name, SQL, storage identifiers, or authorization scope.
+_Avoid_: Query plan, generated SQL
+
+**Semantic query resolution**:
+The deterministic decision that validates one Semantic query proposal against the active Business semantic catalogs and capability, producing exactly one Semantic query plan, a clarification request, or an unsupported result.
+_Avoid_: Prompt routing, best-effort Tool selection
+
+**Semantic query plan**:
+The validated, versioned selection of one certified query contract, its canonical business terms, normalized UTC time window, and bounded arguments. It is the only business-query instruction a certified query executor may execute.
+_Avoid_: Tool call guess, SQL plan
+
+**Semantic result envelope**:
+The machine-readable result of executing one Semantic query plan, including its catalog and contract versions, plan hash, execution provenance, limitations, and bounded business data.
+_Avoid_: Raw Tool result, narrative answer
+
 **Tool provider**:
 An external capability source that exposes tools an Agent run may use.
 _Avoid_: Agent runtime, app service

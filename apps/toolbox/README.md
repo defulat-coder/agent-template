@@ -2,7 +2,7 @@
 
 这里使用 Google 的 [MCP Toolbox for Databases](https://mcp-toolbox.dev/) 为真实 `AgentRun` record、`TemplateEvent` 样例事件和跨域合成零售读模型提供生产 Agent 可调用的只读 PostgreSQL 工具。配置入口是 [tools.yaml](./tools.yaml)，默认验证直接启动项目锁定的官方 `1.6.0` 本机二进制；`docker-compose.yml` 只保留为显式容器模式。
 
-[tools.yaml](./tools.yaml) 是 Tool、Toolset 与 MCP annotations 的可执行事实源，[SEMANTIC_LAYER.md](./SEMANTIC_LAYER.md) 记录人类可读的业务指标、时间口径和命名兼容策略。当前 PostgreSQL 项目实现的是 Google Toolbox 的工具语义契约，不是 AlloyDB AI NL 或 Looker 专属语义层。
+[tools.yaml](./tools.yaml) 是底层 Tool、Toolset 与 MCP annotations 的可执行事实源，[SEMANTIC_LAYER.md](./SEMANTIC_LAYER.md) 记录可执行的业务指标、时间口径和命名兼容策略。当前 PostgreSQL 项目实现的是 runtime-local 语义解析器加认证 Toolbox 查询，不是 AlloyDB AI NL 或 Looker 专属语义层。
 
 智能问数的术语、指标、实际字段/取值、歧义处理和 golden cases 位于 [semantic/](./semantic/)，完整的生产落地路径见 [INTELLIGENT_QUERY.md](./INTELLIGENT_QUERY.md)。
 
@@ -17,8 +17,8 @@
 - 所有工具只读；`TemplateEvent` payload 会原样返回的工具仅用于可信的内部运营 Agent，生产接入时仍需最小权限数据库角色。
 - 不使用 `templateParameters`，避免让模型控制表名、列名、排序字段或 SQL 结构。
 - 所有 SQL Tool 显式标注 `readOnlyHint: true`、`destructiveHint: false`、`idempotentHint: true` 和 `openWorldHint: false`。
-- 面向 Agent 的业务 Toolset 按单一分析或运营任务分组，避免一次向模型暴露无关 Tool 导致 context rot。
-- 裸 MCP `tools/list` 默认可见服务端全部工具；`AGENT_CAPABILITY_PROFILE` 从 `@agent-template/toolbox-config` 选择完整 Capability Pack，并原子展开模型可见 Tool 与 Skill。无认证的本地开发默认 `development-all`；配置 `TOOLBOX_AUTH_TOKEN` 后必须显式使用岗位级业务角色或 `platform-observability`，不能使用聚合的 `development-all` / `business-operations`。
+- 面向 Agent 的业务 Toolset 按单一分析或运营任务分组；runtime 可执行这些认证 Tool，但模型只通过 `query_business_data` 间接调用，避免绕过语义目录。
+- 裸 MCP `tools/list` 默认可见服务端全部工具；`AGENT_CAPABILITY_PROFILE` 从 `@agent-template/toolbox-config` 选择完整 Capability Pack，并分别展开 runtime 可执行 Tool、模型可直连 Tool、Skill 与语义目录。无认证的本地开发默认 `development-all`；配置 `TOOLBOX_AUTH_TOKEN` 后必须显式使用岗位级业务角色或 `platform-observability`，不能使用聚合的 `development-all` / `business-operations`。
 - Capability Profile 是模型工具面约束，不代替授权。生产强制边界是 Toolbox OIDC、Tool scope、受限数据库角色与 RLS/等效控制。
 
 ## 跨域合成业务数据（主要路径）
@@ -70,17 +70,18 @@ pnpm skills:generate:toolbox
 生成器使用锁定的 `@toolbox-sdk/server` 读取 [tools.yaml](./tools.yaml)，产物分为三层：
 
 ```text
-generated/toolbox-skills/        # Toolbox 官方原始完整产物
+generated/toolbox-skills/             # Toolbox 官方原始完整产物
+packages/toolbox-config/src/business-semantic-catalogs.generated.ts # runtime 类型化目录
 packages/agent-claude/.claude/skills/ # Claude 实际加载的适配版
 packages/agent-claude/.claude/skills-manifest.json # Profile/Pack/Skill/Tool 编译清单
 packages/agent-eve/agent/skills/ # Eve 实际加载的适配版
 ```
 
-原始目录保留每个 Skill 的 `SKILL.md`、`assets/tools.yaml` 和 `scripts/*.js`，便于检查和本地诊断。Eve Skill 调用 `toolbox__*`，Claude Skill 调用 `mcp__toolbox__*`。实际版 Skill 除了按需加载业务流程，还带有该 Pack 的 `references/<catalog>.yaml`；执行由各 runtime 的原生 MCP Client 完成，官方数据库直连脚本不会复制进 Agent 运行目录。
+原始目录保留每个 Skill 的 `SKILL.md`、`assets/tools.yaml` 和 `scripts/*.js`，便于检查和本地诊断。适配后的 Eve Skill 调用 `query_business_data`，Claude Skill 调用 `mcp__semantic_query__query_business_data`。实际版 Skill 除了按需加载业务流程，还带有该 Pack 的 `references/<catalog>.yaml`；底层认证 Tool 由各 runtime 自己的 MCP Client 执行，官方数据库直连脚本不会复制进 Agent 运行目录。
 
 Toolbox 固定生成的标题、表头和脚本模板保持英文；可配置的 Skill 描述、补充说明、业务 Tool 描述和参数描述统一使用中文。生成门禁会检查这些业务内容包含中文。
 
-Capability Pack 用于官方 Skill 生成、语义治理和模型能力分组，不是运行时授权机制。`AGENT_CAPABILITY_PROFILE` 只组合完整 Pack；共享编译结果同时提供 `allowedTools`、`enabledSkills` 与 `scopes`。Claude 使用 SDK `allowedTools` 与显式 Skill 名，Eve connection 使用 `tools.allow` 并按同一 Skill 名动态激活。
+Capability Pack 用于官方 Skill 生成、语义治理和模型能力分组，不是运行时授权机制。`AGENT_CAPABILITY_PROFILE` 只组合完整 Pack；共享编译结果同时提供 `semanticExecutionTools`、`modelSurface.visibleTools/hiddenTools`、`semanticCatalogs`、`enabledSkills` 与 `scopes`。Claude 与 Eve 只把平台观测 Tool 直接交给模型；业务问数统一经过 runtime-local 语义 Tool。
 
 ## 业务 MCP 本地端到端验证（默认）
 
