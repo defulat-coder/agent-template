@@ -64,9 +64,9 @@ _Avoid_: Timeline item, standalone panel
 A reusable sample event that records Agent platform activity for demos, local verification, and Toolbox inspection.
 _Avoid_: Database row, log line
 
-**Ecommerce fixture**:
-A deterministic, synthetic retail dataset isolated in PostgreSQL `ecommerce_fixture` and owned by its own package for Toolbox functional validation. It contains no real customer or transaction data and is not platform persistence.
-_Avoid_: Production export, random demo data
+**Synthetic business fixture**:
+A deterministic, connected retail-operations dataset isolated in PostgreSQL `ecommerce_fixture` and owned by its own package for Toolbox functional validation. It covers commerce, finance, logistics, inventory, procurement, and marketing, contains no real business or personal data, and is not platform persistence.
+_Avoid_: Production export, random demo data, real customer data
 
 **Ecommerce order**:
 A synthetic retail order with customer segment, channel, payment, fulfillment state, and order lines. Refunds may be full or partial.
@@ -92,8 +92,12 @@ _Avoid_: Database helper, embedded database client
 A named group of Toolbox server tools that an Agent runtime may load for a specific Agent capability.
 _Avoid_: Runtime plugin, database permission set
 
+**Toolbox Capability Pack**:
+A task-level unit that binds one Toolbox toolset to its production scope, governed semantic catalog, and official generated Agent Skill. Capability profiles compose complete Packs rather than independent Tool lists.
+_Avoid_: Tool bundle, runtime plugin, permission role
+
 **Agent capability profile**:
-A deployment-selected, named subset of Toolbox server tools that an Agent runtime presents to the model for one business role. It narrows model-visible capabilities but does not replace Toolbox authentication or database authorization.
+A deployment-selected composition of Toolbox Capability Packs for one business role. It compiles to the exact Tools and Skills presented to the model, but does not replace Toolbox authentication or database authorization.
 _Avoid_: User-selected mode, authorization policy
 
 **MCP Client**:

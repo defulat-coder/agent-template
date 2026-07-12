@@ -9,7 +9,7 @@ Claude / Eve Agent runtime
   -> runtime-owned MCP Client（只从部署环境 TOOLBOX_AUTH_TOKEN 读取 JWT）
   -> Authorization: Bearer <JWT>
   -> Toolbox Generic OIDC（issuer、audience、server scope）
-  -> Tool scope（ecommerce:read / agent-template:observe）
+  -> Tool scope（observe / ecommerce / finance / logistics / supply-chain / marketing）
   -> 受限 PostgreSQL 角色与 RLS/等效控制
 ```
 
@@ -22,14 +22,14 @@ pnpm toolbox:generate:production
 pnpm toolbox:check:production
 ```
 
-生成配置要求 JWT 至少有 `mcp:tools`，调用电商 Tool 还需要 `ecommerce:read`，调用平台观测 Tool 需要 `agent-template:observe`。
-Tool 与 scope 的穷尽映射维护在 `@agent-template/toolbox-config` 的 `toolboxToolScopes`；生成器遇到未分类 Tool 时直接失败，不从 Toolset 名称推断授权。`pnpm toolbox:verify:auth:local` 会分别使用最小电商 scope 与平台观测 scope，验证允许调用和跨 scope 拒绝。
+生成配置要求 JWT 至少有 `mcp:tools`；每个 Capability Pack 还需要自己的最小 Tool scope：`ecommerce:read`、`finance:read`、`logistics:read`、`supply-chain:read`、`marketing:read`，平台观测使用 `agent-template:observe`。
+Tool 与 scope 的穷尽映射由 `@agent-template/toolbox-config` 的 Capability Pack 派生；生成器遇到未分类 Tool 时直接失败，不从 Toolset 名称推断授权。`pnpm toolbox:verify:auth:local` 会为每个 scope 生成独立最小 JWT，验证正向调用和跨 scope 拒绝。
 
 ## 本地启动生产认证配置
 
 下面只启动本地 Toolbox binary，不启动 Docker；PostgreSQL 地址仍由 `TOOLBOX_POSTGRES_*` 提供。
 
-项目提供可直接运行的本地端到端认证验收。它会在随机本机端口启动临时 OIDC issuer 和官方 Toolbox binary，生成短期 RS256 JWT，验证未认证 MCP 被拒绝、scope 后的 18 个 Tool 可发现，并通过原生 MCP Client 实际执行一个电商查询；不会写入私钥或 token，也不会启动 Docker：
+项目提供可直接运行的本地端到端认证验收。它会在随机本机端口启动临时 OIDC issuer 和官方 Toolbox binary，生成短期 RS256 JWT，验证未认证 MCP 被拒绝、全部 Tool 完成 scope 分类，并通过原生 MCP Client 实际执行各业务 Pack 的代表查询及跨 scope 拒绝；不会写入私钥或 token，也不会启动 Docker：
 
 ```bash
 pnpm toolbox:verify:auth:local
@@ -50,7 +50,7 @@ node_modules/.bin/toolbox \
 ```
 
 Agent runtime 通过部署环境的 `TOOLBOX_AUTH_TOKEN` 提供由该 issuer 签发、audience 与 scope 均匹配的 JWT。生产部署不得使用占位 token，也不得把终端用户提交的任意字符串直接当成可信 token。
-认证连接必须同时显式设置岗位级 `AGENT_CAPABILITY_PROFILE`；共享配置会拒绝缺失 profile 或继续使用 `development-all` 的 Bearer token 连接。
+认证连接必须同时显式设置岗位级 `AGENT_CAPABILITY_PROFILE`；共享配置会拒绝缺失 profile，以及使用聚合开发 Profile `development-all` 或 `business-operations` 的 Bearer token 连接。
 只读数据库角色必须显式获得所需 schema 的 `USAGE`，并只对认证 Tool 使用的表/列授予 `SELECT`；当前合成配置需要 `public` 与 `ecommerce_fixture`，不能依靠默认 `search_path` 扩大权限。
 
 ## 多租户数据

@@ -1,6 +1,6 @@
-# MCP Toolbox 生产级 SQL 示例
+# MCP Toolbox 跨域业务能力示例
 
-这里使用 Google 的 [MCP Toolbox for Databases](https://mcp-toolbox.dev/) 为真实 `AgentRun` record、`TemplateEvent` 样例事件和合成电商读模型提供生产 Agent 可调用的只读 PostgreSQL 工具。配置入口是 [tools.yaml](./tools.yaml)，默认验证直接启动项目锁定的官方 `1.6.0` 本机二进制；`docker-compose.yml` 只保留为显式容器模式。
+这里使用 Google 的 [MCP Toolbox for Databases](https://mcp-toolbox.dev/) 为真实 `AgentRun` record、`TemplateEvent` 样例事件和跨域合成零售读模型提供生产 Agent 可调用的只读 PostgreSQL 工具。配置入口是 [tools.yaml](./tools.yaml)，默认验证直接启动项目锁定的官方 `1.6.0` 本机二进制；`docker-compose.yml` 只保留为显式容器模式。
 
 [tools.yaml](./tools.yaml) 是 Tool、Toolset 与 MCP annotations 的可执行事实源，[SEMANTIC_LAYER.md](./SEMANTIC_LAYER.md) 记录人类可读的业务指标、时间口径和命名兼容策略。当前 PostgreSQL 项目实现的是 Google Toolbox 的工具语义契约，不是 AlloyDB AI NL 或 Looker 专属语义层。
 
@@ -18,12 +18,12 @@
 - 不使用 `templateParameters`，避免让模型控制表名、列名、排序字段或 SQL 结构。
 - 所有 SQL Tool 显式标注 `readOnlyHint: true`、`destructiveHint: false`、`idempotentHint: true` 和 `openWorldHint: false`。
 - 面向 Agent 的业务 Toolset 按单一分析或运营任务分组，避免一次向模型暴露无关 Tool 导致 context rot。
-- 裸 MCP `tools/list` 默认可见服务端全部工具；`AGENT_CAPABILITY_PROFILE` 从 `@agent-template/toolbox-config` 选择 Agent 模型可见的业务子集。无认证的本地开发默认 `development-all`；配置 `TOOLBOX_AUTH_TOKEN` 后必须显式使用 `ecommerce-sales`、`ecommerce-product`、`ecommerce-orders`、`ecommerce-fulfillment`、`ecommerce-analyst` 或 `platform-observability`，不能继续使用 `development-all`。
+- 裸 MCP `tools/list` 默认可见服务端全部工具；`AGENT_CAPABILITY_PROFILE` 从 `@agent-template/toolbox-config` 选择完整 Capability Pack，并原子展开模型可见 Tool 与 Skill。无认证的本地开发默认 `development-all`；配置 `TOOLBOX_AUTH_TOKEN` 后必须显式使用岗位级业务角色或 `platform-observability`，不能使用聚合的 `development-all` / `business-operations`。
 - Capability Profile 是模型工具面约束，不代替授权。生产强制边界是 Toolbox OIDC、Tool scope、受限数据库角色与 RLS/等效控制。
 
-## 电商业务验证数据（主要路径）
+## 跨域合成业务数据（主要路径）
 
-`pnpm db:seed` 会通过 `packages/ecommerce-fixture` 向独立 PostgreSQL `ecommerce_fixture` schema 写入完全确定性的合成零售数据：96 个脱敏客户、24 个商品、600 个订单、1,200 个订单项和 540 条支付记录。订单覆盖过去 60 天，并包含 Web、小程序、平台和直播四种渠道，以及已支付、已履约、全额退款、部分退款、取消和待支付状态。所有电商业务时间存为 `timestamptz`，窗口统一按 UTC 解释；它是生产形态的测试数据，不是平台持久化，也不是任何真实客户或交易数据。
+`pnpm db:seed` 会通过 `packages/ecommerce-fixture` 向独立 PostgreSQL `ecommerce_fixture` schema 写入 15,214 条完全确定性的合成零售运营记录。既有 96 个客户、24 个商品、600 个订单、1,200 个订单项和 540 条支付之外，还包括 133 条退款、480 张发票、240 个渠道日结算、6 个仓库、8,640 条库存日快照、12 个供应商、180 张采购单、480 个运单、1,883 条轨迹、12 个活动和 688 条多触点归因。订单主线连接全部领域；固定场景包含退款生命周期、待结算、部分退款、结算差异、发票异常、承运商延迟/丢件、缺货、采购延期/取消、多渠道触点和低效活动。所有业务时间存为 `timestamptz`，窗口统一按 UTC 解释。物理 schema 名只为迁移兼容；这里没有任何真实客户、供应商、支付或物流数据。
 
 | Tool                                    | 验证场景                 | 保护措施                                |
 | --------------------------------------- | ------------------------ | --------------------------------------- |
@@ -37,9 +37,18 @@
 | `get-ecommerce-order-detail`            | 单订单与订单项核查       | 精确订单号                              |
 | `list-ecommerce-fulfillment-exceptions` | 已付款未履约订单         | 时间窗 + `limit/offset`                 |
 
-## 电商业务 Agent Skills
+新增业务 Pack 不把表级 CRUD 暴露给 Agent，而是提供以下结果级能力：
 
-Toolbox 官方的 `skills-generate` 会把自定义 Toolset 转换为 Agent Skill。项目在此基础上生成四个按业务任务拆分的 Skill，并同时接入 Eve 和 Claude Agent：
+| Capability Pack           | Tool 数 | 代表性结果                                           |
+| ------------------------- | ------: | ---------------------------------------------------- |
+| `finance-analysis`        |       5 | 财务总览、支付方式、退款原因、发票异常、渠道结算对账 |
+| `logistics-operations`    |       5 | 承运商表现、物流异常、运单轨迹、SLA、运费            |
+| `supply-chain-operations` |       6 | 库存健康、缺货风险、仓库库存、采购与供应商表现       |
+| `marketing-analysis`      |       5 | 活动表现、渠道投入、优惠效率、低效活动与获客         |
+
+## Capability Pack 与 Agent Skills
+
+Toolbox 官方的 `skills-generate` 会把自定义 Toolset 转换为 Agent Skill。项目把 Toolset、scope、语义目录和 Skill 定义收拢为 Capability Pack，并同时编译到 Eve 和 Claude Agent：
 
 | Skill                              | Toolbox Toolset                    | 业务用途                 |
 | ---------------------------------- | ---------------------------------- | ------------------------ |
@@ -47,6 +56,10 @@ Toolbox 官方的 `skills-generate` 会把自定义 Toolset 转换为 Agent Skil
 | `ecommerce-product-analysis`       | `ecommerce-product-analytics`      | 商品排行与选品分析       |
 | `ecommerce-order-operations`       | `ecommerce-order-operations`       | 订单查询与单据排障       |
 | `ecommerce-fulfillment-operations` | `ecommerce-fulfillment-operations` | 履约积压与异常订单       |
+| `finance-analysis`                 | `finance-analysis`                 | 支付、退款、发票与结算   |
+| `logistics-operations`             | `logistics-operations`             | 运单、SLA、异常与运费    |
+| `supply-chain-operations`          | `supply-chain-operations`          | 库存、缺货、采购与供应商 |
+| `marketing-analysis`               | `marketing-analysis`               | 活动、渠道、优惠与获客   |
 
 本地重新生成：
 
@@ -59,17 +72,17 @@ pnpm skills:generate:toolbox
 ```text
 generated/toolbox-skills/        # Toolbox 官方原始完整产物
 packages/agent-claude/.claude/skills/ # Claude 实际加载的适配版
-packages/agent-claude/.claude/skills-manifest.json # Claude Skill 与 Tool 映射
+packages/agent-claude/.claude/skills-manifest.json # Profile/Pack/Skill/Tool 编译清单
 packages/agent-eve/agent/skills/ # Eve 实际加载的适配版
 ```
 
-原始目录保留每个 Skill 的 `SKILL.md`、`assets/tools.yaml` 和 `scripts/*.js`，便于检查和本地诊断。Eve Skill 调用 `toolbox__*`，Claude Skill 调用 `mcp__toolbox__*`。实际版 Skill 除了按需加载业务流程，还带有 `references/ecommerce-semantic-catalog.yaml`；执行由各 runtime 的原生 MCP Client 完成，官方数据库直连脚本不会复制进 Agent 运行目录。
+原始目录保留每个 Skill 的 `SKILL.md`、`assets/tools.yaml` 和 `scripts/*.js`，便于检查和本地诊断。Eve Skill 调用 `toolbox__*`，Claude Skill 调用 `mcp__toolbox__*`。实际版 Skill 除了按需加载业务流程，还带有该 Pack 的 `references/<catalog>.yaml`；执行由各 runtime 的原生 MCP Client 完成，官方数据库直连脚本不会复制进 Agent 运行目录。
 
 Toolbox 固定生成的标题、表头和脚本模板保持英文；可配置的 Skill 描述、补充说明、业务 Tool 描述和参数描述统一使用中文。生成门禁会检查这些业务内容包含中文。
 
-这四个业务 Toolset 用于官方 Skill 生成和业务能力分组，不是运行时授权机制。Agent 模型可见范围由 `AGENT_CAPABILITY_PROFILE` 收窄：Claude 使用 SDK `allowedTools` 与 MCP Tool policy，Eve connection 使用 `tools.allow`，两者读取同一份共享配置。
+Capability Pack 用于官方 Skill 生成、语义治理和模型能力分组，不是运行时授权机制。`AGENT_CAPABILITY_PROFILE` 只组合完整 Pack；共享编译结果同时提供 `allowedTools`、`enabledSkills` 与 `scopes`。Claude 使用 SDK `allowedTools` 与显式 Skill 名，Eve connection 使用 `tools.allow` 并按同一 Skill 名动态激活。
 
-## 电商 MCP 本地端到端验证（默认）
+## 业务 MCP 本地端到端验证（默认）
 
 本机 PostgreSQL 监听 `15432` 后执行：
 
@@ -77,21 +90,21 @@ Toolbox 固定生成的标题、表头和脚本模板保持英文；可配置的
 pnpm toolbox:verify:local
 ```
 
-该命令直接使用 `.env`/默认本地连接，对本机数据库执行 migration 和确定性 seed，写入临时真实 Agent run record，启动官方 Toolbox 二进制，然后用原生 MCP Client 验证 `tools/list`、10 个电商场景、5 个 Agent run 观测场景、分页、空结果、部分退款、UTC 边界、非法时间窗与能力 Profile。临时 run 与 Toolbox 进程在结束时自动清理，不使用 Docker。
+该命令直接使用 `.env`/默认本地连接，对本机数据库执行 migration 和确定性 seed，写入临时真实 Agent run record，启动官方 Toolbox 二进制，然后用原生 MCP Client 验证 `tools/list`、跨域代表场景、Agent run 观测、分页、空结果、异常数据、UTC 边界、非法时间窗与能力 Profile。临时 run 与 Toolbox 进程在结束时自动清理，不使用 Docker。
 
-`pnpm db:verify:boundaries` 可单独验证平台表只在 `public`，五张合成业务表只在 `ecommerce_fixture`。
+`pnpm db:verify:boundaries` 可单独验证平台表只在 `public`，合成业务表只在 `ecommerce_fixture`。
 
 ## 显式容器诊断（仅用户要求时）
 
 以下命令只用于明确选择 Docker 的诊断场景，不属于默认验证路径。
 
-## 电商 MCP Docker 集成验证（仅显式要求时）
+## 业务 MCP Docker 集成验证（仅显式要求时）
 
 ```bash
 pnpm toolbox:verify:docker
 ```
 
-该门禁会启动 PostgreSQL 与 Toolbox、生成 Prisma Client、应用已提交 migration、写入 fixture、重建 Toolbox，然后精确断言裸 MCP `tools/list` 和电商 Tool 的确定性返回值。
+该门禁会启动 PostgreSQL 与 Toolbox、生成 Prisma Client、应用已提交 migration、写入 fixture、重建 Toolbox，然后精确断言裸 MCP `tools/list` 和跨域代表 Tool 的确定性返回值。
 
 容器内 Toolbox 监听 `0.0.0.0:15000` 供 Compose 网络中的 API、Worker 和 Eve 使用；宿主机端口只绑定 `127.0.0.1:15000`。开发配置不启用 OIDC，禁止改回所有网卡暴露。
 

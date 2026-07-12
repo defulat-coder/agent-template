@@ -2,7 +2,7 @@
 
 这里保存面向智能问数的可版本化业务语义目录。目录不是数据库 schema 的副本，而是将业务语言映射到经过认证的指标、维度、枚举取值和受控 Toolbox Tool 的契约。
 
-当前的 [ecommerce.yaml](./ecommerce.yaml) 是合成电商 fixture 的完整示例。真实业务应按领域分别建立目录，例如 `sales.yaml`、`supply-chain.yaml` 或 `customer-success.yaml`，并由该领域的数据负责人评审。
+当前按 Capability Pack 维护电商、财务、物流、供应链和营销目录。真实业务继续按任务边界拆分，并由对应领域的数据负责人评审；不要把所有术语和 Tool 合并成一个模型每次都要加载的巨大目录。
 
 目录的 `databaseSchema` 必须与数据所有权一致；当前示例固定为独立 `ecommerce_fixture`，认证 SQL 不依赖 PostgreSQL `search_path`。
 
@@ -20,8 +20,8 @@
 
 新增业务目录前，先确认该能力属于认证业务问数 Tool、未来 compiler 或外部语义层；不同类别的完整准入矩阵见 [智能问数落地](../INTELLIGENT_QUERY.md#tool-分类与准入矩阵)。
 
-`tools.yaml` 仍是 SQL Tool 的唯一事实源，语义目录是 Host 查询溯源的可执行事实源。`pnpm toolbox:check:semantic` 会用与运行时相同的 Zod schema 校验目录、Tool 和查询契约，并同步生成 Claude 与 Eve Skill 的语义参考。
+`tools.yaml` 仍是 SQL Tool 的唯一事实源，Capability Pack 是 Toolset/scope/Skill/catalog 关系的唯一事实源，语义目录是查询溯源的可执行事实源。`pnpm toolbox:check:semantic` 会用与运行时相同的 Zod schema 双向校验 Pack、Tool 和查询契约，并同步生成 Claude 与 Eve Skill 的语义参考。
 
 生产目录不得把 `tenantId`、组织范围、角色或 PII 作为模型可控过滤条件。它们必须由认证后的可信身份在执行前注入，并在数据库侧以 RLS 或等效机制强制执行。
 
-golden evaluation 必须覆盖正常路由、歧义、部分退款、空结果、UTC 边界、非法时间窗和 capability isolation；`pnpm toolbox:verify:local` 会对可执行场景连接本机 PostgreSQL 与临时官方 Toolbox 做真实回归。
+每个 Tool 必须有正常路由 case；各领域还应覆盖歧义、空结果、异常数据、UTC 边界、非法时间窗和 capability isolation，电商目录继续覆盖部分退款。`pnpm toolbox:verify:local` 会对代表性可执行场景连接本机 PostgreSQL 与临时官方 Toolbox 做真实回归。

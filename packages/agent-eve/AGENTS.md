@@ -22,10 +22,10 @@
 - `agent/sandbox.ts` 固定使用官方 `justbash()` 后端；该 Agent 只需隔离虚拟文件系统，不依赖 Docker、VM、真实二进制或 sandbox 网络。
 - `agent/skills`、`agent/connections`、`agent/channels`、`agent/hooks`、`agent/sandbox`、`agent/subagents` 按 Eve filesystem slot 语义增长。
 - 电商业务 Skill 以 Toolbox 官方 `skills-generate` 产物为来源，通过根目录 `pnpm skills:generate:toolbox` 同步到 Eve 与 Claude authored surface。
-- Eve 侧生成 `defineDynamic` + `defineSkill` TypeScript package，把语义目录作为 inline sibling file；在 `session.started` 按与 Toolbox connection 相同的 capability profile 只暴露完整 Tool 集合可见的 Skill。
+- Eve 侧生成 `defineDynamic` + `defineSkill` TypeScript package，把对应领域语义目录作为 inline sibling file；在 `session.started` 直接按 capability activation 的 `enabledSkills` 暴露 Skill，不再从 Tool 子集反推 Skill。
 - 运行时 Skill 只调用 `toolbox__*` connection tools；不要把官方生成的数据库直连脚本复制进 Agent Skill。
 - Toolbox 通过 `agent/connections/toolbox.ts` 的 `defineMcpClientConnection` 直连；URL、Bearer token 与 Tool allowlist 读取 `@agent-template/toolbox-config`。
-- Toolbox connection 在 Eve app 启动时按部署环境的 `AGENT_CAPABILITY_PROFILE` 建立静态 allowlist，动态 Skill 使用同一共享配置；不要把 profile 作为模型输入或普通请求参数。
+- Toolbox connection 在 Eve app 启动时按部署环境的 `AGENT_CAPABILITY_PROFILE` 建立静态 allowlist，动态 Skill 使用同一次 activation 的 Skill slug；不要把 profile 作为模型输入或普通请求参数。
 - Eve stream 事件需要转换成 shared `AgentRunEvent`，至少覆盖 `message.completed`、`actions.requested`、`action.result` 和失败事件，保证 API Chat SSE 与前端 timeline 可用。
 - `actions.requested` / `action.result` 必须投影同一 `callId/toolName`；缺失关联字段时输出 `unknown`，不要伪造 Tool identity。
 - Eve 本地生成的 `.eve/`、`.output/` 和 `.workflow-data/` 不提交，也不能进入 Vitest 扫描面。

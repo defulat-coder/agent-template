@@ -7,13 +7,13 @@
 - `ui`: React UI 组件和样式工具。
 - `shared`: Zod schema、共享类型和常量。
 - `db`: 平台 `public` schema、Prisma Client 和 Agent run repository。
-- `ecommerce-fixture`: 独立 schema 的确定性 Toolbox 业务验证数据，不进入平台 runtime。
+- `ecommerce-fixture`: 独立 schema 的确定性跨域零售业务验证数据，不进入平台 runtime；物理名称为兼容边界。
 - `logger`: Pino logger 统一配置。
 - `agent`: Agent runtime contract、selector 和公共入口。
 - `agent-client`: Web、CLI 和其他 Node 调用方共用的 Agent HTTP/SSE Client。
 - `agent-claude`: Claude Agent SDK backed runtime。
 - `agent-eve`: Eve filesystem-first runtime 和 `agent/` authored surface。
-- `toolbox-config`: Claude/Eve 共用的 Toolbox URL、Bearer token、能力 Profile 和业务语义 schema。
+- `toolbox-config`: Claude/Eve 共用的 Toolbox URL、Bearer token、Capability Pack/Profile 编译结果和业务语义 schema。
 
 ## 开发规则
 

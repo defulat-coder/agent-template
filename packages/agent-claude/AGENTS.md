@@ -12,13 +12,13 @@
 - `loadClaudeAgentSdk` 保持懒加载，避免无 key 时影响本地启动。
 - 项目常驻指令放 `.claude/CLAUDE.md`；业务 Skill 放 `.claude/skills/`，不放仓库根目录。
 - SDK `cwd` 默认固定为本 package 根目录，并启用 `settingSources: ["project"]`；部署复制 authored surface 时才使用 `CLAUDE_PROJECT_DIR` 覆盖，目标必须通过 package、`CLAUDE.md`、Skill manifest 和已启用 Skill 校验。
-- `skills` 必须由 `.claude/skills-manifest.json` 根据 profile 允许的完整 Tool 集合推导；不要手写 profile 映射或使用 `"all"`，避免加载祖先目录的项目协作 Skill。
+- `skills` 必须直接使用 capability activation 的 `enabledSkills`，并由 `.claude/skills-manifest.json` 校验 authored surface；不要再从 Tool 子集反推 Skill、手写 profile 映射或使用 `"all"`，避免加载祖先目录的项目协作 Skill。
 - Kimi Code 通过 Anthropic-compatible env 接入：`ANTHROPIC_BASE_URL=https://api.kimi.com/coding/`、`ANTHROPIC_MODEL=kimi-for-coding`、`ANTHROPIC_API_KEY`。
 - 传给 Claude Agent SDK subprocess 的 `env` 必须合并 `process.env`，不要替换掉 `PATH`、`HOME` 等运行时变量。
 - Toolbox 通过 Claude Agent SDK 的 HTTP MCP server 配置直连；读取 `@agent-template/toolbox-config`，不要 import `apps/toolbox/tools.yaml`，不要把 `TOOLBOX_AUTH_TOKEN` 下发给 Claude Code subprocess env。
 - Claude 实际可见的 MCP 工具必须由 `AGENT_CAPABILITY_PROFILE` 生成 SDK `allowedTools`；不要在 runtime 内再维护一份硬编码全量名单，也不要把该 profile 冒充授权。
 - SDK `tool_use.id` 与后续 `tool_result.tool_use_id` 必须在 adapter 内关联，再输出 shared `callId/toolName` event。
-- 电商业务 Skill 由根目录的 Toolbox 官方生成器同步，不手工维护两份副本，也不安装官方生成的数据库直连脚本。
+- 业务 Capability Pack Skill 由根目录的 Toolbox 官方生成器同步，不手工维护 runtime 副本，也不安装官方生成的数据库直连脚本。
 
 ## 不应该做
 

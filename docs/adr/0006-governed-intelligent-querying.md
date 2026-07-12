@@ -21,13 +21,13 @@ The implementation hierarchy is normative:
 3. An external semantic layer is selected when several BI and AI consumers need one source of truth for metrics and relationships; Toolbox must call that governed model rather than duplicate formulas.
 4. Database-native NL2SQL is a separate AlloyDB migration. Its `nl_config`, Parameterized Secure Views, and authenticated or bound identity parameters are mandatory rather than prompt-level conventions.
 
-Toolsets remain context and Skill-generation groups, not authorization. An `AGENT_CAPABILITY_PROFILE` must exist before a deployment claims role-specific model-visible Tool narrowing; it does not replace Toolbox or database authorization.
+Toolsets remain context and Skill-generation groups, not authorization. Per [ADR 0018](./0018-capability-packed-business-toolbox.md), each business Toolset belongs to a Capability Pack with its scope, catalog, and Skill; `AGENT_CAPABILITY_PROFILE` composes complete Packs and does not replace Toolbox or database authorization.
 
 ## Consequences
 
 - Metrics and business values receive one reviewed, versioned definition.
 - Claude and Eve share the same business vocabulary without directly connecting to the database.
-- Every new Tool must be referenced by the catalog, shared Tool/Profile config, runtime-native MCP Client, generated Skill, and semantic golden cases.
+- Every new business Tool must be owned by one Capability Pack and referenced by its Toolset, catalog query contract, generated Skill, semantic golden cases, and compiled runtime activation.
 - The previous requirement applies to certified business query Tools; platform read-only operational Tools instead require bounded inputs, annotations, a runtime capability profile, and native execution verification.
 - Every analytical Tool documents a business timezone, `[from, to)` interval, and compatible database time type; no Tool may depend on an implicit database session timezone.
 - Free-form combinations beyond the certified query catalog require an intentional compiler or AlloyDB migration, not prompt-only SQL generation.

@@ -64,19 +64,19 @@ apps/
 packages/
   ui/            shadcn/ui 风格共享组件
   db/            Prisma schema 和 Prisma Client
-  ecommerce-fixture/ 独立 schema 的合成零售验证数据
+  ecommerce-fixture/ 独立 schema 的跨域合成零售运营数据
   logger/        Pino logger 封装
   agent/         Agent runtime 公共边界
   agent-client/  Web、CLI 与 Node 服务共用的 HTTP/SSE Client
   agent-claude/  Claude Agent SDK runtime
   agent-eve/     Eve runtime
-  toolbox-config/ Toolbox 共享配置与能力 Profile
+  toolbox-config/ Toolbox Capability Pack、Profile 与连接配置
   shared/        共享 Zod schema 和 TypeScript 类型
 ```
 
-`apps/toolbox/tools.yaml` 定义生产 Agent 可加载的数据库工具。默认 toolset 是 `agent_template_read_model`：保留 `public.TemplateEvent` 的只读运行观测，同时提供 `ecommerce_fixture` 中合成电商的日销售、渠道、区域、客户分群、品类、商品排行、订单详情和履约异常查询。`pnpm db:seed` 会分别 seed 平台与独立 fixture；`pnpm db:verify:boundaries` 验证业务表没有泄漏回 `public`。指标口径和 MCP annotations 见 [Toolbox 业务语义契约](apps/toolbox/SEMANTIC_LAYER.md)，智能问数的术语到字段/取值映射见 [智能问数落地](apps/toolbox/INTELLIGENT_QUERY.md)，完整的参数、索引和 MCP 验证命令见 [apps/toolbox/README.md](apps/toolbox/README.md)。prebuilt generic tools 仅用于开发期探索，不作为生产 Agent 默认能力。
+`apps/toolbox/tools.yaml` 定义生产 Agent 可加载的数据库工具。`public` 只提供 Agent 平台观测；隔离的 `ecommerce_fixture` 提供可关联的合成电商、订单、财务、物流、库存采购和营销数据。业务能力按 Capability Pack 绑定 Toolset、生产 scope、语义目录与官方生成 Skill，部署只需选择 `AGENT_CAPABILITY_PROFILE`。`pnpm db:seed` 会分别 seed 平台与独立 fixture；`pnpm db:verify:boundaries` 验证业务表没有泄漏回 `public`。指标口径和 MCP annotations 见 [Toolbox 业务语义契约](apps/toolbox/SEMANTIC_LAYER.md)，智能问数的术语到字段/取值映射见 [智能问数落地](apps/toolbox/INTELLIGENT_QUERY.md)，完整的参数、索引和 MCP 验证命令见 [apps/toolbox/README.md](apps/toolbox/README.md)。prebuilt generic tools 仅用于开发期探索，不作为生产 Agent 默认能力。
 
-Claude 与 Eve 分别通过各自框架的原生 MCP Client 直连 Toolbox：Claude 使用 SDK HTTP MCP server，Eve 使用 `agent/connections/toolbox.ts`。两者共用 `TOOLBOX_URL`、`TOOLBOX_AUTH_TOKEN` 和 `AGENT_CAPABILITY_PROFILE`，但不共享 client lifecycle，也不经过 API 代理。
+Claude 与 Eve 分别通过各自框架的原生 MCP Client 直连 Toolbox：Claude 使用 SDK HTTP MCP server，Eve 使用 `agent/connections/toolbox.ts`。两者共用 `TOOLBOX_URL`、`TOOLBOX_AUTH_TOKEN` 和 `AGENT_CAPABILITY_PROFILE`；Profile 原子展开对应的 Tool 与 Skill，但两套 runtime 不共享 client lifecycle，也不经过 API 代理。
 
 Kimi Code 通过 Anthropic-compatible 协议接入两套 Agent runtime：
 
