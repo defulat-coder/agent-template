@@ -14,7 +14,7 @@
     "@agent-template/agent-client": "workspace:*",
     "@agent-template/shared": "workspace:*",
     "@agent-template/ui": "workspace:*",
-    "@phosphor-icons/react": "^2.1.10",
+    "lucide-react": "^1.24.0",
     "next": "^16.2.9",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",

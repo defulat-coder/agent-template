@@ -3,13 +3,49 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
-  ArrowLeftIcon,
-  CheckIcon,
-  CopyIcon,
-  PaperPlaneTiltIcon,
-  StopCircleIcon,
-} from "@phosphor-icons/react";
-import { Button } from "@agent-template/ui";
+  ArrowLeft,
+  Check,
+  CircleAlert,
+  Copy,
+  Send,
+  Square,
+} from "lucide-react";
+import { Alert, AlertDescription } from "@agent-template/ui/components/alert";
+import { Badge } from "@agent-template/ui/components/badge";
+import { Button } from "@agent-template/ui/components/button";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@agent-template/ui/components/card";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from "@agent-template/ui/components/empty";
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from "@agent-template/ui/components/field";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupTextarea,
+} from "@agent-template/ui/components/input-group";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@agent-template/ui/components/tabs";
 import type {
   AgentArtifact,
   AgentInputResponse,
@@ -79,6 +115,7 @@ export function AgentConsole() {
     () => buildArtifactTabs(events, streamedOutput),
     [events, streamedOutput],
   );
+
   async function executeRun(input: {
     prompt: string;
     inputResponses?: AgentInputResponse[];
@@ -189,25 +226,24 @@ export function AgentConsole() {
   }
 
   return (
-    <main className="min-h-screen bg-[var(--agent-canvas)] text-[var(--agent-ink)]">
-      <header className="sticky top-0 z-20 border-b border-[var(--agent-border)] bg-[color-mix(in_srgb,var(--agent-canvas)_94%,transparent)] backdrop-blur-sm">
+    <main className="min-h-dvh bg-background text-foreground">
+      <header className="sticky top-0 z-20 border-b bg-background">
         <div className="grid min-h-16 grid-cols-1 items-center gap-3 px-5 py-3 md:grid-cols-[minmax(160px,0.7fr)_minmax(280px,1.8fr)_auto] md:px-8 xl:px-10">
-          <Link
-            className="agent-action inline-flex min-h-10 w-fit items-center gap-2 rounded-lg px-1 text-sm font-medium hover:text-[var(--agent-accent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--agent-accent)]"
-            href="/"
-          >
-            <ArrowLeftIcon className="size-5" weight="bold" />
-            全部工作
-          </Link>
+          <Button asChild className="w-fit" variant="ghost">
+            <Link href="/">
+              <ArrowLeft data-icon="inline-start" />
+              全部工作
+            </Link>
+          </Button>
 
-          <div className="min-w-0 md:flex md:items-center md:gap-6">
-            <h1 className="truncate text-lg font-semibold tracking-[-0.01em]">
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
+            <h1 className="truncate text-balance text-lg font-semibold">
               {taskTitle}
             </h1>
-            <StatusLabel status={status} />
+            <StatusBadge status={status} />
           </div>
 
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--agent-secondary)] md:justify-end">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground md:justify-end">
             <span>{runtimeLabel}</span>
             {headerTime ? <span aria-hidden="true">·</span> : null}
             <time suppressHydrationWarning>{headerTime}</time>
@@ -215,8 +251,8 @@ export function AgentConsole() {
         </div>
       </header>
 
-      <div className="grid min-h-[calc(100vh-65px)] grid-cols-1 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <section className="flex min-h-0 flex-col px-4 py-5 sm:px-6 lg:px-8 xl:px-5 xl:py-5">
+      <div className="grid min-h-[calc(100dvh-4rem)] grid-cols-1 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <section className="flex min-h-0 flex-col gap-4 p-4 sm:p-6 lg:p-8 xl:p-5">
           <ArtifactWorkspace
             artifacts={artifacts}
             conversationId={conversationId}
@@ -224,68 +260,94 @@ export function AgentConsole() {
             taskTitle={taskTitle}
           />
 
-          <form
-            className="mt-4 flex min-h-18 items-end gap-3 rounded-lg border border-[var(--agent-border)] bg-[var(--agent-paper)] p-3 focus-within:border-[var(--agent-border-strong)]"
-            onSubmit={handleSubmit}
-          >
-            <label className="min-w-0 flex-1">
-              <span className="sr-only">继续向 Agent 提出要求</span>
-              <textarea
-                className="max-h-36 min-h-11 w-full resize-none bg-transparent px-2 py-2 text-sm leading-6 outline-none placeholder:text-[var(--agent-tertiary)]"
-                disabled={busy || status === "waiting"}
-                onChange={(event) => setPrompt(event.target.value)}
-                onKeyDown={(event) => {
-                  if (
-                    event.key === "Enter" &&
-                    !event.shiftKey &&
-                    !event.nativeEvent.isComposing
-                  ) {
-                    event.preventDefault();
-                    event.currentTarget.form?.requestSubmit();
-                  }
-                }}
-                placeholder={
-                  status === "idle"
-                    ? "描述你希望 Agent 完成并交付的结果…"
-                    : status === "waiting"
-                      ? "请先处理右侧的确认请求"
-                      : "让 Agent 调整这份结果…"
-                }
-                rows={1}
-                value={prompt}
-              />
-            </label>
+          <Card>
+            <CardHeader>
+              <CardTitle>继续任务</CardTitle>
+              <CardDescription>
+                输入新任务，或基于当前 Conversation 调整结果。
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form className="flex flex-col gap-3" onSubmit={handleSubmit}>
+                <FieldGroup>
+                  <Field
+                    data-disabled={busy || status === "waiting"}
+                    data-invalid={Boolean(error)}
+                  >
+                    <FieldLabel htmlFor="agent-prompt">
+                      给 Agent 的要求
+                    </FieldLabel>
+                    <InputGroup>
+                      <InputGroupTextarea
+                        aria-invalid={Boolean(error)}
+                        className="max-h-36 min-h-20 resize-none"
+                        disabled={busy || status === "waiting"}
+                        id="agent-prompt"
+                        onChange={(event) => setPrompt(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (
+                            event.key === "Enter" &&
+                            !event.shiftKey &&
+                            !event.nativeEvent.isComposing
+                          ) {
+                            event.preventDefault();
+                            event.currentTarget.form?.requestSubmit();
+                          }
+                        }}
+                        placeholder={
+                          status === "idle"
+                            ? "描述你希望 Agent 完成并交付的结果…"
+                            : status === "waiting"
+                              ? "请先处理右侧的确认请求"
+                              : "让 Agent 调整这份结果…"
+                        }
+                        rows={2}
+                        value={prompt}
+                      />
+                      <InputGroupAddon align="block-end">
+                        <div className="ml-auto flex gap-2">
+                          {status === "running" || status === "submitting" ? (
+                            <InputGroupButton
+                              aria-label="取消 Agent run"
+                              onClick={handleCancel}
+                              size="icon-sm"
+                              type="button"
+                              variant="outline"
+                            >
+                              <Square data-icon="inline-start" />
+                            </InputGroupButton>
+                          ) : null}
+                          <InputGroupButton
+                            aria-label="发送给 Agent"
+                            disabled={
+                              busy || status === "waiting" || !prompt.trim()
+                            }
+                            size="icon-sm"
+                            type="submit"
+                            variant="default"
+                          >
+                            <Send data-icon="inline-start" />
+                          </InputGroupButton>
+                        </div>
+                      </InputGroupAddon>
+                    </InputGroup>
+                    <FieldDescription>
+                      按 Enter 发送，Shift + Enter 换行。
+                    </FieldDescription>
+                  </Field>
+                </FieldGroup>
 
-            <div className="flex shrink-0 items-center gap-2">
-              {status === "running" || status === "submitting" ? (
-                <button
-                  className="agent-action inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm text-[var(--agent-secondary)] hover:bg-[var(--agent-canvas)] hover:text-[var(--agent-danger)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--agent-danger)]"
-                  onClick={handleCancel}
-                  type="button"
-                >
-                  <StopCircleIcon className="size-5" weight="bold" />
-                  <span className="hidden sm:inline">取消</span>
-                </button>
-              ) : null}
-              <Button
-                aria-label="发送给 Agent"
-                className="agent-action size-11 rounded-lg bg-[var(--agent-accent)] p-0 text-white hover:bg-[var(--agent-accent-hover)]"
-                disabled={busy || status === "waiting" || !prompt.trim()}
-                type="submit"
-              >
-                <PaperPlaneTiltIcon className="size-5" weight="bold" />
-              </Button>
-            </div>
-          </form>
-
-          {error ? (
-            <p
-              aria-live="polite"
-              className="mt-3 text-sm text-[var(--agent-danger)]"
-            >
-              {error}
-            </p>
-          ) : null}
+                {error ? (
+                  <Alert variant="destructive">
+                    <CircleAlert />
+                    <AlertDescription aria-live="polite">
+                      {error}
+                    </AlertDescription>
+                  </Alert>
+                ) : null}
+              </form>
+            </CardContent>
+          </Card>
         </section>
 
         <AgentRunTimeline
@@ -348,90 +410,87 @@ function ArtifactWorkspace({
   }
 
   return (
-    <article className="flex min-h-[620px] flex-1 flex-col overflow-hidden rounded-lg border border-[var(--agent-border)] bg-[var(--agent-paper)]">
-      <div className="flex flex-col gap-4 border-b border-[var(--agent-border)] px-6 py-6 sm:flex-row sm:items-start sm:justify-between lg:px-7">
-        <div className="min-w-0">
-          <h2 className="text-[28px] font-semibold leading-9 tracking-[-0.025em] text-[var(--agent-ink)]">
-            {active?.label ?? "Agent 交付物"}
-          </h2>
-          <p className="mt-2 truncate text-sm text-[var(--agent-tertiary)]">
-            {conversationId
-              ? `Conversation ${conversationId.slice(0, 8)} · ${taskTitle}`
-              : "任务完成后，结果和 Artifact 会保留在这里"}
-          </p>
-        </div>
+    <Card className="min-h-[620px] flex-1">
+      <CardHeader>
+        <CardTitle>{active?.label ?? "Agent 交付物"}</CardTitle>
+        <CardDescription className="truncate">
+          {conversationId
+            ? `Conversation ${conversationId.slice(0, 8)} · ${taskTitle}`
+            : "任务完成后，结果和 Artifact 会保留在这里"}
+        </CardDescription>
         {active ? (
-          <button
-            className="agent-action inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg px-3 text-sm text-[var(--agent-secondary)] hover:bg-[var(--agent-canvas)] hover:text-[var(--agent-ink)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--agent-ink)]"
-            onClick={copyArtifact}
-            type="button"
-          >
-            {copied ? (
-              <CheckIcon className="size-4" weight="bold" />
-            ) : (
-              <CopyIcon className="size-4" weight="regular" />
-            )}
-            {copied ? "已复制" : "复制"}
-          </button>
+          <CardAction>
+            <Button onClick={copyArtifact} size="sm" variant="outline">
+              {copied ? (
+                <Check data-icon="inline-start" />
+              ) : (
+                <Copy data-icon="inline-start" />
+              )}
+              {copied ? "已复制" : "复制"}
+            </Button>
+          </CardAction>
         ) : null}
-      </div>
+      </CardHeader>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-6 py-7 lg:px-7">
-        {active?.content ? (
-          <div className="max-w-5xl text-[15px] leading-7 text-[var(--agent-ink)] [&>*+*]:mt-4">
-            <AgentMarkdown>{active.content}</AgentMarkdown>
-          </div>
+      <CardContent className="flex min-h-0 flex-1 flex-col">
+        {artifacts.length ? (
+          <Tabs
+            className="min-h-0 flex-1"
+            onValueChange={setActiveId}
+            value={active?.id}
+          >
+            <TabsList className="max-w-full overflow-x-auto" variant="line">
+              {artifacts.map((artifact) => (
+                <TabsTrigger key={artifact.id} value={artifact.id}>
+                  {artifact.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            {artifacts.map((artifact) => (
+              <TabsContent
+                className="min-h-0 flex-1 overflow-y-auto py-4"
+                key={artifact.id}
+                value={artifact.id}
+              >
+                <div className="max-w-5xl text-pretty text-sm leading-7">
+                  <AgentMarkdown>{artifact.content}</AgentMarkdown>
+                </div>
+              </TabsContent>
+            ))}
+          </Tabs>
         ) : (
           <EmptyArtifact status={status} />
         )}
-      </div>
-
-      {artifacts.length ? (
-        <nav
-          aria-label="交付物"
-          className="flex min-h-13 overflow-x-auto border-t border-[var(--agent-border)]"
-        >
-          {artifacts.map((artifact) => (
-            <button
-              aria-current={artifact.id === active?.id ? "page" : undefined}
-              className={
-                artifact.id === active?.id
-                  ? "agent-action min-w-36 border-b-2 border-[var(--agent-accent)] px-6 text-sm font-medium text-[var(--agent-ink)]"
-                  : "agent-action min-w-36 border-b-2 border-transparent px-6 text-sm text-[var(--agent-secondary)] hover:bg-[var(--agent-canvas)] hover:text-[var(--agent-ink)]"
-              }
-              key={artifact.id}
-              onClick={() => setActiveId(artifact.id)}
-              type="button"
-            >
-              {artifact.label}
-            </button>
-          ))}
-        </nav>
-      ) : null}
-    </article>
+      </CardContent>
+    </Card>
   );
 }
 
 function EmptyArtifact({ status }: { status: AgentConsoleStatus }) {
   return (
-    <div className="flex min-h-96 max-w-2xl flex-col justify-center">
-      <p className="text-xs font-medium text-[var(--agent-accent)]">
-        {status === "running" || status === "submitting"
-          ? "正在生成"
-          : "新的工作空间"}
-      </p>
-      <h3 className="mt-3 text-3xl font-semibold tracking-[-0.025em]">
-        交付物，而不只是一段聊天记录
-      </h3>
-      <p className="mt-4 max-w-xl text-base leading-7 text-[var(--agent-secondary)]">
-        在下方描述你希望完成的结果。Agent 的输出、表格、行动清单和其他 Artifact
-        会在同一个 Conversation 中持续更新。
-      </p>
-    </div>
+    <Empty className="min-h-96 border">
+      <EmptyHeader>
+        <Badge variant="outline">
+          {status === "running" || status === "submitting"
+            ? "正在生成"
+            : "新的工作空间"}
+        </Badge>
+        <EmptyTitle>交付物，而不只是一段聊天记录</EmptyTitle>
+        <EmptyDescription>
+          Agent 的输出、表格、行动清单和其他 Artifact 会在同一个 Conversation
+          中持续更新。
+        </EmptyDescription>
+      </EmptyHeader>
+      <EmptyContent>
+        <Button asChild variant="outline">
+          <a href="#agent-prompt">输入任务</a>
+        </Button>
+      </EmptyContent>
+    </Empty>
   );
 }
 
-function StatusLabel({ status }: { status: AgentConsoleStatus }) {
+function StatusBadge({ status }: { status: AgentConsoleStatus }) {
   const text = {
     idle: "准备开始",
     submitting: "正在连接",
@@ -442,29 +501,17 @@ function StatusLabel({ status }: { status: AgentConsoleStatus }) {
     skipped: "Runtime 未配置",
     failed: "运行失败",
   }[status];
-  const active = status === "running" || status === "submitting";
-  const attention = status === "waiting" || status === "failed";
+  const variant =
+    status === "failed"
+      ? "destructive"
+      : status === "running" || status === "submitting"
+        ? "secondary"
+        : "outline";
 
   return (
-    <span
-      aria-live="polite"
-      className={
-        attention
-          ? "mt-1 inline-flex items-center gap-2 text-sm font-medium text-[var(--agent-accent)] md:mt-0"
-          : "mt-1 inline-flex items-center gap-2 text-sm text-[var(--agent-secondary)] md:mt-0"
-      }
-    >
-      <span
-        className={
-          active
-            ? "size-2 animate-pulse rounded-full bg-[var(--agent-success)]"
-            : attention
-              ? "size-2 rounded-full bg-[var(--agent-accent)]"
-              : "size-2 rounded-full bg-[var(--agent-border-strong)]"
-        }
-      />
+    <Badge aria-live="polite" variant={variant}>
       {text}
-    </span>
+    </Badge>
   );
 }
 

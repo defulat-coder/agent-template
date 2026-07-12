@@ -2,13 +2,14 @@
 
 ## 职责
 
-`packages/ui` 提供共享 React UI 组件和样式工具，当前包含 shadcn/ui 风格的 `Button` 和 `cn`。
+`packages/ui` 提供由 shadcn CLI 维护的共享 React UI primitives、主题样式和 `cn` 工具。
 
 ## 能力边界
 
 - 只放跨页面、跨应用复用的 UI primitives。
 - 组件应保持无业务语义，不依赖 API、数据库、队列或环境变量。
 - 样式优先使用 Tailwind utility 和语义化组件变体。
+- `components.json`、`src/components/` 与 `src/styles/globals.css` 按 shadcn monorepo 方式维护；应用通过 `@agent-template/ui/components/*` 复用组件。
 
 ## 不应该做
 

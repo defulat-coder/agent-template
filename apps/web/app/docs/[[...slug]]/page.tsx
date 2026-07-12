@@ -1,6 +1,29 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ChevronDown } from "lucide-react";
+import { Badge } from "@agent-template/ui/components/badge";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@agent-template/ui/components/breadcrumb";
+import { Button } from "@agent-template/ui/components/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@agent-template/ui/components/collapsible";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@agent-template/ui/components/card";
+import { Separator } from "@agent-template/ui/components/separator";
 import { DocsMarkdown } from "@/features/docs/docs-markdown";
 import {
   listZReadDocuments,
@@ -51,60 +74,76 @@ export default async function DocsPage({ params }: DocsPageProps) {
   const groups = groupCatalog(catalog);
 
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-950">
-      <header className="sticky top-0 z-20 border-b border-slate-200/90 bg-slate-50/95 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 lg:px-8">
+    <main className="min-h-dvh bg-background text-foreground">
+      <header className="sticky top-0 z-20 border-b bg-background">
+        <div className="mx-auto flex min-h-16 max-w-7xl items-center justify-between gap-4 px-5 py-3 lg:px-8">
           <Link className="flex items-center gap-3" href="/docs">
-            <span className="flex size-8 items-center justify-center rounded-md bg-slate-950 font-mono text-sm font-semibold text-white">
-              AT
-            </span>
+            <Badge>AT</Badge>
             <span>
               <span className="block text-sm font-semibold">
                 Agent Template
               </span>
-              <span className="block text-xs text-slate-500">工程文档</span>
+              <span className="block text-xs text-muted-foreground">
+                工程文档
+              </span>
             </span>
           </Link>
-          <nav
-            aria-label="全局导航"
-            className="flex items-center gap-5 text-sm"
-          >
-            <Link className="text-slate-600 hover:text-slate-950" href="/">
-              项目首页
-            </Link>
-            <Link className="text-slate-600 hover:text-slate-950" href="/agent">
-              Agent 控制台
-            </Link>
+          <nav aria-label="全局导航" className="flex items-center gap-1">
+            <Button asChild size="sm" variant="ghost">
+              <Link href="/">项目首页</Link>
+            </Button>
+            <Button asChild size="sm" variant="ghost">
+              <Link href="/agent">Agent 控制台</Link>
+            </Button>
           </nav>
         </div>
       </header>
 
       <div className="mx-auto max-w-7xl px-5 lg:grid lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-12 lg:px-8">
-        <aside className="py-6 lg:sticky lg:top-16 lg:h-[calc(100vh-4rem)] lg:overflow-y-auto lg:py-10">
-          <details className="rounded-lg border border-slate-200 bg-white p-4 lg:hidden">
-            <summary className="cursor-pointer text-sm font-semibold">
-              文档目录
-            </summary>
-            <DocsNavigation currentHref={document.href} groups={groups} />
-          </details>
-          <div className="hidden lg:block">
-            <p className="mb-5 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+        <aside className="py-6 lg:sticky lg:top-16 lg:h-[calc(100dvh-4rem)] lg:overflow-y-auto lg:py-10">
+          <Collapsible className="lg:hidden">
+            <CollapsibleTrigger asChild>
+              <Button className="w-full justify-between" variant="outline">
+                文档目录
+                <ChevronDown data-icon="inline-end" />
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>浏览文档</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <DocsNavigation currentHref={document.href} groups={groups} />
+                </CardContent>
+              </Card>
+            </CollapsibleContent>
+          </Collapsible>
+          <div className="hidden lg:flex lg:flex-col lg:gap-5">
+            <Badge className="w-fit" variant="outline">
               Documentation
-            </p>
+            </Badge>
             <DocsNavigation currentHref={document.href} groups={groups} />
           </div>
         </aside>
 
-        <article className="min-w-0 border-slate-200 py-10 lg:border-l lg:py-14 lg:pl-12">
-          <div className="mb-8 flex items-center gap-2 text-sm text-slate-500">
-            <Link className="hover:text-slate-950" href="/docs">
-              文档
-            </Link>
-            <span aria-hidden="true">/</span>
-            <span>{document.section}</span>
-          </div>
+        <article className="min-w-0 py-10 lg:border-l lg:py-14 lg:pl-12">
+          <Breadcrumb className="mb-8">
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbLink asChild>
+                  <Link href="/docs">文档</Link>
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbPage>{document.section}</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+
           <div className="max-w-3xl">
-            <h1 className="mb-8 text-3xl font-semibold tracking-tight text-slate-950 md:text-4xl">
+            <h1 className="mb-8 text-balance text-3xl font-semibold md:text-4xl">
               {document.title}
             </h1>
             <DocsMarkdown
@@ -116,12 +155,16 @@ export default async function DocsPage({ params }: DocsPageProps) {
               {document.content}
             </DocsMarkdown>
           </div>
-          <footer className="mt-16 max-w-3xl border-t border-slate-200 pt-6 text-sm leading-6 text-slate-500">
-            本页由 ZRead 从当前仓库源码生成；更新入口为
-            <code className="mx-1 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-700">
-              pnpm docs:zread:update
-            </code>
-            。
+
+          <footer className="mt-16 flex max-w-3xl flex-col gap-6 text-sm leading-6 text-muted-foreground">
+            <Separator />
+            <p className="text-pretty">
+              本页由 ZRead 从当前仓库源码生成；更新入口为
+              <code className="mx-1 rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground">
+                pnpm docs:zread:update
+              </code>
+              。
+            </p>
           </footer>
         </article>
       </div>
@@ -137,28 +180,30 @@ function DocsNavigation({
   groups: ReadonlyMap<string, readonly ZReadCatalogEntry[]>;
 }) {
   return (
-    <nav aria-label="文档目录" className="mt-5 space-y-7 lg:mt-0">
+    <nav aria-label="文档目录" className="flex flex-col gap-7">
       {[...groups.entries()].map(([section, entries]) => (
-        <section key={section}>
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+        <section className="flex flex-col gap-2" key={section}>
+          <Badge className="w-fit" variant="secondary">
             {section}
-          </h2>
-          <ul className="space-y-1">
+          </Badge>
+          <ul className="flex flex-col gap-1">
             {entries.map((entry) => {
               const active = entry.href === currentHref;
               return (
                 <li key={entry.relativePath}>
-                  <Link
-                    aria-current={active ? "page" : undefined}
-                    className={`block rounded-md px-3 py-2 text-sm leading-5 transition-colors ${
-                      active
-                        ? "bg-slate-900 font-medium text-white"
-                        : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
-                    }`}
-                    href={entry.href}
+                  <Button
+                    asChild
+                    className="h-auto w-full justify-start whitespace-normal text-left"
+                    size="sm"
+                    variant={active ? "secondary" : "ghost"}
                   >
-                    {entry.title}
-                  </Link>
+                    <Link
+                      aria-current={active ? "page" : undefined}
+                      href={entry.href}
+                    >
+                      {entry.title}
+                    </Link>
+                  </Button>
                 </li>
               );
             })}
