@@ -119,6 +119,11 @@ function createRunsStub(
     run: skipped,
     resume: skipped,
     get: async () => snapshot,
+    observe: async () => ({
+      runId: snapshot.id,
+      terminal: false,
+      events: [],
+    }),
     list: async () => ({ items: [], nextCursor: null }),
     cancel: async () => snapshot,
     failQueued: async () => snapshot,

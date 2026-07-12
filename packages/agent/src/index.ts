@@ -32,9 +32,11 @@ export {
   type AgentRunLifecycle,
   type AgentRunLifecycleExecutionOptions,
   type AgentRunLifecycleQueueOptions,
+  type AgentRunObservation,
   type AgentRunRepository,
   type StoredAgentRun,
   type StoredAgentRunEvent,
+  type StoredAgentRunObservation,
 } from "./lifecycle.js";
 
 export const defaultAgentRuntimeName = "claude";

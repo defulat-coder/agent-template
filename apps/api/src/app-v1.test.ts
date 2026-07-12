@@ -135,6 +135,98 @@ describe("Agent API v1", () => {
     });
   });
 
+  it("advances the follow cursor without replaying prior Agent run events", async () => {
+    const snapshot = createRunSnapshot();
+    const createdAt = "2026-07-11T00:00:01.000Z";
+    const observedAfter: number[] = [];
+    const result = {
+      status: "completed" as const,
+      promptLength: snapshot.prompt.length,
+      runtime: "claude" as const,
+      configured: true,
+      model: "test-model",
+      runId: snapshot.id,
+      events: [
+        { kind: "text" as const, text: "old" },
+        { kind: "text" as const, text: "new" },
+        { kind: "done" as const, result: "Done" },
+      ],
+      output: "Done",
+    };
+    const observations = [
+      {
+        runId: snapshot.id,
+        terminal: false as const,
+        events: [
+          {
+            sequence: 2,
+            executionAttempt: 1,
+            createdAt,
+            event: { kind: "text" as const, text: "new" },
+          },
+        ],
+      },
+      {
+        runId: snapshot.id,
+        terminal: true as const,
+        events: [
+          {
+            sequence: 3,
+            executionAttempt: 1,
+            createdAt,
+            event: { kind: "done" as const, result: "Done" },
+          },
+        ],
+        result,
+      },
+    ];
+    const runs = createRunLifecycleStub({
+      async observe(_runId, afterSequence) {
+        observedAfter.push(afterSequence);
+        return observations.shift();
+      },
+    });
+    const app = buildV1App({ agentRunLifecycle: runs });
+
+    const response = await app.inject({
+      method: "GET",
+      url: `/v1/agent/runs/${snapshot.id}/events?afterSequence=1&follow=true`,
+      headers: authorization(),
+    });
+    const frames = response.body
+      .split("\n\n")
+      .filter(Boolean)
+      .map((block) => JSON.parse(block.split("\ndata: ")[1]!));
+
+    expect(observedAfter).toEqual([1, 2]);
+    expect(frames.map((frame) => frame.type)).toEqual([
+      "event",
+      "event",
+      "terminal",
+    ]);
+    expect(frames.slice(0, 2).map((frame) => frame.sequence)).toEqual([2, 3]);
+  });
+
+  it("rejects an invalid Agent run event cursor before opening a stream", async () => {
+    const runs = createRunLifecycleStub();
+    const app = buildV1App({ agentRunLifecycle: runs });
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/agent/runs/run-1/events?afterSequence=not-a-number&follow=true",
+      headers: authorization(),
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({
+      error: {
+        code: "INVALID_INPUT",
+        message: "请求参数无效",
+        retryable: false,
+      },
+    });
+  });
+
   it("maps the domain conversation busy error to a stable conflict", async () => {
     const lifecycle = createConversationLifecycleStub({
       async send() {
@@ -248,6 +340,11 @@ function createRunLifecycleStub(
     run: skipped,
     resume: skipped,
     get: async () => snapshot,
+    observe: async () => ({
+      runId: snapshot.id,
+      terminal: false,
+      events: [],
+    }),
     list: async () => ({ items: [], nextCursor: null }),
     cancel: async () => snapshot,
     failQueued: async () => snapshot,

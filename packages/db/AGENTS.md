@@ -11,8 +11,11 @@
 - `prisma/seed.ts` 只写入确定性的 Agent 平台 `TemplateEvent`；电商验证数据属于 `packages/ecommerce-fixture`。
 - `src/index.ts` 导出 Prisma Client 和 `AgentRunRepository` adapter。
 - Agent run claim、heartbeat、execution event 和 terminal update 必须以 PostgreSQL 原子条件实现 fencing；不能先读 token 再无条件写。
+- Agent run 的 `prompt` 与 `inputResponses` 共同构成可重试执行的 canonical input；Prisma adapter 读取 JSONB 回复时必须通过 shared schema fail fast 校验。
 - execution lease 的唯一时钟是 PostgreSQL `clock_timestamp()`；应用传入的业务时间不得参与 lease ownership 判定。
 - execution event insert 必须在同一 fenced SQL 中从 AgentRun 投影 `executionAttempt`；lifecycle-only event 使用 `null`，不能由调用方伪造 attempt。
+- Agent run observation adapter 必须按 `afterSequence` 在数据库中筛选增量 event，只读取 run 状态与 tail；不能为每轮 follow include 完整 event 历史。
+- Repository 产生 `CANCELLED` 终态时，status/reason/completedAt 与 lifecycle `cancelled` event 必须在同一数据库 transaction 中可见；不能先发布终态再补事件。
 - Toolbox 观测索引中的 DESC、partial 与 expression 访问路径由手写 migration 管理；修改相关 SQL 时同步 `pnpm toolbox:verify:plans`，不要只依赖 Prisma schema 可表达索引。
 - 默认数据库连接使用 `localhost:15432`，避免和本机默认 PostgreSQL 冲突。
 - Prisma 目录内的 schema、migration、seed 规则见 `prisma/AGENTS.md`。

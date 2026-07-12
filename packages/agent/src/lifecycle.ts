@@ -5,9 +5,11 @@ import {
   AgentRunListQuerySchema,
   AgentRunResultSchema,
   AgentRunSummarySchema,
+  type AgentInputResponse,
   type AgentRunEvent,
   type AgentRunListQuery,
   type AgentRunPage,
+  type AgentRunRecordedEvent,
   type AgentRunResult,
   type AgentRunSnapshot,
   type AgentRunSummary,
@@ -32,6 +34,7 @@ export type StoredAgentRun = {
   id: string;
   conversationId: string | null;
   prompt: string;
+  inputResponses: AgentInputResponse[] | null;
   requestedAt: Date;
   startedAt: Date | null;
   completedAt: Date | null;
@@ -49,14 +52,26 @@ export type StoredAgentRun = {
   events: StoredAgentRunEvent[];
 };
 
+export type StoredAgentRunObservation = Pick<
+  StoredAgentRun,
+  "id" | "status"
+> & {
+  events: StoredAgentRunEvent[];
+};
+
 export type AgentRunRepository = {
   create(input: {
     id: string;
     prompt: string;
+    inputResponses?: AgentInputResponse[];
     requestedAt: Date;
     conversationId?: string;
   }): Promise<StoredAgentRun>;
   find(id: string): Promise<StoredAgentRun | undefined>;
+  observe(
+    id: string,
+    afterSequence: number,
+  ): Promise<StoredAgentRunObservation | undefined>;
   list(input: AgentRunListQuery): Promise<{
     items: StoredAgentRun[];
     nextCursor: string | null;
@@ -128,10 +143,27 @@ export type AgentRunLifecycle = {
     options?: AgentRunLifecycleExecutionOptions,
   ): Promise<AgentRunResult>;
   get(runId: string): Promise<AgentRunSnapshot | undefined>;
+  observe(
+    runId: string,
+    afterSequence: number,
+  ): Promise<AgentRunObservation | undefined>;
   list(query?: unknown): Promise<AgentRunPage>;
   cancel(runId: string): Promise<AgentRunSnapshot | undefined>;
   failQueued(runId: string, reason: string): Promise<AgentRunSnapshot>;
 };
+
+export type AgentRunObservation =
+  | {
+      runId: string;
+      terminal: false;
+      events: AgentRunRecordedEvent[];
+    }
+  | {
+      runId: string;
+      terminal: true;
+      events: AgentRunRecordedEvent[];
+      result: AgentRunResult;
+    };
 
 export type AgentRunLifecycleExecutionOptions = {
   abortSignal?: AbortSignal;
@@ -168,6 +200,9 @@ export function createAgentRunLifecycle(input: {
       await input.repository.create({
         id: randomUUID(),
         prompt: parsed.prompt,
+        ...(parsed.inputResponses
+          ? { inputResponses: parsed.inputResponses }
+          : {}),
         requestedAt,
         ...(options.conversationId
           ? { conversationId: options.conversationId }
@@ -246,18 +281,29 @@ export function createAgentRunLifecycle(input: {
     });
 
     try {
-      const result = await input.execute({ prompt: started.prompt }, env, {
-        abortController: controller,
-        ...(options.captureContinuation !== undefined
-          ? { captureContinuation: options.captureContinuation }
-          : {}),
-        ...(options.continuation ? { continuation: options.continuation } : {}),
-        onEvent(event) {
-          appendCompactedAgentRunEvent(emittedEvents, event);
-          eventWriter.push(event, now());
-          options.onEvent?.(event);
+      const result = await input.execute(
+        {
+          prompt: started.prompt,
+          ...(started.inputResponses
+            ? { inputResponses: started.inputResponses }
+            : {}),
         },
-      });
+        env,
+        {
+          abortController: controller,
+          ...(options.captureContinuation !== undefined
+            ? { captureContinuation: options.captureContinuation }
+            : {}),
+          ...(options.continuation
+            ? { continuation: options.continuation }
+            : {}),
+          onEvent(event) {
+            appendCompactedAgentRunEvent(emittedEvents, event);
+            eventWriter.push(event, now());
+            options.onEvent?.(event);
+          },
+        },
+      );
       await eventWriter.flush();
 
       if (controller.signal.aborted) {
@@ -392,6 +438,31 @@ export function createAgentRunLifecycle(input: {
     async get(runId) {
       const run = await input.repository.find(runId);
       return run ? toSnapshot(run) : undefined;
+    },
+    async observe(runId, afterSequence) {
+      if (!Number.isSafeInteger(afterSequence) || afterSequence < -1) {
+        throw new Error(
+          "Agent run observation cursor must be an integer >= -1",
+        );
+      }
+      const observation = await input.repository.observe(runId, afterSequence);
+      if (!observation) return undefined;
+      const events = observation.events.map(toRecordedEvent);
+      if (observation.status === "queued" || observation.status === "running") {
+        return { runId, terminal: false, events };
+      }
+      const terminalRun = await input.repository.find(runId);
+      if (!terminalRun) {
+        throw new Error(`Agent run ${runId} disappeared during observation`);
+      }
+      return {
+        runId,
+        terminal: true,
+        events: terminalRun.events
+          .filter((event) => event.sequence > afterSequence)
+          .map(toRecordedEvent),
+        result: resultFromStoredRun(terminalRun),
+      };
     },
     async list(query) {
       const parsed = AgentRunListQuerySchema.parse(query ?? {});
@@ -660,12 +731,16 @@ function toSnapshot(run: StoredAgentRun): AgentRunSnapshot {
     model: run.model,
     output: run.output,
     reason: run.reason,
-    events: run.events.map((item) => ({
-      sequence: item.sequence,
-      executionAttempt: item.executionAttempt,
-      createdAt: item.createdAt.toISOString(),
-      event: item.event,
-    })),
+    events: run.events.map(toRecordedEvent),
+  };
+}
+
+function toRecordedEvent(item: StoredAgentRunEvent): AgentRunRecordedEvent {
+  return {
+    sequence: item.sequence,
+    executionAttempt: item.executionAttempt,
+    createdAt: item.createdAt.toISOString(),
+    event: item.event,
   };
 }
 

@@ -1,14 +1,13 @@
 import { timingSafeEqual } from "node:crypto";
 import { PassThrough } from "node:stream";
 import type { FastifyInstance, FastifyReply } from "fastify";
-import { ZodError } from "zod";
+import { z, ZodError } from "zod";
 import {
   AgentConversationNotFoundError,
   AgentConversationRuntimeConflictError,
   getAgentRuntimeStateFromEnv,
   type AgentConversationLifecycle,
   type AgentRunLifecycle,
-  type AgentRunResult,
 } from "@agent-template/agent";
 import {
   AgentConversationBusyError,
@@ -16,7 +15,6 @@ import {
   AgentConversationListQuerySchema,
   AgentRunInputSchema,
   AgentRunListQuerySchema,
-  type AgentRunSnapshot,
   type AgentRunStreamFrame,
 } from "@agent-template/shared";
 import type { AgentJobIntake } from "./agent-job-intake.js";
@@ -29,6 +27,11 @@ export type V1AgentApiDependencies = {
   agentJobIntake: AgentJobIntake;
   agentRunLifecycle: AgentRunLifecycle;
 };
+
+const AgentRunEventsQuerySchema = z.object({
+  afterSequence: z.coerce.number().int().min(-1).default(-1),
+  follow: z.enum(["true", "false"]).optional(),
+});
 
 export function registerV1AgentApi(
   app: FastifyInstance,
@@ -151,11 +154,8 @@ export function registerV1AgentApi(
 
   app.get("/v1/agent/runs/:runId/events", async (request, reply) => {
     const { runId } = request.params as { runId: string };
-    const query = request.query as {
-      afterSequence?: string;
-      follow?: string;
-    };
-    const afterSequence = Math.max(-1, Number(query.afterSequence ?? -1));
+    const query = AgentRunEventsQuerySchema.parse(request.query ?? {});
+    const afterSequence = query.afterSequence;
     if (query.follow !== "true") {
       const run = await input.agentRunLifecycle.get(runId);
       if (!run) {
@@ -235,10 +235,9 @@ async function watchRun(
   let cursor = afterSequence;
   try {
     while (!isClosed()) {
-      const run = await lifecycle.get(runId);
-      if (!run) throw new Error(`Agent run ${runId} not found`);
-      for (const record of run.events) {
-        if (record.sequence <= cursor) continue;
+      const observation = await lifecycle.observe(runId, cursor);
+      if (!observation) throw new Error(`Agent run ${runId} not found`);
+      for (const record of observation.events) {
         writeSseEvent(
           stream,
           "frame",
@@ -252,11 +251,11 @@ async function watchRun(
         );
         cursor = record.sequence;
       }
-      if (isTerminal(run)) {
+      if (observation.terminal) {
         writeFrame(stream, {
           type: "terminal",
           runId,
-          result: resultFromSnapshot(run),
+          result: observation.result,
         });
         break;
       }
@@ -267,33 +266,6 @@ async function watchRun(
   } finally {
     stream.end();
   }
-}
-
-function resultFromSnapshot(run: AgentRunSnapshot): AgentRunResult {
-  if (!isTerminal(run)) throw new Error(`Agent run ${run.id} is not terminal`);
-  const base = {
-    promptLength: run.prompt.length,
-    runtime: run.runtime ?? "claude",
-    configured: run.status !== "skipped",
-    model: run.model ?? "unknown",
-    runId: run.id,
-    ...(run.conversationId ? { conversationId: run.conversationId } : {}),
-    events: run.events.map((record) => record.event),
-  };
-  if (run.status === "completed") {
-    return { ...base, status: run.status, output: run.output ?? "" };
-  }
-  return {
-    ...base,
-    status: run.status,
-    reason: run.reason ?? `Agent run ${run.status}`,
-  };
-}
-
-function isTerminal(run: AgentRunSnapshot): run is AgentRunSnapshot & {
-  status: Exclude<AgentRunSnapshot["status"], "queued" | "running">;
-} {
-  return run.status !== "queued" && run.status !== "running";
 }
 
 function registerAuthentication(app: FastifyInstance, env: Env) {

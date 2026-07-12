@@ -95,6 +95,11 @@ function createAgentRunLifecycleStub(
     resume: skipped,
     list: async () => ({ items: [], nextCursor: null }),
     get: async () => snapshot,
+    observe: async () => ({
+      runId: snapshot.id,
+      terminal: false,
+      events: [],
+    }),
     cancel: async () => snapshot,
     failQueued: async () => snapshot,
     ...overrides,

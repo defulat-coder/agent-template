@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
 import {
   AgentConversationBusyError,
+  AgentInputResponseSchema,
   AgentRunEventSchema,
+  type AgentInputResponse,
   type AgentRunListQuery,
   type AgentRunEvent as SharedAgentRunEvent,
   type AgentRunStatus as SharedAgentRunStatus,
@@ -11,6 +13,10 @@ import { Prisma, type PrismaClient } from "../generated/client/client.js";
 const storedRunInclude = {
   events: { orderBy: { sequence: "asc" as const } },
 };
+type PrismaStoredAgentRun = Prisma.AgentRunGetPayload<{
+  include: typeof storedRunInclude;
+}>;
+const AgentInputResponsesSchema = AgentInputResponseSchema.array();
 
 const fromPrismaStatus = {
   QUEUED: "queued",
@@ -45,6 +51,7 @@ export function createPrismaAgentRunRepository(client: PrismaClient) {
     async create(input: {
       id: string;
       prompt: string;
+      inputResponses?: AgentInputResponse[];
       requestedAt: Date;
       conversationId?: string;
     }) {
@@ -65,6 +72,32 @@ export function createPrismaAgentRunRepository(client: PrismaClient) {
       }
     },
     find,
+    async observe(id: string, afterSequence: number) {
+      const run = await client.agentRun.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          status: true,
+          events: {
+            where: { sequence: { gt: afterSequence } },
+            orderBy: { sequence: "asc" },
+            select: {
+              sequence: true,
+              executionAttempt: true,
+              payload: true,
+              createdAt: true,
+            },
+          },
+        },
+      });
+      return run
+        ? {
+            id: run.id,
+            status: fromPrismaStatus[run.status],
+            events: run.events.map(mapStoredRunEvent),
+          }
+        : undefined;
+    },
     async list(input: AgentRunListQuery) {
       const cursor = input.cursor ? decodeCursor(input.cursor) : undefined;
       const where = {
@@ -117,43 +150,61 @@ export function createPrismaAgentRunRepository(client: PrismaClient) {
         leaseDurationMs: number;
       },
     ) {
-      await client.$executeRaw`
-        UPDATE public."AgentRun"
-        SET
-          status = 'cancelled',
-          "completedAt" = clock_timestamp(),
-          reason = 'Agent run was cancelled after its execution lease expired',
-          "executionToken" = NULL,
-          "leaseExpiresAt" = NULL,
-          "updatedAt" = clock_timestamp()
-        WHERE id = ${id}
-          AND status = 'running'
-          AND "cancelRequestedAt" IS NOT NULL
-          AND "leaseExpiresAt" <= clock_timestamp()
-      `;
-      const updated = await client.$executeRaw`
-        UPDATE public."AgentRun"
-        SET
-          status = 'running',
-          "executionAttempt" = "executionAttempt" + 1,
-          "executionToken" = ${input.executionToken},
-          "leaseExpiresAt" = clock_timestamp() + (${input.leaseDurationMs} * INTERVAL '1 millisecond'),
-          "heartbeatAt" = clock_timestamp(),
-          runtime = ${input.runtime},
-          model = ${input.model},
-          "startedAt" = COALESCE("startedAt", clock_timestamp()),
-          "updatedAt" = clock_timestamp()
-        WHERE id = ${id}
-          AND "cancelRequestedAt" IS NULL
-          AND (
-            status = 'queued'
-            OR (
-              status = 'running'
-              AND "leaseExpiresAt" <= clock_timestamp()
+      return client.$transaction(async (transaction) => {
+        const expiredCancellationReason =
+          "Agent run was cancelled after its execution lease expired";
+        const cancelled = await transaction.$executeRaw`
+          UPDATE public."AgentRun"
+          SET
+            status = 'cancelled',
+            "completedAt" = clock_timestamp(),
+            reason = ${expiredCancellationReason},
+            "executionToken" = NULL,
+            "leaseExpiresAt" = NULL,
+            "updatedAt" = clock_timestamp()
+          WHERE id = ${id}
+            AND status = 'running'
+            AND "cancelRequestedAt" IS NOT NULL
+            AND "leaseExpiresAt" <= clock_timestamp()
+        `;
+        if (cancelled === 1) {
+          const run = await findStoredRun(transaction, id);
+          if (!run) throw new Error(`Agent run ${id} was not found`);
+          await appendTerminalCancellationEvent(
+            transaction,
+            run,
+            expiredCancellationReason,
+          );
+          return undefined;
+        }
+
+        const updated = await transaction.$executeRaw`
+          UPDATE public."AgentRun"
+          SET
+            status = 'running',
+            "executionAttempt" = "executionAttempt" + 1,
+            "executionToken" = ${input.executionToken},
+            "leaseExpiresAt" = clock_timestamp() + (${input.leaseDurationMs} * INTERVAL '1 millisecond'),
+            "heartbeatAt" = clock_timestamp(),
+            runtime = ${input.runtime},
+            model = ${input.model},
+            "startedAt" = COALESCE("startedAt", clock_timestamp()),
+            "updatedAt" = clock_timestamp()
+          WHERE id = ${id}
+            AND "cancelRequestedAt" IS NULL
+            AND (
+              status = 'queued'
+              OR (
+                status = 'running'
+                AND "leaseExpiresAt" <= clock_timestamp()
+              )
             )
-          )
-      `;
-      return updated === 1 ? find(id) : undefined;
+        `;
+        if (updated !== 1) return undefined;
+        const run = await findStoredRun(transaction, id);
+        if (!run) throw new Error(`Agent run ${id} was not found`);
+        return mapStoredRun(run);
+      });
     },
     async heartbeat(
       id: string,
@@ -305,26 +356,84 @@ export function createPrismaAgentRunRepository(client: PrismaClient) {
       return run;
     },
     async requestCancellation(id: string, requestedAt: Date) {
-      const cancelled = await client.agentRun.updateMany({
-        where: { id, status: "QUEUED" },
-        data: {
-          status: "CANCELLED",
-          cancelRequestedAt: requestedAt,
-          completedAt: requestedAt,
-          reason: "Agent run was cancelled before execution",
-        },
-      });
-      if (cancelled.count === 0) {
-        await client.agentRun.updateMany({
+      return client.$transaction(async (transaction) => {
+        const queuedCancellationReason =
+          "Agent run was cancelled before execution";
+        const cancelled = await transaction.agentRun.updateMany({
+          where: { id, status: "QUEUED" },
+          data: {
+            status: "CANCELLED",
+            cancelRequestedAt: requestedAt,
+            completedAt: requestedAt,
+            reason: queuedCancellationReason,
+          },
+        });
+        if (cancelled.count === 1) {
+          const run = await findStoredRun(transaction, id);
+          if (!run) throw new Error(`Agent run ${id} was not found`);
+          const updated = await appendTerminalCancellationEvent(
+            transaction,
+            run,
+            queuedCancellationReason,
+          );
+          return mapStoredRun(updated);
+        }
+
+        await transaction.agentRun.updateMany({
           where: { id, status: "RUNNING" },
           data: { cancelRequestedAt: requestedAt },
         });
-      }
-      const run = await find(id);
-      if (!run) throw new Error(`Agent run ${id} was not found`);
-      return run;
+        const run = await findStoredRun(transaction, id);
+        if (!run) throw new Error(`Agent run ${id} was not found`);
+        return mapStoredRun(run);
+      });
     },
   };
+}
+
+async function appendTerminalCancellationEvent(
+  transaction: Prisma.TransactionClient,
+  run: PrismaStoredAgentRun,
+  reason: string,
+): Promise<PrismaStoredAgentRun> {
+  if (run.events.some((event) => event.kind === "cancelled")) return run;
+  if (!run.completedAt) {
+    throw new Error(
+      `Agent run ${run.id} cannot persist a terminal cancellation event without completedAt`,
+    );
+  }
+  const event = { kind: "cancelled", reason } satisfies SharedAgentRunEvent;
+  const inserted = await transaction.$executeRaw`
+    INSERT INTO public."AgentRunEvent"
+      (id, "runId", sequence, "executionAttempt", kind, payload, "createdAt")
+    SELECT
+      ${randomUUID()},
+      ${run.id},
+      ${run.events.length},
+      NULL,
+      ${event.kind},
+      ${JSON.stringify(event)}::jsonb,
+      ${run.completedAt}
+    FROM public."AgentRun"
+    WHERE id = ${run.id}
+      AND status = 'cancelled'
+    ON CONFLICT ("runId", sequence) DO NOTHING
+  `;
+  if (inserted !== 1) {
+    throw new Error(
+      `Agent run ${run.id} terminal cancellation event was rejected`,
+    );
+  }
+  const updated = await findStoredRun(transaction, run.id);
+  if (!updated) throw new Error(`Agent run ${run.id} was not found`);
+  return updated;
+}
+
+function findStoredRun(client: Prisma.TransactionClient, id: string) {
+  return client.agentRun.findUnique({
+    where: { id },
+    include: storedRunInclude,
+  });
 }
 
 type StoredRunEventInput = {
@@ -333,13 +442,12 @@ type StoredRunEventInput = {
   createdAt: Date;
 };
 
-function mapStoredRun(
-  run: Prisma.AgentRunGetPayload<{ include: typeof storedRunInclude }>,
-) {
+function mapStoredRun(run: PrismaStoredAgentRun) {
   return {
     id: run.id,
     conversationId: run.conversationId,
     prompt: run.prompt,
+    inputResponses: parseStoredAgentInputResponses(run.id, run.inputResponses),
     requestedAt: run.requestedAt,
     startedAt: run.startedAt,
     completedAt: run.completedAt,
@@ -359,13 +467,31 @@ function mapStoredRun(
     output: run.output,
     reason: run.reason,
     runtimeSessionId: run.runtimeSessionId,
-    events: run.events.map((event) => ({
-      sequence: event.sequence,
-      executionAttempt: event.executionAttempt,
-      event: AgentRunEventSchema.parse(event.payload),
-      createdAt: event.createdAt,
-    })),
+    events: run.events.map(mapStoredRunEvent),
   };
+}
+
+function mapStoredRunEvent(event: {
+  sequence: number;
+  executionAttempt: number | null;
+  payload: unknown;
+  createdAt: Date;
+}) {
+  return {
+    sequence: event.sequence,
+    executionAttempt: event.executionAttempt,
+    event: AgentRunEventSchema.parse(event.payload),
+    createdAt: event.createdAt,
+  };
+}
+
+function parseStoredAgentInputResponses(runId: string, input: unknown) {
+  if (input === null) return null;
+  const parsed = AgentInputResponsesSchema.safeParse(input);
+  if (parsed.success) return parsed.data;
+  throw new Error(`Agent run ${runId} has invalid persisted inputResponses`, {
+    cause: parsed.error,
+  });
 }
 
 function encodeCursor(input: { requestedAt: Date; id: string }) {

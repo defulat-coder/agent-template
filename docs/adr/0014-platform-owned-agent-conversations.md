@@ -11,6 +11,11 @@ Claude or Eve runtime session identifiers. One Agent conversation contains an
 ordered series of Agent runs; every new user turn creates exactly one durable
 Agent run record before execution.
 
+That Agent run record persists the canonical input required to retry the turn,
+including structured Human-input responses. Execution resume reconstructs its
+input from the record rather than relying on request-local memory, so API and
+Worker execution observe the same input after redelivery or process restart.
+
 The selected Agent runtime adapter accepts and returns opaque Agent runtime
 continuation state through the `@agent-template/agent` seam. The API and CLI
 never expose that state. PostgreSQL stores it on the Agent conversation for the

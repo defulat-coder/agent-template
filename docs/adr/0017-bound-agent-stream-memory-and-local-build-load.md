@@ -25,6 +25,13 @@ paths without that native worker failure.
   run when more than 1,000 non-compacted events are waiting to persist.
 - Browser event history is bounded to 500 events while preserving the latest
   Artifact event when it falls outside the recent window.
+- Durable Agent run follow reads only persisted events after the caller cursor.
+  The lifecycle reads the full run once after observing a terminal status and
+  owns the single fail-fast terminal result projection; HTTP framing does not
+  rescan history or reconstruct missing terminal values.
+- Repository transitions that create a cancelled terminal run persist the
+  lifecycle cancellation event in the same database transaction, so followers
+  cannot observe terminal state before its final event.
 - Agent SSE parsers reject an unterminated frame after 16 MiB and always release
   their reader. Cancelling or unmounting the Web workspace aborts upstream work.
 - Web development, Web builds, and Web QA use Next.js webpack mode. Next.js build

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   createAgentRunLifecycle,
   type AgentRunRepository,
@@ -63,6 +63,189 @@ describe("Agent run lifecycle", () => {
       { sequence: 0, executionAttempt: 1 },
       { sequence: 1, executionAttempt: 1 },
     ]);
+  });
+
+  it("restores durable human input responses when a queued run resumes", async () => {
+    const repository = createInMemoryRepository();
+    let receivedInput: unknown;
+    const lifecycle = createAgentRunLifecycle({
+      repository,
+      async execute(input) {
+        receivedInput = input;
+        return {
+          configured: true,
+          events: [{ kind: "done", result: "Continued" }],
+          model: "test-model",
+          output: "Continued",
+          promptLength: (input as { prompt: string }).prompt.length,
+          runtime: "claude",
+          status: "completed",
+        };
+      },
+    });
+    const inputResponses = [
+      { requestId: "question-1", optionId: "approve" },
+      { requestId: "question-2", text: "继续执行" },
+    ];
+
+    const queued = await lifecycle.queue({
+      prompt: "Continue the conversation",
+      inputResponses,
+    });
+    await lifecycle.resume(queued.id, {
+      AGENT_RUNTIME: "claude",
+      CLAUDE_AGENT_MODEL: "test-model",
+    });
+
+    expect(receivedInput).toEqual({
+      prompt: "Continue the conversation",
+      inputResponses,
+    });
+  });
+
+  it("observes only events after the cursor and projects the terminal result", async () => {
+    const lifecycle = createAgentRunLifecycle({
+      repository: createInMemoryRepository(),
+      async execute(input, _env, options) {
+        options.onEvent?.({ kind: "text", text: "Working" });
+        options.onEvent?.({ kind: "done", result: "Done" });
+        return {
+          configured: true,
+          events: [
+            { kind: "text", text: "Working" },
+            { kind: "done", result: "Done" },
+          ],
+          model: "test-model",
+          output: "Done",
+          promptLength: (input as { prompt: string }).prompt.length,
+          runtime: "claude",
+          status: "completed",
+        };
+      },
+    });
+    const completed = await lifecycle.run(
+      { prompt: "Observe this run" },
+      { AGENT_RUNTIME: "claude", CLAUDE_AGENT_MODEL: "test-model" },
+    );
+
+    const observation = await lifecycle.observe(completed.runId!, 0);
+
+    expect(observation).toMatchObject({
+      runId: completed.runId,
+      terminal: true,
+      events: [
+        {
+          sequence: 1,
+          event: { kind: "done", result: "Done" },
+        },
+      ],
+      result: {
+        runId: completed.runId,
+        status: "completed",
+        output: "Done",
+      },
+    });
+  });
+
+  it("loads the full Agent run only after an observation becomes terminal", async () => {
+    const repository = createInMemoryRepository();
+    const lifecycle = createAgentRunLifecycle({
+      repository,
+      async execute(input) {
+        return {
+          configured: true,
+          events: [],
+          model: "test-model",
+          output: "Done",
+          promptLength: (input as { prompt: string }).prompt.length,
+          runtime: "claude",
+          status: "completed",
+        };
+      },
+    });
+    const queued = await lifecycle.queue({ prompt: "Observe state" });
+    const find = vi.spyOn(repository, "find");
+
+    await expect(lifecycle.observe(queued.id, -1)).resolves.toMatchObject({
+      terminal: false,
+    });
+    expect(find).not.toHaveBeenCalled();
+
+    await lifecycle.resume(queued.id, {
+      AGENT_RUNTIME: "claude",
+      CLAUDE_AGENT_MODEL: "test-model",
+    });
+    find.mockClear();
+
+    await expect(lifecycle.observe(queued.id, -1)).resolves.toMatchObject({
+      terminal: true,
+      result: { status: "completed", output: "Done" },
+    });
+    expect(find).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses the terminal record as the final event tail source", async () => {
+    const storedRepository = createInMemoryRepository();
+    const repository: AgentRunRepository = {
+      ...storedRepository,
+      async observe(id, afterSequence) {
+        const observation = await storedRepository.observe(id, afterSequence);
+        return observation?.status === "cancelled"
+          ? { ...observation, events: [] }
+          : observation;
+      },
+    };
+    const lifecycle = createAgentRunLifecycle({
+      repository,
+      execute: async () => {
+        throw new Error("must not execute");
+      },
+    });
+    const queued = await lifecycle.queue({ prompt: "Cancel before follow" });
+    await lifecycle.cancel(queued.id);
+
+    await expect(lifecycle.observe(queued.id, -1)).resolves.toMatchObject({
+      terminal: true,
+      events: [
+        {
+          sequence: 0,
+          event: {
+            kind: "cancelled",
+            reason: "Agent run was cancelled before execution",
+          },
+        },
+      ],
+    });
+  });
+
+  it("fails terminal observation when persisted result invariants are missing", async () => {
+    const repository = createInMemoryRepository();
+    const run = await repository.create({
+      id: "run-invalid-terminal",
+      prompt: "Missing output",
+      requestedAt: new Date("2026-07-12T00:00:00.000Z"),
+    });
+    await repository.claim(run.id, {
+      executionToken: "execution-invalid-terminal",
+      runtime: "claude",
+      model: "test-model",
+      leaseDurationMs: 60_000,
+    });
+    await repository.finishExecution(run.id, {
+      executionToken: "execution-invalid-terminal",
+      status: "completed",
+      completedAt: new Date("2026-07-12T00:00:01.000Z"),
+    });
+    const lifecycle = createAgentRunLifecycle({
+      repository,
+      execute: async () => {
+        throw new Error("must not execute");
+      },
+    });
+
+    await expect(lifecycle.observe(run.id, -1)).rejects.toThrow(
+      `Agent run ${run.id} completed is missing output`,
+    );
   });
 
   it("coalesces queued cumulative text snapshots under write backpressure", async () => {
@@ -195,6 +378,18 @@ describe("Agent run lifecycle", () => {
     const queued = await lifecycle.queue({ prompt: "Cancel me" });
 
     await lifecycle.cancel(queued.id);
+    await expect(lifecycle.observe(queued.id, -1)).resolves.toMatchObject({
+      terminal: true,
+      events: [
+        {
+          sequence: 0,
+          event: {
+            kind: "cancelled",
+            reason: "Agent run was cancelled before execution",
+          },
+        },
+      ],
+    });
     await expect(lifecycle.resume(queued.id, {})).resolves.toMatchObject({
       events: [
         {
@@ -342,6 +537,7 @@ function createInMemoryRepository(now = () => new Date()): AgentRunRepository {
       const run: StoredAgentRun = {
         ...input,
         conversationId: input.conversationId ?? null,
+        inputResponses: input.inputResponses ?? null,
         startedAt: null,
         completedAt: null,
         cancelRequestedAt: null,
@@ -363,6 +559,18 @@ function createInMemoryRepository(now = () => new Date()): AgentRunRepository {
     async find(id) {
       return runs.get(id);
     },
+    async observe(id, afterSequence) {
+      const run = runs.get(id);
+      return run
+        ? {
+            id: run.id,
+            status: run.status,
+            events: run.events.filter(
+              (event) => event.sequence > afterSequence,
+            ),
+          }
+        : undefined;
+    },
     async list(input) {
       const items = [...runs.values()].slice(0, input.limit);
       return { items, nextCursor: null };
@@ -375,12 +583,20 @@ function createInMemoryRepository(now = () => new Date()): AgentRunRepository {
         run.leaseExpiresAt !== null &&
         run.leaseExpiresAt <= claimedAt;
       if (run && reclaimable && run.cancelRequestedAt) {
+        const reason =
+          "Agent run was cancelled after its execution lease expired";
         Object.assign(run, {
           status: "cancelled" as const,
           completedAt: claimedAt,
-          reason: "Agent run was cancelled after its execution lease expired",
+          reason,
           executionToken: null,
           leaseExpiresAt: null,
+        });
+        run.events.push({
+          sequence: run.events.length,
+          executionAttempt: null,
+          event: { kind: "cancelled", reason },
+          createdAt: claimedAt,
         });
         return undefined;
       }
@@ -476,9 +692,16 @@ function createInMemoryRepository(now = () => new Date()): AgentRunRepository {
       if (!run) throw new Error("missing run");
       run.cancelRequestedAt = requestedAt;
       if (run.status === "queued") {
+        const reason = "Agent run was cancelled before execution";
         run.status = "cancelled";
         run.completedAt = requestedAt;
-        run.reason = "Agent run was cancelled before execution";
+        run.reason = reason;
+        run.events.push({
+          sequence: run.events.length,
+          executionAttempt: null,
+          event: { kind: "cancelled", reason },
+          createdAt: requestedAt,
+        });
       }
       return run;
     },
