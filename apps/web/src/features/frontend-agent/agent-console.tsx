@@ -452,9 +452,7 @@ function ArtifactWorkspace({
                 key={artifact.id}
                 value={artifact.id}
               >
-                <div className="max-w-5xl text-pretty text-sm leading-7">
-                  <AgentMarkdown>{artifact.content}</AgentMarkdown>
-                </div>
+                <AgentMarkdown>{artifact.content}</AgentMarkdown>
               </TabsContent>
             ))}
           </Tabs>

@@ -10,6 +10,7 @@
 - 组件应保持无业务语义，不依赖 API、数据库、队列或环境变量。
 - 样式优先使用 Tailwind utility 和语义化组件变体。
 - `components.json`、`src/components/` 与 `src/styles/globals.css` 按 shadcn monorepo 方式维护；应用通过 `@agent-template/ui/components/*` 复用组件。
+- Markdown 与普通 HTML 的共享排版由 `src/styles/typeset.css` 维护；保持上游 shadcn/typeset 的 append-stability 与 `not-typeset` 逃生口，场景差异只通过 preset 变量表达。
 
 ## 不应该做
 

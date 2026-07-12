@@ -21,6 +21,7 @@
 
 - 用户可见文案默认中文。
 - shadcn/ui 相关改动优先使用 `shadcn` Skill。
+- Markdown 继续由 `react-markdown` 与 `remark-gfm` 解析，元素排版统一使用共享的 shadcn/typeset 样式；Agent/Docs preset 由 `app/globals.css` 维护，renderer 只保留链接、锚点和共享 UI primitive 映射。
 - UI、样式、交互、动效、无障碍和前端性能任务在编辑前先运行 `pnpm ui:skills start`，再按路由结果运行 `pnpm ui:skills list --category <category>` 和 `pnpm ui:skills get <owner/skill>`。
 - 普通任务动态加载 1 个 UI Skill；广泛审查、重设计或多界面任务最多加载 3 个。不把动态 Skill 安装进项目。
 - 本文件、项目既有技术栈和组件模式优先于动态 UI Skill；未经要求不得迁移框架、组件库或动画库。

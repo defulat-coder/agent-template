@@ -30,7 +30,7 @@
 | 层级路径     | `Breadcrumb`                   |
 | 可折叠内容   | `Collapsible`                  |
 
-Markdown 解析继续由 `react-markdown` 与 `remark-gfm` 负责；其链接、分隔线和表格渲染应尽量复用共享 UI primitives，并使用相同的语义化 token。
+Markdown 解析继续由 `react-markdown` 与 `remark-gfm` 负责；渲染后的 HTML 统一使用共享的 shadcn/typeset 样式，并按 Agent 与 Docs 两种阅读场景选择 `app/globals.css` 中对应的 preset。链接、分隔线和表格保留项目语义，尽量复用共享 UI primitives 与语义化 token，不再逐元素重复维护排版节奏。
 
 ## 响应式与无障碍
 
