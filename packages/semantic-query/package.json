@@ -1,5 +1,5 @@
 {
-  "name": "@agent-template/toolbox-config",
+  "name": "@agent-template/semantic-query",
   "private": true,
   "type": "module",
   "exports": {
@@ -12,7 +12,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@agent-template/semantic-query": "workspace:*",
     "zod": "^4.4.3"
   },
   "devDependencies": {

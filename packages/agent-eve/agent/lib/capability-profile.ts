@@ -8,7 +8,7 @@ export function hasToolboxSkill(
   skillName: ToolboxSkillName,
   input: Record<string, unknown> = process.env,
 ) {
-  const toolbox = readToolboxConfig(input);
+  const toolbox = readEveToolboxConfig(input);
   return toolbox?.enabledSkills.includes(skillName) ?? false;
 }
 
@@ -16,14 +16,14 @@ export function hasToolboxCapabilities(
   requiredTools: readonly ToolboxToolName[],
   input: Record<string, unknown> = process.env,
 ) {
-  const toolbox = readToolboxConfig(input);
+  const toolbox = readEveToolboxConfig(input);
   if (!toolbox) return false;
 
-  const allowed = new Set(toolbox.allowedTools);
+  const allowed = new Set(toolbox.semanticExecutionTools);
   return requiredTools.every((tool) => allowed.has(tool));
 }
 
-function readToolboxConfig(input: Record<string, unknown>) {
+export function readEveToolboxConfig(input: Record<string, unknown>) {
   const toolbox = parseToolboxAgentConfig({
     ...input,
     TOOLBOX_URL:

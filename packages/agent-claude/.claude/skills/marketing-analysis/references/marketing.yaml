@@ -2,6 +2,7 @@ kind: business-semantic-catalog
 name: synthetic-marketing-analysis
 version: 1
 databaseSchema: ecommerce_fixture
+timeZone: UTC
 description: 合成营销活动、触点归因、渠道、优惠券和获客的认证查询目录。
 metrics:
   - id: attributed_revenue

@@ -1,6 +1,8 @@
 kind: semantic-query-evaluation
 catalog: ecommerce-retail-example
 version: 1
+asOf: 2026-06-30T23:59:59Z
+timeZone: UTC
 cases:
   - id: regional-gmv
     category: route
@@ -11,6 +13,8 @@ cases:
       terms: [gross_sales, region]
       requiresTimeWindow: true
       requiresClarification: false
+      arguments:
+        region: 华东
   - id: vip-net-sales
     category: route
     question: 本月VIP客户的退款后销售额和客单价怎样？
@@ -20,6 +24,8 @@ cases:
       terms: [customer_segment, net_sales, average_order_value]
       requiresTimeWindow: true
       requiresClarification: false
+      arguments:
+        customerSegment: VIP
   - id: livestream-gmv
     category: route
     question: 上周直播渠道GMV和退款额分别是多少？
@@ -29,6 +35,8 @@ cases:
       terms: [sales_channel, gross_sales, refund_amount]
       requiresTimeWindow: true
       requiresClarification: false
+      arguments:
+        channel: LIVE_STREAM
   - id: category-merchandise
     category: route
     question: 近7天美妆个护的商品净销售额排名怎么样？
@@ -38,9 +46,11 @@ cases:
       terms: [product_category, net_merchandise_sales]
       requiresTimeWindow: true
       requiresClarification: false
+      arguments:
+        category: 美妆个护
   - id: fulfillment-backlog
     category: route
-    question: 截止今天待履约订单有哪些？
+    question: 近30天待履约订单有哪些？
     expected:
       intent: fulfillment_backlog
       tool: list-ecommerce-fulfillment-exceptions
@@ -64,11 +74,11 @@ cases:
       requiresClarification: true
   - id: partial-refund-order
     category: partial-refund
-    question: 查询部分退款订单EC20260511008的付款额和退款额
+    question: 查询订单号EC20260511008的付款额和退款额
     expected:
       intent: order_detail
       tool: get-ecommerce-order-detail
-      terms: [refund_amount, order_status]
+      terms: [order_status]
       requiresTimeWindow: false
       requiresClarification: false
       result:

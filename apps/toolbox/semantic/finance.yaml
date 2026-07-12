@@ -2,6 +2,7 @@ kind: business-semantic-catalog
 name: synthetic-finance-operations
 version: 1
 databaseSchema: ecommerce_fixture
+timeZone: UTC
 description: 合成经营财务、退款、发票和渠道结算的认证查询目录；不是法定财务报表。
 metrics:
   - id: gross_sales

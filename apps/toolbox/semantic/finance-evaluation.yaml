@@ -1,6 +1,8 @@
 kind: semantic-query-evaluation
 catalog: synthetic-finance-operations
 version: 1
+asOf: 2026-06-30T23:59:59Z
+timeZone: UTC
 cases:
   - id: finance-overview-route
     category: route
@@ -12,7 +14,7 @@ cases:
       requiresClarification: false
   - id: payment-method-route
     category: route
-    question: 各支付方式的实收和退款分别多少？
+    question: 近30天各支付方式的实收和退款分别多少？
     expected:
       intent: payment_methods
       tool: summarize_payment_methods
@@ -20,7 +22,7 @@ cases:
       requiresClarification: false
   - id: refund-reason-route
     category: route
-    question: 最近退款主要是什么原因？
+    question: 近30天退款主要是什么原因？
     expected:
       intent: refund_reasons
       tool: summarize_refunds_by_reason
@@ -28,7 +30,7 @@ cases:
       requiresClarification: false
   - id: invoice-route
     category: route
-    question: 列出开票差额和逾期发票
+    question: 列出近30天开票差额和逾期发票
     expected:
       intent: invoice_exceptions
       tool: list_invoice_exceptions
@@ -36,7 +38,7 @@ cases:
       requiresClarification: false
   - id: settlement-route
     category: route
-    question: 各渠道结算差异是多少？
+    question: 近30天各渠道结算差异是多少？
     expected:
       intent: settlement_reconciliation
       tool: reconcile_channel_settlements
@@ -50,7 +52,7 @@ cases:
       requiresClarification: true
   - id: empty-future-finance
     category: empty-result
-    question: 查询 2027 年的经营财务概览
+    question: 查询 2027 年 1 月 1 日的经营财务概览
     expected:
       intent: finance_overview
       tool: summarize_finance_overview
@@ -58,7 +60,7 @@ cases:
       requiresClarification: false
   - id: invoice-exception-case
     category: exception
-    question: 哪些发票金额和订单不一致？
+    question: 近30天哪些发票金额和订单不一致？
     expected:
       intent: invoice_exceptions
       tool: list_invoice_exceptions

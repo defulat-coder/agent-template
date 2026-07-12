@@ -2,6 +2,7 @@ kind: business-semantic-catalog
 name: synthetic-supply-chain-operations
 version: 1
 databaseSchema: ecommerce_fixture
+timeZone: UTC
 description: 合成库存快照、仓库、供应商和采购订单的认证供应链查询目录。
 metrics:
   - id: available_units

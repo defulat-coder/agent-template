@@ -381,6 +381,9 @@ function validateCatalog(
   if (catalog.databaseSchema !== "ecommerce_fixture") {
     errors.push(`${catalogFile}: databaseSchema must be ecommerce_fixture`);
   }
+  if (catalog.timeZone !== "UTC") {
+    errors.push(`${catalogFile}: timeZone must be explicit UTC`);
+  }
   const result = BusinessSemanticCatalogSchema.safeParse(catalog);
   if (!result.success) {
     for (const issue of result.error.issues) {
@@ -540,6 +543,13 @@ function validateEvaluation(
   }
   if (evaluation.catalog !== catalog.name) {
     errors.push(`${catalogFile}: evaluation must reference catalog name`);
+  }
+  if (evaluation.timeZone !== catalog.timeZone) {
+    errors.push(`${catalogFile}: evaluation timeZone must match catalog`);
+  }
+  const asOf = readString(evaluation.asOf);
+  if (!asOf || Number.isNaN(Date.parse(asOf))) {
+    errors.push(`${catalogFile}: evaluation asOf must be an ISO-8601 instant`);
   }
 
   const knownTerms = new Set(

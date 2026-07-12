@@ -14,6 +14,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { format } from "prettier";
+import { parseAllDocuments } from "yaml";
 import {
   toolboxBusinessCapabilityPacks,
   toolboxToolNames,
@@ -68,6 +69,10 @@ const compatibilityEveSemanticCatalogModule = join(
   evePackageRoot,
   "agent/lib/ecommerce-semantic-catalog.ts",
 );
+const toolboxSemanticCatalogsModule = join(
+  repositoryRoot,
+  "packages/toolbox-config/src/business-semantic-catalogs.generated.ts",
+);
 
 main().catch((error: unknown) => {
   console.error(error);
@@ -76,10 +81,19 @@ main().catch((error: unknown) => {
 
 async function main() {
   try {
+    const toolboxSemanticCatalogSource =
+      await renderToolboxSemanticCatalogsModule();
     const eveSemanticCatalogSource = await renderEveSemanticCatalogsModule();
     const compatibilityEveSemanticCatalogSource =
       await renderCompatibilityEveSemanticCatalogModule();
     if (checkOnly) {
+      if (
+        !existsSync(toolboxSemanticCatalogsModule) ||
+        readFileSync(toolboxSemanticCatalogsModule, "utf8") !==
+          toolboxSemanticCatalogSource
+      ) {
+        staleOutputs.push(toolboxSemanticCatalogsModule);
+      }
       if (
         !existsSync(eveSemanticCatalogsModule) ||
         readFileSync(eveSemanticCatalogsModule, "utf8") !==
@@ -95,6 +109,12 @@ async function main() {
         staleOutputs.push(compatibilityEveSemanticCatalogModule);
       }
     } else {
+      mkdirSync(dirname(toolboxSemanticCatalogsModule), { recursive: true });
+      writeFileSync(
+        toolboxSemanticCatalogsModule,
+        toolboxSemanticCatalogSource,
+        "utf8",
+      );
       mkdirSync(dirname(eveSemanticCatalogsModule), { recursive: true });
       writeFileSync(
         eveSemanticCatalogsModule,
@@ -160,8 +180,8 @@ async function main() {
       });
       const adaptedMarkdown = adaptSkillMarkdown(
         generatedMarkdown,
-        skill.workflow,
         skill.catalog,
+        toolNames,
       );
 
       if (checkOnly) {
@@ -182,12 +202,12 @@ async function main() {
         skill.catalog,
       );
       const formattedClaudeMarkdown = await format(
-        useRuntimeToolNames(adaptedMarkdown, toolNames, "claude"),
+        useRuntimeSemanticToolName(adaptedMarkdown, "claude"),
         { parser: "markdown" },
       );
       const eveSkill = join(eveSkillsRoot, `${skill.name}.ts`);
       const formattedEveMarkdown = await format(
-        useRuntimeToolNames(adaptedMarkdown, toolNames, "eve"),
+        useRuntimeSemanticToolName(adaptedMarkdown, "eve"),
         { parser: "markdown" },
       );
       const eveSource = await renderEveDynamicSkill(
@@ -255,8 +275,8 @@ async function main() {
 
 function adaptSkillMarkdown(
   markdown: string,
-  workflow: string,
   semanticCatalog: string,
+  toolNames: string[],
 ) {
   const usageHeading = "\n## Usage\n";
   const scriptsHeading = "\n## Scripts\n";
@@ -270,22 +290,26 @@ function adaptSkillMarkdown(
   const frontmatter = markdown.slice(0, usageIndex).trimEnd();
   const toolReference = markdown
     .slice(scriptsIndex)
-    .replace("## Scripts", "## Available Toolbox tools")
+    .replace("## Scripts", "## Internal certified query paths")
     .replace(/\n{3,}/g, "\n\n");
 
   return `${frontmatter}
 
 ## Usage
 
-本项目的 Claude 与 Eve runtime 已分别通过原生 MCP Client 直连 Toolbox。加载本 Skill 后，调用当前 runtime 对应的 Toolbox MCP Tool；不要绕过 Toolbox 执行任意 SQL。官方生成器产出的数据库直连脚本不会安装到 Agent 的 Skill 目录。
+本项目通过可执行语义层访问 Toolbox。加载本 Skill 后，必须调用 \`__SEMANTIC_QUERY_TOOL__\`，传入用户原始问题和本目录中的 canonical candidate；不要直接调用底层业务 Toolbox Tool，也不要生成 SQL。语义 Tool 会完成消歧、时间归一、认证查询契约选择、Toolbox 执行和结果来源封装。
 
 ## Workflow
 
-${workflow}
+1. 读取 \`references/${semanticCatalog}\`，从中选择 catalog、intent、metric 和 dimension canonical id。
+2. 调用 \`__SEMANTIC_QUERY_TOOL__\`；不得提交 Tool 名、SQL、表名、列名、租户或授权范围。
+3. 返回 \`clarification\` 时向用户原样澄清，取得答案后重新解析；不要猜测。
+4. 返回 \`unsupported\` 时说明当前认证查询目录的限制；不要绕过语义层。
+5. 返回 \`result\` 时只依据 Semantic result envelope 回答，并说明指标、UTC \`[from, to)\` 时间窗、维度、过滤和限制。
 
 ## Business semantic catalog
 
-涉及业务术语、指标、维度或枚举取值时，先读取 \`references/${semanticCatalog}\`。只使用其中认证的术语、口径和 Tool；遇到标记为 \`clarify\` 的术语，先向用户澄清，不要猜测或生成任意 SQL。
+涉及业务术语、指标、维度或枚举取值时，只使用该目录认证的术语和口径。底层认证路径为 ${toolNames.map((name) => `\`${name}\``).join("、")}，仅供理解覆盖范围，不能由模型直接调用。
 ${toolReference}`;
 }
 
@@ -336,6 +360,119 @@ async function renderEveSemanticCatalogsModule() {
     `export const businessSemanticCatalogs = ${JSON.stringify(catalogs, null, 2)} as const;\n`,
     { parser: "typescript" },
   );
+}
+
+async function renderToolboxSemanticCatalogsModule() {
+  const toolParameters = readToolParameters();
+  const catalogFiles = Array.from(
+    new Set(businessSkills.map((skill) => skill.catalog)),
+  ).sort();
+  const catalogs = Object.fromEntries(
+    catalogFiles.map((catalogFile) => {
+      const path = join(semanticCatalogRoot, catalogFile);
+      const documents = parseAllDocuments(readFileSync(path, "utf8"));
+      if (documents.length !== 1 || documents[0]?.errors.length) {
+        throw new Error(`${catalogFile} must contain one valid YAML document`);
+      }
+      const catalog = documents[0].toJS({ maxAliasCount: 100 }) as Record<
+        string,
+        unknown
+      >;
+      if (!Array.isArray(catalog.queryContracts)) {
+        throw new Error(`${catalogFile} queryContracts must be an array`);
+      }
+      return [
+        catalogFile,
+        {
+          ...catalog,
+          queryContracts: catalog.queryContracts.map((rawContract) => {
+            if (
+              !isRecord(rawContract) ||
+              typeof rawContract.tool !== "string"
+            ) {
+              throw new Error(`${catalogFile} has an invalid query contract`);
+            }
+            const parameters = toolParameters.get(rawContract.tool);
+            if (!parameters) {
+              throw new Error(
+                `${catalogFile} references unknown Tool ${rawContract.tool}`,
+              );
+            }
+            return { ...rawContract, parameters };
+          }),
+        },
+      ];
+    }),
+  );
+
+  return format(
+    `import { BusinessSemanticCatalogSchema, type BusinessSemanticCatalog } from "@agent-template/semantic-query";
+
+export const toolboxBusinessSemanticCatalogs = Object.freeze(
+  Object.fromEntries(
+    Object.entries(${JSON.stringify(catalogs, null, 2)}).map(([file, catalog]) => [
+      file,
+      BusinessSemanticCatalogSchema.parse(catalog),
+    ]),
+  ),
+) as Readonly<Record<string, BusinessSemanticCatalog>>;
+`,
+    { parser: "typescript" },
+  );
+}
+
+function readToolParameters() {
+  const parameters = new Map<
+    string,
+    Array<{
+      default?: unknown;
+      name: string;
+      required: boolean;
+    }>
+  >();
+  for (const document of parseAllDocuments(
+    readFileSync(toolboxConfig, "utf8"),
+  )) {
+    if (document.errors.length > 0) {
+      throw new Error(document.errors.map((error) => error.message).join("\n"));
+    }
+    const entry = document.toJS({ maxAliasCount: 100 }) as unknown;
+    if (
+      !isRecord(entry) ||
+      entry.kind !== "tool" ||
+      typeof entry.name !== "string"
+    ) {
+      continue;
+    }
+    const toolParameters = Array.isArray(entry.parameters)
+      ? entry.parameters.map((rawParameter) => {
+          if (
+            !isRecord(rawParameter) ||
+            typeof rawParameter.name !== "string"
+          ) {
+            throw new Error(`${entry.name} has an invalid parameter`);
+          }
+          const hasDefault = Object.prototype.hasOwnProperty.call(
+            rawParameter,
+            "default",
+          );
+          return {
+            name: rawParameter.name,
+            required:
+              typeof rawParameter.required === "boolean"
+                ? rawParameter.required
+                : !hasDefault,
+            ...(hasDefault ? { default: rawParameter.default } : {}),
+          };
+        })
+      : [];
+    parameters.set(entry.name, toolParameters);
+  }
+  return parameters;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 async function renderCompatibilityEveSemanticCatalogModule() {
@@ -583,10 +720,6 @@ function validateExecutionSurfaces(skillName: string, toolNames: string[]) {
   const profiledTools = new Set(
     toolboxBusinessCapabilityPacks.flatMap((pack) => pack.tools),
   );
-  const eveConnection = readFileSync(
-    join(evePackageRoot, "agent/connections/toolbox.ts"),
-    "utf8",
-  );
 
   for (const toolName of toolNames) {
     if (!knownTools.has(toolName as (typeof toolboxToolNames)[number])) {
@@ -599,15 +732,6 @@ function validateExecutionSurfaces(skillName: string, toolNames: string[]) {
         `${skillName} tool ${toolName} has no capability profile`,
       );
     }
-  }
-
-  if (
-    !eveConnection.includes("defineMcpClientConnection") ||
-    !eveConnection.includes("tools: { allow: toolbox.allowedTools }")
-  ) {
-    throw new Error(
-      "Eve Toolbox connection must apply the shared capability profile",
-    );
   }
 
   return toolNames as ToolboxToolName[];
@@ -681,16 +805,11 @@ function validateEveDiscovery() {
   }
 }
 
-function useRuntimeToolNames(
-  markdown: string,
-  toolNames: string[],
-  runtime: string,
-) {
-  return toolNames.reduce((content, toolName) => {
-    const qualifiedName =
-      runtime === "eve" ? `toolbox__${toolName}` : `mcp__toolbox__${toolName}`;
-    return content
-      .replaceAll(toolName, qualifiedName)
-      .replace(`### ${qualifiedName}`, `### \`${qualifiedName}\``);
-  }, markdown);
+function useRuntimeSemanticToolName(markdown: string, runtime: string) {
+  return markdown.replaceAll(
+    "__SEMANTIC_QUERY_TOOL__",
+    runtime === "eve"
+      ? "query_business_data"
+      : "mcp__semantic_query__query_business_data",
+  );
 }

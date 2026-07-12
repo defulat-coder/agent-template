@@ -280,10 +280,15 @@ function formatEveAgentEvents(event: unknown): AgentRunEvent[] {
   }
 
   if (event.type === "action.result" && isRecord(event.data)) {
+    const semanticQuery = readEveSemanticQueryEvent(event.data.result);
     const tool = readEveActionResult(event.data.result);
-    return tool
-      ? [{ kind: "tool-result", ...tool }]
-      : [{ kind: "unknown", text: formatEveOutput(event.data.result) }];
+    if (!tool) {
+      return [{ kind: "unknown", text: formatEveOutput(event.data.result) }];
+    }
+    return [
+      { kind: "tool-result", ...tool },
+      ...(semanticQuery ? [semanticQuery] : []),
+    ];
   }
 
   if (
@@ -426,6 +431,111 @@ function readEveActionResult(
   }
 
   return undefined;
+}
+
+function readEveSemanticQueryEvent(
+  result: unknown,
+): Extract<AgentRunEvent, { kind: "semantic-query" }> | undefined {
+  if (
+    !isRecord(result) ||
+    result.toolName !== "query_business_data"
+  ) {
+    return undefined;
+  }
+
+  if (result.kind !== "tool-result") {
+    throw new Error("Eve semantic query action result has an invalid kind");
+  }
+
+  const callId = readNonEmptyString(result.callId);
+  if (!callId) {
+    throw new Error("Eve semantic query action result is missing callId");
+  }
+  if (!isRecord(result.output)) {
+    throw new Error(
+      `Eve semantic query Tool result ${callId} has invalid output`,
+    );
+  }
+  const queryId = readNonEmptyString(result.output.queryId);
+  if (!queryId) {
+    throw new Error(
+      `Eve semantic query Tool result ${callId} is missing queryId`,
+    );
+  }
+  const status = readSemanticQueryStatus(result.output.type);
+  if (!status) {
+    throw new Error(
+      `Eve semantic query Tool result ${callId} has invalid status`,
+    );
+  }
+
+  const base = {
+    kind: "semantic-query" as const,
+    callId,
+    status,
+    queryId,
+    ...(isNonNegativeSafeInteger(result.output.durationMs)
+      ? { durationMs: result.output.durationMs }
+      : {}),
+  };
+  if (status !== "result") return base;
+  if (!isRecord(result.output.plan)) {
+    throw new Error(
+      `Eve semantic query Tool result ${callId} is missing its plan`,
+    );
+  }
+
+  const plan = result.output.plan;
+  const catalog = readNonEmptyString(plan.catalog);
+  const catalogVersion = plan.catalogVersion;
+  const contractId = readNonEmptyString(plan.contract);
+  const toolName = readNonEmptyString(plan.tool);
+  const planHash = readNonEmptyString(result.output.planHash);
+  const rowCount = result.output.rowCount;
+  if (
+    !catalog ||
+    !isCatalogVersion(catalogVersion) ||
+    !contractId ||
+    !toolName ||
+    !planHash ||
+    !isNonNegativeSafeInteger(rowCount)
+  ) {
+    throw new Error(
+      `Eve semantic query Tool result ${callId} has invalid provenance metadata`,
+    );
+  }
+  return {
+    ...base,
+    catalog,
+    catalogVersion,
+    contractId,
+    toolName,
+    planHash,
+    rowCount,
+  };
+}
+
+function readSemanticQueryStatus(
+  value: unknown,
+): "clarification" | "result" | "unsupported" | undefined {
+  return value === "clarification" ||
+    value === "result" ||
+    value === "unsupported"
+    ? value
+    : undefined;
+}
+
+function isCatalogVersion(value: unknown): value is string | number {
+  return (
+    (typeof value === "string" && value.length > 0) ||
+    (typeof value === "number" && Number.isFinite(value))
+  );
+}
+
+function isNonNegativeSafeInteger(value: unknown): value is number {
+  return (
+    typeof value === "number" && Number.isSafeInteger(value) && value >= 0
+  );
 }
 
 function readNonEmptyString(value: unknown) {

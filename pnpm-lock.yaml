@@ -14,6 +14,9 @@ importers:
       '@agent-template/db':
         specifier: workspace:*
         version: link:packages/db
+      '@agent-template/semantic-query':
+        specifier: workspace:*
+        version: link:packages/semantic-query
       '@agent-template/shared':
         specifier: workspace:*
         version: link:packages/shared
@@ -257,6 +260,9 @@ importers:
 
   packages/agent-claude:
     dependencies:
+      '@agent-template/semantic-query':
+        specifier: workspace:*
+        version: link:../semantic-query
       '@agent-template/shared':
         specifier: workspace:*
         version: link:../shared
@@ -292,6 +298,9 @@ importers:
 
   packages/agent-eve:
     dependencies:
+      '@agent-template/semantic-query':
+        specifier: workspace:*
+        version: link:../semantic-query
       '@agent-template/shared':
         specifier: workspace:*
         version: link:../shared
@@ -301,12 +310,15 @@ importers:
       '@ai-sdk/anthropic':
         specifier: ^4.0.7
         version: 4.0.7(zod@4.4.3)
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.29.0
+        version: 1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3)
       ai:
         specifier: ^7.0.14
         version: 7.0.14(zod@4.4.3)
       eve:
         specifier: latest
-        version: 0.22.4(@electric-sql/pglite@0.4.1)(ai@7.0.14(zod@4.4.3))(chokidar@5.0.0)(dotenv@17.4.2)(giget@3.3.0)(ioredis@5.11.1)(jiti@2.7.0)(just-bash@3.1.0)(microsandbox@0.5.10)(mysql2@3.15.3)(rollup@4.62.2)(vite@8.1.0(@types/node@26.0.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+        version: 0.22.5(@electric-sql/pglite@0.4.1)(ai@7.0.14(zod@4.4.3))(chokidar@5.0.0)(dotenv@17.4.2)(giget@3.3.0)(ioredis@5.11.1)(jiti@2.7.0)(just-bash@3.1.0)(microsandbox@0.5.10)(mysql2@3.15.3)(rollup@4.62.2)(vite@8.1.0(@types/node@26.0.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
       just-bash:
         specifier: ^3.0.1
         version: 3.1.0
@@ -378,6 +390,16 @@ importers:
         specifier: ^4.1.9
         version: 4.1.9(@types/node@26.0.1)(vite@8.1.0(@types/node@26.0.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
 
+  packages/semantic-query:
+    dependencies:
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      vitest:
+        specifier: ^4.1.9
+        version: 4.1.9(@types/node@26.0.1)(vite@8.1.0(@types/node@26.0.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+
   packages/shared:
     dependencies:
       zod:
@@ -390,6 +412,9 @@ importers:
 
   packages/toolbox-config:
     dependencies:
+      '@agent-template/semantic-query':
+        specifier: workspace:*
+        version: link:../semantic-query
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -3625,8 +3650,8 @@ packages:
     resolution: {integrity: sha512-aIL5Fx7mawVa300al2BnEE4iNvo1qETxLrPI/o05L7z6go7fCw1J6EQmbK4FmJ2AS7kgVF/KEZWufBfdClMcPg==}
     engines: {node: '>= 0.6'}
 
-  eve@0.22.4:
-    resolution: {integrity: sha512-BWrq2IRUtA2zsWeA/lk9jhUPrFnvNrdmFtUz3f3fOYSbNOlrVJxadG8VoSdQzYqbfeS3seDlfwektaRSgSeKRA==}
+  eve@0.22.5:
+    resolution: {integrity: sha512-lY3qHgvVNKuTwoH/0AQpztWS53Ub/xAk2KfV38fnfNfgd8idmN9FKbT2jUgs0lNGcFwTUR1/RYWl9JzpCsImeA==}
     engines: {node: '>=24'}
     hasBin: true
     peerDependencies:
@@ -8402,7 +8427,7 @@ snapshots:
 
   etag@1.8.1: {}
 
-  eve@0.22.4(@electric-sql/pglite@0.4.1)(ai@7.0.14(zod@4.4.3))(chokidar@5.0.0)(dotenv@17.4.2)(giget@3.3.0)(ioredis@5.11.1)(jiti@2.7.0)(just-bash@3.1.0)(microsandbox@0.5.10)(mysql2@3.15.3)(rollup@4.62.2)(vite@8.1.0(@types/node@26.0.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0)):
+  eve@0.22.5(@electric-sql/pglite@0.4.1)(ai@7.0.14(zod@4.4.3))(chokidar@5.0.0)(dotenv@17.4.2)(giget@3.3.0)(ioredis@5.11.1)(jiti@2.7.0)(just-bash@3.1.0)(microsandbox@0.5.10)(mysql2@3.15.3)(rollup@4.62.2)(vite@8.1.0(@types/node@26.0.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0)):
     dependencies:
       ai: 7.0.14(zod@4.4.3)
       nitro: 3.0.260610-beta(@electric-sql/pglite@0.4.1)(chokidar@5.0.0)(dotenv@17.4.2)(giget@3.3.0)(ioredis@5.11.1)(jiti@2.7.0)(mysql2@3.15.3)(rollup@4.62.2)(vite@8.1.0(@types/node@26.0.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))

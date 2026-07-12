@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   parseToolboxAgentConfig,
   resolveToolboxCapabilityProfile,
+  resolveToolboxSemanticCatalogs,
   toolboxBusinessCapabilityPacks,
   toolboxCapabilityProfilePacks,
   toolboxCapabilityProfiles,
@@ -30,13 +31,12 @@ describe("Toolbox Agent config", () => {
   });
 
   it("normalizes the MCP URL and resolves a deployment capability profile", () => {
-    expect(
-      parseToolboxAgentConfig({
-        AGENT_CAPABILITY_PROFILE: "ecommerce-sales",
-        TOOLBOX_AUTH_TOKEN: "service-token",
-        TOOLBOX_URL: "http://toolbox:15000/",
-      }),
-    ).toEqual({
+    const config = parseToolboxAgentConfig({
+      AGENT_CAPABILITY_PROFILE: "ecommerce-sales",
+      TOOLBOX_AUTH_TOKEN: "service-token",
+      TOOLBOX_URL: "http://toolbox:15000/",
+    });
+    expect(config).toMatchObject({
       allowedTools: [
         "summarize-ecommerce-sales-by-day",
         "summarize-ecommerce-sales-by-channel",
@@ -46,9 +46,22 @@ describe("Toolbox Agent config", () => {
       authorizationToken: "service-token",
       capabilityProfile: "ecommerce-sales",
       enabledSkills: ["ecommerce-sales-analysis"],
+      modelSurface: { visibleTools: [] },
+      modelVisibleTools: [],
       scopes: ["ecommerce:read"],
+      semanticCatalogs: ["ecommerce.yaml"],
+      semanticExecutionTools: [
+        "summarize-ecommerce-sales-by-day",
+        "summarize-ecommerce-sales-by-channel",
+        "summarize_sales_by_region",
+        "summarize_sales_by_customer_segment",
+      ],
       url: "http://toolbox:15000/mcp",
     });
+    expect(config?.modelSurface.hiddenTools).toContain(
+      "summarize-ecommerce-sales-by-day",
+    );
+    expect(config?.modelSurface.hiddenTools).toContain("list-agent-runs");
   });
 
   it("derives the complete Tool and Skill taxonomy from capability packs", () => {
@@ -70,6 +83,30 @@ describe("Toolbox Agent config", () => {
     for (const tools of Object.values(toolboxCapabilityProfiles)) {
       expect(tools.length).toBeGreaterThan(0);
       expect(tools.every((tool) => knownTools.has(tool))).toBe(true);
+    }
+  });
+
+  it("compiles one executable and model-surface policy for every profile", () => {
+    for (const profile of Object.keys(
+      toolboxCapabilityProfilePacks,
+    ) as Array<keyof typeof toolboxCapabilityProfilePacks>) {
+      const activation = resolveToolboxCapabilityProfile(profile);
+      expect(new Set(activation.tools)).toEqual(
+        new Set([
+          ...activation.semanticExecutionTools,
+          ...activation.modelSurface.visibleTools,
+        ]),
+      );
+      expect(activation.modelVisibleTools).toEqual(
+        activation.modelSurface.visibleTools,
+      );
+      expect(new Set(activation.modelSurface.hiddenTools)).toEqual(
+        new Set(
+          toolboxToolNames.filter(
+            (tool) => !activation.modelSurface.visibleTools.includes(tool),
+          ),
+        ),
+      );
     }
   });
 
@@ -102,7 +139,12 @@ describe("Toolbox Agent config", () => {
       const activation = resolveToolboxCapabilityProfile(profile);
 
       expect(activation.enabledSkills).toEqual([skill]);
+      expect(activation.semanticExecutionTools).toEqual(activation.tools);
+      expect(activation.modelSurface.visibleTools).toEqual([]);
+      expect(activation.modelSurface.hiddenTools).toEqual(toolboxToolNames);
+      expect(activation.modelVisibleTools).toEqual([]);
       expect(activation.scopes).toEqual([scope]);
+      expect(activation.semanticCatalogs).toHaveLength(1);
       expect(activation.tools).toEqual(toolboxCapabilityProfiles[profile]);
       expect(toolboxCapabilityProfilePacks[profile]).toHaveLength(1);
     },
@@ -120,6 +162,53 @@ describe("Toolbox Agent config", () => {
       "marketing:read",
     ]);
     expect(activation.tools).not.toContain("list-agent-runs");
+    expect(activation.semanticExecutionTools).toEqual(activation.tools);
+    expect(activation.modelSurface.visibleTools).toEqual([]);
+    expect(activation.modelVisibleTools).toEqual([]);
+    expect(new Set(activation.semanticCatalogs)).toEqual(
+      new Set([
+        "ecommerce.yaml",
+        "finance.yaml",
+        "logistics.yaml",
+        "supply-chain.yaml",
+        "marketing.yaml",
+      ]),
+    );
+  });
+
+  it("keeps platform tools directly visible and business tools behind semantic query", () => {
+    const activation = resolveToolboxCapabilityProfile("development-all");
+
+    expect(activation.modelVisibleTools).toEqual(
+      toolboxCapabilityProfiles["platform-observability"],
+    );
+    expect(activation.modelSurface.visibleTools).toEqual(
+      toolboxCapabilityProfiles["platform-observability"],
+    );
+    expect(activation.semanticExecutionTools).toContain(
+      "summarize-ecommerce-sales-by-day",
+    );
+    expect(activation.modelSurface.hiddenTools).toContain(
+      "summarize-ecommerce-sales-by-day",
+    );
+    expect(activation.modelSurface.hiddenTools).not.toContain(
+      "list-agent-runs",
+    );
+    expect(activation.modelVisibleTools).not.toContain(
+      "summarize-ecommerce-sales-by-day",
+    );
+    expect(activation.tools).toContain("summarize-ecommerce-sales-by-day");
+  });
+
+  it("resolves only the catalogs activated by the selected profile", () => {
+    expect(
+      resolveToolboxSemanticCatalogs("ecommerce-sales").map(
+        (catalog) => catalog.name,
+      ),
+    ).toEqual(["ecommerce-retail-example"]);
+    expect(resolveToolboxSemanticCatalogs("business-operations")).toHaveLength(
+      5,
+    );
   });
 
   it("rejects unknown deployment profiles", () => {

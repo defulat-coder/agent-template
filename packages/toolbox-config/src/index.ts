@@ -1,4 +1,12 @@
 import { z } from "zod";
+import type { BusinessSemanticCatalog } from "@agent-template/semantic-query";
+import { toolboxBusinessSemanticCatalogs } from "./business-semantic-catalogs.generated.js";
+
+export {
+  BusinessSemanticCatalogSchema,
+  CertifiedQueryContractSchema,
+  type BusinessSemanticCatalog,
+} from "@agent-template/semantic-query";
 
 export const toolboxCapabilityPacks = {
   "platform-observability": {
@@ -272,7 +280,16 @@ export type ToolboxCapabilityProfile =
 
 export type ToolboxCapabilityActivation = {
   enabledSkills: ToolboxSkillName[];
+  modelSurface: {
+    hiddenTools: ToolboxToolName[];
+    visibleTools: ToolboxToolName[];
+  };
+  semanticExecutionTools: ToolboxToolName[];
+  /** @deprecated Use modelSurface.visibleTools. */
+  modelVisibleTools: ToolboxToolName[];
   scopes: ToolboxToolScope[];
+  semanticCatalogs: string[];
+  /** @deprecated Use semanticExecutionTools and modelSurface.visibleTools. */
   tools: ToolboxToolName[];
 };
 
@@ -301,9 +318,31 @@ export function resolveToolboxCapabilityProfile(
   const activation = toolboxCapabilityActivations[capabilityProfile];
   return {
     enabledSkills: [...activation.enabledSkills],
+    modelSurface: {
+      hiddenTools: [...activation.modelSurface.hiddenTools],
+      visibleTools: [...activation.modelSurface.visibleTools],
+    },
+    semanticExecutionTools: [...activation.semanticExecutionTools],
+    modelVisibleTools: [...activation.modelVisibleTools],
     scopes: [...activation.scopes],
+    semanticCatalogs: [...activation.semanticCatalogs],
     tools: [...activation.tools],
   };
+}
+
+export function resolveToolboxSemanticCatalogs(
+  capabilityProfile: ToolboxCapabilityProfile,
+): BusinessSemanticCatalog[] {
+  const activation = resolveToolboxCapabilityProfile(capabilityProfile);
+  return activation.semanticCatalogs.map((catalogFile) => {
+    const catalog = toolboxBusinessSemanticCatalogs[catalogFile];
+    if (!catalog) {
+      throw new Error(
+        `Toolbox capability profile ${capabilityProfile} references unknown semantic catalog ${catalogFile}`,
+      );
+    }
+    return catalog;
+  });
 }
 
 const capabilityProfileNames = Object.keys(toolboxCapabilityProfiles) as [
@@ -330,7 +369,14 @@ export const ToolboxAgentConfigSchema = z.object({
   authorizationToken: z.string().min(1).optional(),
   capabilityProfile: ToolboxCapabilityProfileSchema,
   enabledSkills: z.array(z.enum(toolboxSkillNameValues)),
+  modelSurface: z.object({
+    hiddenTools: z.array(z.enum(toolboxToolNameValues)),
+    visibleTools: z.array(z.enum(toolboxToolNameValues)),
+  }),
+  modelVisibleTools: z.array(z.enum(toolboxToolNameValues)),
   scopes: z.array(z.enum(toolboxToolScopeValues)).min(1),
+  semanticCatalogs: z.array(z.string().min(1)),
+  semanticExecutionTools: z.array(z.enum(toolboxToolNameValues)),
   url: z.string().url(),
 });
 
@@ -365,7 +411,14 @@ export function parseToolboxAgentConfig(
     authorizationToken,
     capabilityProfile,
     enabledSkills: [...activation.enabledSkills],
+    modelSurface: {
+      hiddenTools: [...activation.modelSurface.hiddenTools],
+      visibleTools: [...activation.modelSurface.visibleTools],
+    },
+    modelVisibleTools: [...activation.modelVisibleTools],
     scopes: [...activation.scopes],
+    semanticCatalogs: [...activation.semanticCatalogs],
+    semanticExecutionTools: [...activation.semanticExecutionTools],
     url: normalizeToolboxMcpUrl(rawUrl),
   });
 }
@@ -399,19 +452,37 @@ function resolvePackActivation(
   packNames: readonly ToolboxCapabilityPackName[],
 ): ToolboxCapabilityActivation {
   const tools = new Set<ToolboxToolName>();
+  const modelVisibleTools = new Set<ToolboxToolName>();
+  const semanticExecutionTools = new Set<ToolboxToolName>();
   const enabledSkills = new Set<ToolboxSkillName>();
   const scopes = new Set<ToolboxToolScope>();
+  const semanticCatalogs = new Set<string>();
 
   for (const packName of packNames) {
     const pack = toolboxCapabilityPacks[packName];
     pack.tools.forEach((tool) => tools.add(tool));
     scopes.add(pack.scope);
-    if (pack.kind === "business") enabledSkills.add(pack.skill.name);
+    if (pack.kind === "business") {
+      pack.tools.forEach((tool) => semanticExecutionTools.add(tool));
+      enabledSkills.add(pack.skill.name);
+      semanticCatalogs.add(pack.catalog);
+    } else {
+      pack.tools.forEach((tool) => modelVisibleTools.add(tool));
+    }
   }
 
   return {
     enabledSkills: [...enabledSkills],
+    modelSurface: {
+      hiddenTools: toolboxToolNames.filter(
+        (tool) => !modelVisibleTools.has(tool),
+      ),
+      visibleTools: [...modelVisibleTools],
+    },
+    semanticExecutionTools: [...semanticExecutionTools],
+    modelVisibleTools: [...modelVisibleTools],
     scopes: [...scopes],
+    semanticCatalogs: [...semanticCatalogs],
     tools: [...tools],
   };
 }
@@ -424,78 +495,3 @@ function normalizeToolboxMcpUrl(rawUrl: string) {
 function readString(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
-
-const SemanticMetricSchema = z
-  .object({
-    id: z.string().min(1),
-    labels: z.array(z.string().min(1)).min(1),
-    resultField: z.string().min(1),
-    tools: z.array(z.string().min(1)).min(1),
-  })
-  .passthrough();
-
-const SemanticDimensionSchema = z
-  .object({
-    field: z.string().min(1),
-    id: z.string().min(1),
-    labels: z.array(z.string().min(1)).min(1),
-  })
-  .passthrough();
-
-export const CertifiedQueryContractSchema = z.object({
-  dimensions: z.array(z.string().min(1)).default([]),
-  id: z.string().min(1),
-  limitations: z.array(z.string().min(1)).min(1),
-  metrics: z.array(z.string().min(1)).default([]),
-  resultFields: z.array(z.string().min(1)).min(1),
-  tool: z.string().min(1),
-});
-
-export const BusinessSemanticCatalogSchema = z
-  .object({
-    databaseSchema: z.string().min(1),
-    dimensions: z.array(SemanticDimensionSchema),
-    kind: z.literal("business-semantic-catalog"),
-    metrics: z.array(SemanticMetricSchema),
-    name: z.string().min(1),
-    queryContracts: z.array(CertifiedQueryContractSchema).min(1),
-    version: z.union([z.string().min(1), z.number().int().nonnegative()]),
-  })
-  .passthrough()
-  .superRefine((catalog, context) => {
-    const metricIds = new Set(catalog.metrics.map((metric) => metric.id));
-    const dimensionIds = new Set(
-      catalog.dimensions.map((dimension) => dimension.id),
-    );
-    const contractTools = new Set<string>();
-
-    for (const [index, contract] of catalog.queryContracts.entries()) {
-      if (contractTools.has(contract.tool)) {
-        context.addIssue({
-          code: "custom",
-          message: `Duplicate certified query contract for tool ${contract.tool}`,
-          path: ["queryContracts", index, "tool"],
-        });
-      }
-      contractTools.add(contract.tool);
-
-      for (const metricId of contract.metrics) {
-        if (!metricIds.has(metricId)) {
-          context.addIssue({
-            code: "custom",
-            message: `Unknown certified metric ${metricId}`,
-            path: ["queryContracts", index, "metrics"],
-          });
-        }
-      }
-      for (const dimensionId of contract.dimensions) {
-        if (!dimensionIds.has(dimensionId)) {
-          context.addIssue({
-            code: "custom",
-            message: `Unknown certified dimension ${dimensionId}`,
-            path: ["queryContracts", index, "dimensions"],
-          });
-        }
-      }
-    }
-  });

@@ -3,8 +3,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
 import type {
+  createSdkMcpServer,
   McpHttpServerConfig,
+  McpServerConfig,
   SDKMessage,
+  tool,
 } from "@anthropic-ai/claude-agent-sdk";
 import { Client as McpClient } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
@@ -23,6 +26,12 @@ import {
   type DependencyState,
 } from "@agent-template/shared";
 import { resolveClaudeFilesystemProject } from "./filesystem-project.js";
+import {
+  claudeSemanticQueryAllowedTool,
+  claudeSemanticQueryServerName,
+  createClaudeSemanticQueryMcpServer,
+  readClaudeSemanticQueryEvent,
+} from "./semantic-query.js";
 
 export { defaultClaudeAgentModel };
 export const defaultAnthropicBaseUrl = "https://api.kimi.com/coding/";
@@ -147,9 +156,11 @@ export async function checkClaudeAgentReadiness(
     );
     const tools = await client.listTools();
     const names = new Set(tools.tools.map((tool) => tool.name));
-    const missing = config.toolbox.allowedTools.filter(
-      (tool) => !names.has(tool),
-    );
+    const requiredTools = [
+      ...config.toolbox.modelSurface.visibleTools,
+      ...config.toolbox.semanticExecutionTools,
+    ];
+    const missing = requiredTools.filter((tool) => !names.has(tool));
     if (missing.length > 0) {
       return {
         status: "error",
@@ -198,10 +209,12 @@ async function connectClaudeToolboxReadiness(
 }
 
 type ClaudeAgentSdk = {
+  createSdkMcpServer?: typeof createSdkMcpServer;
   query(input: {
     prompt: string;
     options?: Record<string, unknown>;
   }): AsyncIterable<SDKMessage>;
+  tool?: typeof tool;
 };
 
 export async function runClaudeAgent(
@@ -244,8 +257,9 @@ export async function runClaudeAgent(
       env: createClaudeAgentSubprocessEnv(config),
       cwd: filesystemProject.cwd,
       allowedTools: readClaudeToolboxTools(config),
+      disallowedTools: readClaudeDisallowedToolboxTools(config),
       maxTurns: defaultClaudeAgentMaxTurns,
-      mcpServers: createClaudeToolboxMcpServers(config),
+      mcpServers: createClaudeMcpServers(config, sdk),
       permissionMode: "dontAsk",
       persistSession: options.persistSession ?? false,
       ...(options.resumeSessionId ? { resume: options.resumeSessionId } : {}),
@@ -639,18 +653,23 @@ function formatClaudeUserMessage(
     if (item.type === "tool_result") {
       const toolName = toolNamesByCallId.get(item.tool_use_id);
       toolNamesByCallId.delete(item.tool_use_id);
-      events.push(
-        toolName
-          ? {
-              kind: "tool-result",
-              callId: item.tool_use_id,
-              toolName,
-            }
-          : {
-              kind: "unknown",
-              text: `Tool result for unobserved call ${item.tool_use_id}`,
-            },
-      );
+      if (!toolName) {
+        events.push({
+          kind: "unknown",
+          text: `Tool result for unobserved call ${item.tool_use_id}`,
+        });
+        continue;
+      }
+      events.push({
+        kind: "tool-result",
+        callId: item.tool_use_id,
+        toolName,
+      });
+      if (toolName === claudeSemanticQueryAllowedTool) {
+        events.push(
+          readClaudeSemanticQueryEvent(item.tool_use_id, item.content),
+        );
+      }
     }
   }
 
@@ -713,22 +732,35 @@ function createClaudeAgentSubprocessEnv(config: ClaudeAgentConfig) {
 function readClaudeToolboxTools(config: ClaudeAgentConfig) {
   return [
     "AskUserQuestion",
-    ...(config.toolbox?.allowedTools.map(
+    ...(config.toolbox?.modelSurface.visibleTools.map(
       (toolName) => `mcp__toolbox__${toolName}`,
     ) ?? []),
+    ...(config.toolbox?.semanticCatalogs.length
+      ? [claudeSemanticQueryAllowedTool]
+      : []),
   ];
 }
 
-function createClaudeToolboxMcpServers(
+function readClaudeDisallowedToolboxTools(config: ClaudeAgentConfig) {
+  return config.toolbox
+    ? config.toolbox.modelSurface.hiddenTools.map(
+        (toolName) => `mcp__toolbox__${toolName}`,
+      )
+    : [];
+}
+
+function createClaudeMcpServers(
   config: ClaudeAgentConfig,
-): Record<string, McpHttpServerConfig> {
+  sdk: ClaudeAgentSdk,
+): Record<string, McpServerConfig> {
   const toolbox = config.toolbox;
   if (!toolbox) return {};
 
-  const allowedTools = new Set(toolbox.allowedTools);
+  const servers: Record<string, McpServerConfig> = {};
+  const modelVisibleTools = new Set(toolbox.modelSurface.visibleTools);
 
-  return {
-    toolbox: {
+  if (modelVisibleTools.size > 0) {
+    servers.toolbox = {
       type: "http",
       url: toolbox.url,
       ...(toolbox.authorizationToken
@@ -739,7 +771,7 @@ function createClaudeToolboxMcpServers(
           }
         : {}),
       tools: toolboxToolNames.map((toolName) =>
-        allowedTools.has(toolName)
+        modelVisibleTools.has(toolName)
           ? {
               name: toolName,
               org_max_permission: "allow",
@@ -751,6 +783,23 @@ function createClaudeToolboxMcpServers(
               permission_policy: "always_deny",
             },
       ),
-    },
-  };
+    } satisfies McpHttpServerConfig;
+  }
+
+  if (toolbox.semanticCatalogs.length > 0) {
+    if (!sdk.createSdkMcpServer || !sdk.tool) {
+      throw new Error(
+        "Claude Agent SDK does not expose semantic query MCP Tool factories",
+      );
+    }
+    servers[claudeSemanticQueryServerName] = createClaudeSemanticQueryMcpServer(
+      toolbox,
+      {
+        createServer: sdk.createSdkMcpServer,
+        defineTool: sdk.tool,
+      },
+    );
+  }
+
+  return servers;
 }

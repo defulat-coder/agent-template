@@ -91,6 +91,94 @@ describe("AgentRunEventSchema", () => {
     });
   });
 
+  it("accepts metadata-only semantic query events", () => {
+    expect(
+      AgentRunEventSchema.parse({
+        kind: "semantic-query",
+        callId: "call-semantic-1",
+        status: "result",
+        queryId: "query-1",
+        catalog: "finance",
+        catalogVersion: 2,
+        contractId: "finance_overview",
+        toolName: "summarize_finance_overview",
+        planHash: "sha256:plan-1",
+        rowCount: 4,
+        durationMs: 28,
+      }),
+    ).toEqual({
+      kind: "semantic-query",
+      callId: "call-semantic-1",
+      status: "result",
+      queryId: "query-1",
+      catalog: "finance",
+      catalogVersion: 2,
+      contractId: "finance_overview",
+      toolName: "summarize_finance_overview",
+      planHash: "sha256:plan-1",
+      rowCount: 4,
+      durationMs: 28,
+    });
+
+    for (const status of ["clarification", "unsupported"] as const) {
+      const catalogVersion = status === "unsupported" ? "2026-07" : undefined;
+      expect(
+        AgentRunEventSchema.parse({
+          kind: "semantic-query",
+          callId: `call-${status}`,
+          status,
+          queryId: `query-${status}`,
+          ...(catalogVersion ? { catalogVersion } : {}),
+        }),
+      ).toEqual({
+        kind: "semantic-query",
+        callId: `call-${status}`,
+        status,
+        queryId: `query-${status}`,
+        ...(catalogVersion ? { catalogVersion } : {}),
+      });
+    }
+  });
+
+  it("rejects semantic query payload data and invalid metadata", () => {
+    const baseEvent = {
+      kind: "semantic-query",
+      callId: "call-semantic-1",
+      status: "result",
+      queryId: "query-1",
+    } as const;
+
+    expect(
+      AgentRunEventSchema.safeParse({ ...baseEvent, data: { total: 10 } })
+        .success,
+    ).toBe(false);
+    expect(
+      AgentRunEventSchema.safeParse({ ...baseEvent, rows: [{ total: 10 }] })
+        .success,
+    ).toBe(false);
+    expect(
+      AgentRunEventSchema.safeParse({ ...baseEvent, rowCount: -1 }).success,
+    ).toBe(false);
+    expect(
+      AgentRunEventSchema.safeParse({ ...baseEvent, durationMs: 1.5 }).success,
+    ).toBe(false);
+    expect(
+      AgentRunEventSchema.safeParse({ ...baseEvent, catalogVersion: "" })
+        .success,
+    ).toBe(false);
+    expect(
+      AgentRunEventSchema.safeParse({ ...baseEvent, status: "completed" })
+        .success,
+    ).toBe(false);
+    expect(
+      AgentRunEventSchema.safeParse({
+        kind: "semantic-query",
+        callId: "call-semantic-1",
+        status: "result",
+      }).success,
+    ).toBe(false);
+  });
+
   it("keeps only the latest consecutive cumulative text snapshot", () => {
     const events: AgentRunEvent[] = [
       { kind: "tool-call", callId: "call-1", toolName: "search", input: {} },

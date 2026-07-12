@@ -1,14 +1,7 @@
 import { defineMcpClientConnection } from "eve/connections";
-import { parseToolboxAgentConfig } from "@agent-template/toolbox-config";
+import { readEveToolboxConfig } from "../lib/capability-profile";
 
-const toolbox = parseToolboxAgentConfig({
-  ...process.env,
-  TOOLBOX_URL:
-    process.env.TOOLBOX_URL ??
-    (process.env.NODE_ENV === "production"
-      ? undefined
-      : "http://localhost:15000"),
-});
+const toolbox = readEveToolboxConfig(process.env);
 
 if (!toolbox) {
   throw new Error("TOOLBOX_URL is required for the Eve Toolbox connection");
@@ -16,9 +9,9 @@ if (!toolbox) {
 
 export default defineMcpClientConnection({
   description:
-    "经过业务语义治理的 PostgreSQL 只读能力，支持 Agent 平台观测和合成电商销售、商品、订单与履约分析。",
+    "允许模型直接使用的 PostgreSQL 只读平台观测能力；业务问数统一通过 query_business_data。",
   url: toolbox.url,
-  tools: { allow: toolbox.allowedTools },
+  tools: { allow: toolbox.modelSurface.visibleTools },
   ...(toolbox.authorizationToken
     ? {
         auth: {

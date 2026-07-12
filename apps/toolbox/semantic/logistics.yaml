@@ -2,6 +2,7 @@ kind: business-semantic-catalog
 name: synthetic-logistics-operations
 version: 1
 databaseSchema: ecommerce_fixture
+timeZone: UTC
 description: 合成运单、承运商、配送 SLA、物流轨迹和运费的认证查询目录。
 metrics:
   - id: shipment_count

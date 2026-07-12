@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import {
+  resolveToolboxCapabilityProfile,
   toolboxBusinessCapabilityPacks,
-  toolboxToolNames,
 } from "@agent-template/toolbox-config";
 import {
   checkEveAgentReadiness,
@@ -25,9 +25,11 @@ describe("Eve Agent runtime", () => {
 
       expect(skill).toContain("defineDynamic");
       expect(skill).toContain(`hasToolboxSkill("${pack.name}")`);
-      expect(skill).toContain("Toolbox MCP");
+      expect(skill).toContain("可执行语义层");
       expect(skill).toContain("Business semantic catalog");
-      expect(skill).toContain("### `toolbox__");
+      expect(skill).toContain("`query_business_data`");
+      expect(skill).toContain(`### ${pack.tools[0]}`);
+      expect(skill).not.toContain("toolbox__");
       expect(skill).toContain(`references/${pack.catalog}`);
       expect(skill).toContain(`businessSemanticCatalogs["${pack.catalog}"]`);
     }
@@ -132,9 +134,14 @@ describe("Eve Agent runtime", () => {
       tools?: { allow?: string[] };
     };
 
+    const modelVisibleTools =
+      resolveToolboxCapabilityProfile("development-all").modelSurface
+        .visibleTools;
+
     expect(toolbox.url).toBe("http://localhost:15000/mcp");
-    expect(toolbox.tools?.allow).toHaveLength(toolboxToolNames.length);
-    expect(toolbox.tools?.allow).toContain("summarize_sales_by_region");
+    expect(toolbox.tools?.allow).toEqual(modelVisibleTools);
+    expect(toolbox.tools?.allow).toContain("list-agent-runs");
+    expect(toolbox.tools?.allow).not.toContain("summarize_sales_by_region");
     expect(
       existsSync(new URL("../agent/tools/toolbox.ts", import.meta.url)),
     ).toBe(false);
@@ -326,6 +333,155 @@ describe("Eve Agent runtime", () => {
         signal: abortController.signal,
       },
     ]);
+  });
+
+  it("formats semantic query results as metadata-only Agent events", async () => {
+    const result = await runEveAgent(
+      { prompt: "查看最近 7 天 GMV" },
+      parseEveAgentConfig({ EVE_AGENT_HOST: "http://eve.local" }),
+      {
+        createClient: () => ({
+          session: () => ({
+            state: {
+              continuationToken: "continuation-semantic",
+              sessionId: "eve-session-semantic",
+              streamIndex: 1,
+            },
+            send: async () => ({
+              sessionId: "eve-session-semantic",
+              async *[Symbol.asyncIterator]() {
+                yield {
+                  type: "action.result",
+                  data: {
+                    result: {
+                      kind: "tool-result",
+                      callId: "semantic-call-1",
+                      toolName: "query_business_data",
+                      output: {
+                        type: "result",
+                        queryId: "sq_sales_1",
+                        durationMs: 17,
+                        plan: {
+                          catalog: "ecommerce-retail-example",
+                          catalogVersion: 1,
+                          contract: "daily_sales_summary",
+                          tool: "summarize-ecommerce-sales-by-day",
+                        },
+                        planHash: "a".repeat(64),
+                        rowCount: 1,
+                        data: [{ grossSales: 42 }],
+                        rows: [{ grossSales: 42 }],
+                      },
+                    },
+                  },
+                };
+              },
+            }),
+          }),
+        }),
+      },
+    );
+
+    expect(result).toMatchObject({
+      status: "completed",
+      events: [
+        {
+          kind: "tool-result",
+          callId: "semantic-call-1",
+          toolName: "query_business_data",
+        },
+        {
+          kind: "semantic-query",
+          callId: "semantic-call-1",
+          status: "result",
+          queryId: "sq_sales_1",
+          catalog: "ecommerce-retail-example",
+          catalogVersion: 1,
+          contractId: "daily_sales_summary",
+          toolName: "summarize-ecommerce-sales-by-day",
+          planHash: "a".repeat(64),
+          rowCount: 1,
+          durationMs: 17,
+        },
+        { kind: "done", result: "" },
+      ],
+    });
+    const semanticEvent =
+      result.status === "completed"
+        ? result.events.find((event) => event.kind === "semantic-query")
+        : undefined;
+    expect(semanticEvent).not.toHaveProperty("data");
+    expect(semanticEvent).not.toHaveProperty("rows");
+  });
+
+  it("fails fast when a semantic query action result loses required metadata", async () => {
+    const cases: Array<{
+      message: string;
+      output?: Record<string, unknown>;
+    }> = [
+      { message: "has invalid output" },
+      { message: "is missing queryId", output: { type: "result" } },
+      {
+        message: "has invalid status",
+        output: { queryId: "sq_invalid_status", type: "unknown" },
+      },
+      {
+        message: "is missing its plan",
+        output: { queryId: "sq_missing_plan", type: "result" },
+      },
+      {
+        message: "has invalid provenance metadata",
+        output: {
+          queryId: "sq_invalid_provenance",
+          type: "result",
+          plan: {
+            catalog: "ecommerce-retail-example",
+            catalogVersion: 1,
+            contract: "daily_sales_summary",
+            tool: "summarize-ecommerce-sales-by-day",
+          },
+          rowCount: 1,
+        },
+      },
+    ];
+
+    for (const testCase of cases) {
+      await expect(
+        runEveAgent(
+          { prompt: "查看 GMV" },
+          parseEveAgentConfig({ EVE_AGENT_HOST: "http://eve.local" }),
+          {
+            createClient: () => ({
+              session: () => ({
+                state: {
+                  continuationToken: "continuation-invalid-semantic",
+                  sessionId: "eve-session-invalid-semantic",
+                  streamIndex: 1,
+                },
+                send: async () => ({
+                  sessionId: "eve-session-invalid-semantic",
+                  async *[Symbol.asyncIterator]() {
+                    yield {
+                      type: "action.result",
+                      data: {
+                        result: {
+                          kind: "tool-result",
+                          callId: "semantic-call-invalid",
+                          toolName: "query_business_data",
+                          ...(testCase.output
+                            ? { output: testCase.output }
+                            : {}),
+                        },
+                      },
+                    };
+                  },
+                }),
+              }),
+            }),
+          },
+        ),
+      ).rejects.toThrow(testCase.message);
+    }
   });
 
   it("parks on input.requested and submits structured responses", async () => {

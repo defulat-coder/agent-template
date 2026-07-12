@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   toolboxBusinessCapabilityPacks,
-  toolboxToolNames,
+  toolboxCapabilityProfiles,
 } from "@agent-template/toolbox-config";
 import {
   checkClaudeAgentReadiness,
@@ -15,11 +15,31 @@ import {
   parseClaudeAgentConfig,
   runClaudeAgent,
 } from "./index.js";
-import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import type {
+  createSdkMcpServer,
+  SDKMessage,
+  tool,
+} from "@anthropic-ai/claude-agent-sdk";
 
 const claudeProjectRoot = dirname(
   fileURLToPath(new URL("../package.json", import.meta.url)),
 );
+
+function createFakeSemanticSdkFactories() {
+  return {
+    createSdkMcpServer: ((input: { name: string }) => ({
+      type: "sdk",
+      name: input.name,
+      instance: {},
+    })) as typeof createSdkMcpServer,
+    tool: ((
+      name: string,
+      description: string,
+      inputSchema: unknown,
+      handler: unknown,
+    ) => ({ description, handler, inputSchema, name })) as typeof tool,
+  };
+}
 
 describe("Claude Agent runtime", () => {
   afterEach(() => {
@@ -33,9 +53,10 @@ describe("Claude Agent runtime", () => {
       );
 
       expect(skill).toContain(`name: ${pack.name}`);
-      expect(skill).toContain("Toolbox MCP Tool");
+      expect(skill).toContain("可执行语义层");
       expect(skill).toContain("Business semantic catalog");
-      expect(skill).toMatch(/^### `mcp__toolbox__[a-z0-9_-]+`$/m);
+      expect(skill).toContain("mcp__semantic_query__query_business_data");
+      expect(skill).not.toMatch(/mcp__toolbox__[a-z0-9_-]+/u);
 
       const semanticCatalog = readFileSync(
         new URL(
@@ -357,6 +378,7 @@ describe("Claude Agent runtime", () => {
         {
           abortController,
           loadSdk: async () => ({
+            ...createFakeSemanticSdkFactories(),
             query(params) {
               calls.push(params);
 
@@ -436,6 +458,7 @@ describe("Claude Agent runtime", () => {
         options: {
           allowedTools: string[];
           abortController: AbortController;
+          disallowedTools: string[];
           env: Record<string, string | undefined>;
           mcpServers: Record<string, unknown>;
           skills: string[];
@@ -443,13 +466,28 @@ describe("Claude Agent runtime", () => {
       }
     ).options;
     expect(options.abortController).toBe(abortController);
-    expect(options.allowedTools).toHaveLength(toolboxToolNames.length + 1);
+    expect(options.allowedTools).toHaveLength(
+      toolboxCapabilityProfiles["platform-observability"].length + 2,
+    );
     expect(options.allowedTools).toContain("AskUserQuestion");
     expect(options.skills).toEqual(
       toolboxBusinessCapabilityPacks.map((pack) => pack.name),
     );
     expect(options.allowedTools).toContain("mcp__toolbox__list-agent-runs");
+    expect(options.allowedTools).toContain(
+      "mcp__semantic_query__query_business_data",
+    );
+    expect(options.allowedTools).not.toContain(
+      "mcp__toolbox__summarize-ecommerce-sales-by-day",
+    );
+    expect(options.disallowedTools).toContain(
+      "mcp__toolbox__summarize-ecommerce-sales-by-day",
+    );
+    expect(options.disallowedTools).not.toContain(
+      "mcp__toolbox__list-agent-runs",
+    );
     expect(options.mcpServers).toMatchObject({
+      semantic_query: { type: "sdk" },
       toolbox: {
         type: "http",
         url: "http://toolbox:15000/mcp",
@@ -476,6 +514,7 @@ describe("Claude Agent runtime", () => {
       }),
       {
         loadSdk: async () => ({
+          ...createFakeSemanticSdkFactories(),
           query(params) {
             calls.push(params);
             return (async function* () {
@@ -504,15 +543,11 @@ describe("Claude Agent runtime", () => {
       calls[0] as {
         options: {
           allowedTools: string[];
+          disallowedTools: string[];
           env: Record<string, string | undefined>;
           mcpServers: {
-            toolbox: {
-              headers?: Record<string, string>;
-              tools: Array<{
-                name: string;
-                permission_policy: string;
-              }>;
-            };
+            semantic_query: { type: string };
+            toolbox?: unknown;
           };
           skills: string[];
         };
@@ -521,26 +556,128 @@ describe("Claude Agent runtime", () => {
 
     expect(options.allowedTools).toEqual([
       "AskUserQuestion",
-      "mcp__toolbox__summarize-ecommerce-sales-by-day",
-      "mcp__toolbox__summarize-ecommerce-sales-by-channel",
-      "mcp__toolbox__summarize_sales_by_region",
-      "mcp__toolbox__summarize_sales_by_customer_segment",
+      "mcp__semantic_query__query_business_data",
     ]);
+    expect(options.disallowedTools).toEqual(
+      expect.arrayContaining([
+        "mcp__toolbox__summarize-ecommerce-sales-by-day",
+      ]),
+    );
     expect(options.skills).toEqual(["ecommerce-sales-analysis"]);
-    expect(options.mcpServers.toolbox.headers).toEqual({
-      Authorization: "Bearer toolbox-token",
-    });
-    expect(
-      options.mcpServers.toolbox.tools.find(
-        (tool) => tool.name === "summarize-ecommerce-sales-by-day",
-      )?.permission_policy,
-    ).toBe("always_allow");
-    expect(
-      options.mcpServers.toolbox.tools.find(
-        (tool) => tool.name === "get-ecommerce-order-detail",
-      )?.permission_policy,
-    ).toBe("always_deny");
+    expect(options.mcpServers.semantic_query).toMatchObject({ type: "sdk" });
+    expect(options.mcpServers).not.toHaveProperty("toolbox");
     expect(options.env).not.toHaveProperty("TOOLBOX_AUTH_TOKEN");
+  });
+
+  it("projects semantic query results as metadata-only run events", async () => {
+    const result = await runClaudeAgent(
+      { prompt: "最近7天 GMV 趋势" },
+      parseClaudeAgentConfig({
+        AGENT_CAPABILITY_PROFILE: "ecommerce-sales",
+        ANTHROPIC_AUTH_TOKEN: "test-token",
+        TOOLBOX_URL: "http://toolbox:15000",
+      }),
+      {
+        loadSdk: async () => ({
+          ...createFakeSemanticSdkFactories(),
+          query() {
+            return (async function* () {
+              yield {
+                message: {
+                  content: [
+                    {
+                      id: "semantic-call-1",
+                      input: {
+                        question: "最近7天 GMV 趋势",
+                        catalog: "ecommerce-retail-example",
+                        intent: "sales_trend",
+                        terms: ["gross_sales"],
+                        timeExpression: "最近7天",
+                      },
+                      name: "mcp__semantic_query__query_business_data",
+                      type: "tool_use",
+                    },
+                  ],
+                  role: "assistant",
+                },
+                parent_tool_use_id: null,
+                session_id: "claude-session-semantic",
+                type: "assistant",
+              } as unknown as SDKMessage;
+              yield {
+                message: {
+                  content: [
+                    {
+                      content: JSON.stringify({
+                        type: "result",
+                        queryId: "sq_sales_1",
+                        planHash: "a".repeat(64),
+                        rowCount: 1,
+                        data: [{ grossSales: 42 }],
+                        plan: {
+                          catalog: "ecommerce-retail-example",
+                          catalogVersion: 1,
+                          contract: "daily_sales_summary",
+                          tool: "summarize-ecommerce-sales-by-day",
+                        },
+                      }),
+                      tool_use_id: "semantic-call-1",
+                      type: "tool_result",
+                    },
+                  ],
+                  role: "user",
+                },
+                parent_tool_use_id: null,
+                session_id: "claude-session-semantic",
+                type: "user",
+                uuid: "semantic-result-1",
+              } as unknown as SDKMessage;
+              yield {
+                duration_api_ms: 0,
+                duration_ms: 0,
+                is_error: false,
+                modelUsage: {},
+                num_turns: 1,
+                permission_denials: [],
+                result: "最近7天 GMV 为 42。",
+                session_id: "claude-session-semantic",
+                stop_reason: "stop",
+                subtype: "success",
+                total_cost_usd: 0,
+                type: "result",
+                usage: {},
+              } as unknown as SDKMessage;
+            })();
+          },
+        }),
+      },
+    );
+
+    expect(result).toMatchObject({
+      status: "completed",
+      events: [
+        { kind: "tool-call", callId: "semantic-call-1" },
+        { kind: "tool-result", callId: "semantic-call-1" },
+        {
+          kind: "semantic-query",
+          callId: "semantic-call-1",
+          status: "result",
+          queryId: "sq_sales_1",
+          catalog: "ecommerce-retail-example",
+          catalogVersion: 1,
+          contractId: "daily_sales_summary",
+          toolName: "summarize-ecommerce-sales-by-day",
+          planHash: "a".repeat(64),
+          rowCount: 1,
+        },
+        { kind: "done", result: "最近7天 GMV 为 42。" },
+      ],
+    });
+    const semanticEvent =
+      result.status === "completed"
+        ? result.events.find((event) => event.kind === "semantic-query")
+        : undefined;
+    expect(semanticEvent).not.toHaveProperty("data");
   });
 
   it("defers AskUserQuestion and resumes it with platform input", async () => {

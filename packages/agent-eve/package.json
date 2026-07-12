@@ -14,14 +14,16 @@
     "eve:dev": "eve dev --host 0.0.0.0 --port 13010 --no-ui",
     "eve:info": "eve info --json",
     "eve:start": "eve start --host 0.0.0.0 --port 13010",
-    "lint": "eslint src",
+    "lint": "eslint src agent",
     "typecheck": "node ../../scripts/tsc7.mjs -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
+    "@agent-template/semantic-query": "workspace:*",
     "@agent-template/shared": "workspace:*",
     "@agent-template/toolbox-config": "workspace:*",
     "@ai-sdk/anthropic": "^4.0.7",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "ai": "^7.0.14",
     "eve": "latest",
     "just-bash": "^3.0.1",

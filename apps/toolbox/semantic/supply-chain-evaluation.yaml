@@ -1,10 +1,12 @@
 kind: semantic-query-evaluation
 catalog: synthetic-supply-chain-operations
 version: 1
+asOf: 2026-06-30T23:59:59Z
+timeZone: UTC
 cases:
   - id: inventory-health-route
     category: route
-    question: 最近库存健康情况如何？
+    question: 近30天库存健康情况如何？
     expected:
       intent: inventory_health
       tool: summarize_inventory_health
@@ -12,7 +14,7 @@ cases:
       requiresClarification: false
   - id: stockout-route
     category: route
-    question: 列出可用库存低于安全库存的 SKU
+    question: 列出近30天可用库存低于安全库存的 SKU
     expected:
       intent: stockout_risks
       tool: list_stockout_risks
@@ -20,7 +22,7 @@ cases:
       requiresClarification: false
   - id: warehouse-route
     category: route
-    question: 各仓库可用库存和库存金额是多少？
+    question: 近30天各仓库可用库存和库存金额是多少？
     expected:
       intent: warehouse_inventory
       tool: summarize_inventory_by_warehouse
@@ -28,7 +30,7 @@ cases:
       requiresClarification: false
   - id: procurement-route
     category: route
-    question: 各采购品类的采购金额和延期单量
+    question: 近30天各采购品类的采购金额和延期单量
     expected:
       intent: procurement_spend
       tool: summarize_procurement_spend
@@ -36,7 +38,7 @@ cases:
       requiresClarification: false
   - id: supplier-route
     category: route
-    question: 哪些供应商准时率最高？
+    question: 近30天哪些供应商准时率最高？
     expected:
       intent: supplier_performance
       tool: summarize_supplier_performance
@@ -44,7 +46,7 @@ cases:
       requiresClarification: false
   - id: purchase-exception-route
     category: route
-    question: 列出已经延期的采购单
+    question: 列出近30天已经延期的采购单
     expected:
       intent: purchase_order_exceptions
       tool: list_purchase_order_exceptions
@@ -58,7 +60,7 @@ cases:
       requiresClarification: true
   - id: empty-future-inventory
     category: empty-result
-    question: 查询 2027 年的库存健康情况
+    question: 查询 2027 年 1 月 1 日的库存健康情况
     expected:
       intent: inventory_health
       tool: summarize_inventory_health
@@ -66,7 +68,7 @@ cases:
       requiresClarification: false
   - id: delayed-purchase-exception
     category: exception
-    question: 哪些未收货采购单已经超过预计到货时间？
+    question: 近30天哪些未收货采购单已经超过预计到货时间？
     expected:
       intent: purchase_order_exceptions
       tool: list_purchase_order_exceptions

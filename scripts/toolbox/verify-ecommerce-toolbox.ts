@@ -167,6 +167,16 @@ async function main() {
       "summarize_sales_by_region",
       "summarize_sales_by_customer_segment",
     ]);
+    assert.deepEqual(
+      salesProfile?.semanticExecutionTools,
+      salesProfile?.allowedTools,
+    );
+    assert.deepEqual(salesProfile?.modelSurface.visibleTools, []);
+    assert.ok(
+      salesProfile?.modelSurface.hiddenTools.includes(
+        "summarize-ecommerce-sales-by-day",
+      ),
+    );
     assert.ok(
       !salesProfile?.allowedTools.includes("get-ecommerce-order-detail"),
     );
@@ -197,6 +207,14 @@ async function main() {
       ["MARKETPLACE", "MINI_PROGRAM", "LIVE_STREAM", "WEB"],
     );
     assert.equal(channelSales[0]?.netSales, 30262.8);
+    const livestreamSales = await callRows(
+      client,
+      "summarize-ecommerce-sales-by-channel",
+      { ...timeWindow, channel: "LIVE_STREAM" },
+    );
+    assert.deepEqual(livestreamSales.map((row) => row.channel), [
+      "LIVE_STREAM",
+    ]);
 
     const regionSales = await callRows(
       client,
@@ -204,6 +222,12 @@ async function main() {
       timeWindow,
     );
     assert.equal(regionSales.length, 6);
+    const eastChinaSales = await callRows(
+      client,
+      "summarize_sales_by_region",
+      { ...timeWindow, region: "华东" },
+    );
+    assert.deepEqual(eastChinaSales.map((row) => row.region), ["华东"]);
     const segmentSales = await callRows(
       client,
       "summarize_sales_by_customer_segment",
@@ -215,6 +239,12 @@ async function main() {
       "NEW",
       "VIP",
     ]);
+    const vipSales = await callRows(
+      client,
+      "summarize_sales_by_customer_segment",
+      { ...timeWindow, customerSegment: "VIP" },
+    );
+    assert.deepEqual(vipSales.map((row) => row.customerSegment), ["VIP"]);
 
     const topProducts = await callRows(client, "list-ecommerce-top-products", {
       ...timeWindow,
@@ -222,6 +252,13 @@ async function main() {
     });
     assert.equal(topProducts.length, 5);
     assert.equal(topProducts[0]?.sku, "BEAUTY-004");
+    const beautyProducts = await callRows(
+      client,
+      "list-ecommerce-top-products",
+      { ...timeWindow, category: "美妆个护", limit: 5, offset: 0 },
+    );
+    assert.ok(beautyProducts.length > 0);
+    assert.ok(beautyProducts.every((row) => row.category === "美妆个护"));
 
     const categorySales = await callRows(
       client,
@@ -229,6 +266,14 @@ async function main() {
       timeWindow,
     );
     assert.equal(categorySales.length, 6);
+    const beautyCategorySales = await callRows(
+      client,
+      "summarize_merchandise_by_category",
+      { ...timeWindow, category: "美妆个护" },
+    );
+    assert.deepEqual(beautyCategorySales.map((row) => row.category), [
+      "美妆个护",
+    ]);
 
     const orders = await callRows(client, "list-ecommerce-orders-in-window", {
       ...timeWindow,
@@ -268,6 +313,8 @@ async function main() {
     });
     assert.deepEqual(financeProfile?.enabledSkills, ["finance-analysis"]);
     assert.equal(financeProfile?.allowedTools.length, 5);
+    assert.equal(financeProfile?.semanticExecutionTools.length, 5);
+    assert.deepEqual(financeProfile?.modelSurface.visibleTools, []);
     const financeOverview = await callRows(
       client,
       "summarize_finance_overview",
