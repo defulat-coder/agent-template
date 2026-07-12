@@ -19,6 +19,11 @@ if (process.env.NODE_ENV !== "production") {
 
 export { ecommerceFixture } from "./data.js";
 export {
+  createEcommerceBusinessFixture,
+  ecommerceBusinessFixture,
+  type EcommerceBusinessFixture,
+} from "./business-data.js";
+export {
   defaultEcommerceFixtureDatabaseUrl,
   getEcommerceFixtureDatabaseUrl,
 } from "./config.js";

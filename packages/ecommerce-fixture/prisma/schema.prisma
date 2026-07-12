@@ -53,6 +53,102 @@ enum EcommercePaymentStatus {
   @@schema("ecommerce_fixture")
 }
 
+enum FinanceRefundReason {
+  CUSTOMER_REQUEST
+  DAMAGED_ITEM
+  DELIVERY_DELAY
+  LOST_SHIPMENT
+  QUALITY_ISSUE
+  PRICE_ADJUSTMENT
+
+  @@schema("ecommerce_fixture")
+}
+
+enum FinanceRefundStatus {
+  REQUESTED
+  PROCESSING
+  COMPLETED
+  REJECTED
+
+  @@schema("ecommerce_fixture")
+}
+
+enum FinanceInvoiceStatus {
+  ISSUED
+  PAID
+  VOID
+  MISMATCH
+
+  @@schema("ecommerce_fixture")
+}
+
+enum FinanceSettlementStatus {
+  PENDING
+  SETTLED
+  DISCREPANCY
+
+  @@schema("ecommerce_fixture")
+}
+
+enum InventoryRiskLevel {
+  HEALTHY
+  LOW
+  STOCKOUT
+  OVERSTOCK
+
+  @@schema("ecommerce_fixture")
+}
+
+enum LogisticsCarrier {
+  SF_EXPRESS
+  JD_LOGISTICS
+  YTO_EXPRESS
+  ZTO_EXPRESS
+
+  @@schema("ecommerce_fixture")
+}
+
+enum LogisticsShipmentStatus {
+  IN_TRANSIT
+  DELAYED
+  DELIVERED
+  LOST
+  RETURNED
+
+  @@schema("ecommerce_fixture")
+}
+
+enum LogisticsShipmentEventType {
+  CREATED
+  PICKED_UP
+  IN_TRANSIT
+  DELAYED
+  DELIVERED
+  LOST
+  RETURNED
+
+  @@schema("ecommerce_fixture")
+}
+
+enum ProcurementOrderStatus {
+  ORDERED
+  IN_TRANSIT
+  RECEIVED
+  DELAYED
+  CANCELLED
+
+  @@schema("ecommerce_fixture")
+}
+
+enum MarketingCampaignObjective {
+  ACQUISITION
+  CONVERSION
+  RETENTION
+  REACTIVATION
+
+  @@schema("ecommerce_fixture")
+}
+
 model EcommerceCustomer {
   id           String                   @id
   customerCode String                   @unique
@@ -69,39 +165,44 @@ model EcommerceCustomer {
 }
 
 model EcommerceProduct {
-  id         String               @id
-  sku        String               @unique
-  name       String
-  category   String
-  brand      String
-  unitPrice  Decimal              @db.Decimal(12, 2)
-  isActive   Boolean              @default(true)
-  createdAt  DateTime             @default(now()) @db.Timestamptz(3)
-  orderItems EcommerceOrderItem[]
+  id                 String               @id
+  sku                String               @unique
+  name               String
+  category           String
+  brand              String
+  unitPrice          Decimal              @db.Decimal(12, 2)
+  isActive           Boolean              @default(true)
+  createdAt          DateTime             @default(now()) @db.Timestamptz(3)
+  orderItems         EcommerceOrderItem[]
+  inventorySnapshots InventorySnapshot[]
 
   @@index([category, isActive])
   @@schema("ecommerce_fixture")
 }
 
 model EcommerceOrder {
-  id            String                @id
-  orderNumber   String                @unique
-  customerId    String
-  customer      EcommerceCustomer     @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  channel       EcommerceSalesChannel
-  status        EcommerceOrderStatus
-  placedAt      DateTime              @db.Timestamptz(3)
-  paidAt        DateTime?             @db.Timestamptz(3)
-  fulfilledAt   DateTime?             @db.Timestamptz(3)
-  subtotal      Decimal               @db.Decimal(12, 2)
-  discountTotal Decimal               @db.Decimal(12, 2)
-  shippingTotal Decimal               @db.Decimal(12, 2)
-  paidTotal     Decimal               @db.Decimal(12, 2)
-  refundedTotal Decimal               @db.Decimal(12, 2)
-  createdAt     DateTime              @default(now()) @db.Timestamptz(3)
-  updatedAt     DateTime              @db.Timestamptz(3)
-  items         EcommerceOrderItem[]
-  payment       EcommercePayment?
+  id                   String                @id
+  orderNumber          String                @unique
+  customerId           String
+  customer             EcommerceCustomer     @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  channel              EcommerceSalesChannel
+  status               EcommerceOrderStatus
+  placedAt             DateTime              @db.Timestamptz(3)
+  paidAt               DateTime?             @db.Timestamptz(3)
+  fulfilledAt          DateTime?             @db.Timestamptz(3)
+  subtotal             Decimal               @db.Decimal(12, 2)
+  discountTotal        Decimal               @db.Decimal(12, 2)
+  shippingTotal        Decimal               @db.Decimal(12, 2)
+  paidTotal            Decimal               @db.Decimal(12, 2)
+  refundedTotal        Decimal               @db.Decimal(12, 2)
+  createdAt            DateTime              @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime              @db.Timestamptz(3)
+  items                EcommerceOrderItem[]
+  payment              EcommercePayment?
+  financeRefund        FinanceRefund?
+  financeInvoice       FinanceInvoice?
+  logisticsShipment    LogisticsShipment?
+  marketingAttributions MarketingAttribution[]
 
   @@index([placedAt])
   @@index([paidAt])
@@ -140,5 +241,197 @@ model EcommercePayment {
   createdAt DateTime               @default(now()) @db.Timestamptz(3)
 
   @@index([status, paidAt])
+  @@schema("ecommerce_fixture")
+}
+
+model FinanceRefund {
+  id              String              @id
+  orderId         String              @unique
+  order           EcommerceOrder      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  reason          FinanceRefundReason
+  status          FinanceRefundStatus
+  requestedAt     DateTime            @db.Timestamptz(3)
+  completedAt     DateTime?           @db.Timestamptz(3)
+  amount          Decimal             @db.Decimal(12, 2)
+  processingHours Int
+
+  @@index([status, requestedAt])
+  @@schema("ecommerce_fixture")
+}
+
+model FinanceInvoice {
+  id             String               @id
+  orderId        String               @unique
+  order          EcommerceOrder       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  invoiceNumber  String               @unique
+  status         FinanceInvoiceStatus
+  amount         Decimal              @db.Decimal(12, 2)
+  mismatchAmount Decimal              @db.Decimal(12, 2)
+  issuedAt       DateTime?            @db.Timestamptz(3)
+  dueAt          DateTime             @db.Timestamptz(3)
+
+  @@index([status, dueAt])
+  @@schema("ecommerce_fixture")
+}
+
+model FinanceSettlement {
+  id               String                  @id
+  settlementNumber String                  @unique
+  channel          EcommerceSalesChannel
+  periodStart      DateTime                @db.Timestamptz(3)
+  periodEnd        DateTime                @db.Timestamptz(3)
+  grossAmount      Decimal                 @db.Decimal(14, 2)
+  refundAmount     Decimal                 @db.Decimal(14, 2)
+  feeAmount        Decimal                 @db.Decimal(14, 2)
+  expectedAmount   Decimal                 @db.Decimal(14, 2)
+  settledAmount    Decimal?                @db.Decimal(14, 2)
+  differenceAmount Decimal?                @db.Decimal(14, 2)
+  status           FinanceSettlementStatus
+  settledAt        DateTime?               @db.Timestamptz(3)
+
+  @@index([channel, periodStart])
+  @@index([status, periodEnd])
+  @@schema("ecommerce_fixture")
+}
+
+model InventoryWarehouse {
+  id                String              @id
+  warehouseCode     String              @unique
+  name              String
+  region            String
+  city              String
+  capacityUnits     Int
+  snapshots         InventorySnapshot[]
+  shipments         LogisticsShipment[]
+  procurementOrders ProcurementOrder[]
+
+  @@index([region])
+  @@schema("ecommerce_fixture")
+}
+
+model InventorySnapshot {
+  id           String             @id
+  warehouseId  String
+  warehouse    InventoryWarehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  productId    String
+  product      EcommerceProduct   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  snapshotDate DateTime           @db.Timestamptz(3)
+  onHand       Int
+  reserved     Int
+  inTransit    Int
+  safetyStock  Int
+  unitCost     Decimal            @db.Decimal(12, 2)
+  riskLevel    InventoryRiskLevel
+
+  @@unique([warehouseId, productId, snapshotDate])
+  @@index([snapshotDate, riskLevel])
+  @@index([productId, snapshotDate])
+  @@schema("ecommerce_fixture")
+}
+
+model LogisticsShipment {
+  id             String                   @id
+  shipmentNumber String                   @unique
+  orderId        String                   @unique
+  order          EcommerceOrder           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  warehouseId    String
+  warehouse      InventoryWarehouse       @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  carrier        LogisticsCarrier
+  status         LogisticsShipmentStatus
+  shippedAt      DateTime                 @db.Timestamptz(3)
+  promisedAt     DateTime                 @db.Timestamptz(3)
+  deliveredAt    DateTime?                @db.Timestamptz(3)
+  freightCost    Decimal                  @db.Decimal(12, 2)
+  distanceKm     Int
+  events         LogisticsShipmentEvent[]
+
+  @@index([status, promisedAt])
+  @@index([warehouseId, shippedAt])
+  @@schema("ecommerce_fixture")
+}
+
+model LogisticsShipmentEvent {
+  id         String                     @id
+  shipmentId String
+  shipment   LogisticsShipment          @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  type       LogisticsShipmentEventType
+  eventAt    DateTime                   @db.Timestamptz(3)
+  location   String
+  detail     String
+
+  @@index([shipmentId, eventAt])
+  @@index([type, eventAt])
+  @@schema("ecommerce_fixture")
+}
+
+model ProcurementSupplier {
+  id                String             @id
+  supplierCode      String             @unique
+  name              String
+  category          String
+  region            String
+  rating            Decimal            @db.Decimal(3, 2)
+  leadTimeDays      Int
+  onTimeRate        Decimal            @db.Decimal(5, 4)
+  procurementOrders ProcurementOrder[]
+
+  @@index([category, region])
+  @@schema("ecommerce_fixture")
+}
+
+model ProcurementOrder {
+  id                  String                 @id
+  purchaseOrderNumber String                 @unique
+  supplierId          String
+  supplier            ProcurementSupplier    @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  warehouseId         String
+  warehouse           InventoryWarehouse     @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  status              ProcurementOrderStatus
+  orderedAt           DateTime               @db.Timestamptz(3)
+  expectedAt          DateTime               @db.Timestamptz(3)
+  receivedAt          DateTime?              @db.Timestamptz(3)
+  amount              Decimal                @db.Decimal(14, 2)
+  skuCount            Int
+  delayedDays         Int
+
+  @@index([status, expectedAt])
+  @@index([supplierId, orderedAt])
+  @@index([warehouseId, expectedAt])
+  @@schema("ecommerce_fixture")
+}
+
+model MarketingCampaign {
+  id           String                     @id
+  campaignCode String                     @unique
+  name         String
+  channel      EcommerceSalesChannel
+  objective    MarketingCampaignObjective
+  startAt      DateTime                   @db.Timestamptz(3)
+  endAt        DateTime                   @db.Timestamptz(3)
+  budget       Decimal                    @db.Decimal(14, 2)
+  spend        Decimal                    @db.Decimal(14, 2)
+  couponCode   String?
+  attributions MarketingAttribution[]
+
+  @@index([channel, startAt, endAt])
+  @@schema("ecommerce_fixture")
+}
+
+model MarketingAttribution {
+  id                String                @id
+  orderId           String
+  order             EcommerceOrder        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  campaignId        String?
+  campaign          MarketingCampaign?    @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  channel           EcommerceSalesChannel
+  couponCode        String?
+  attributedRevenue Decimal               @db.Decimal(14, 2)
+  allocatedSpend    Decimal               @db.Decimal(14, 2)
+  isNewCustomer     Boolean
+  touchpointAt      DateTime              @db.Timestamptz(3)
+
+  @@index([campaignId, touchpointAt])
+  @@index([channel, touchpointAt])
+  @@index([orderId, touchpointAt])
   @@schema("ecommerce_fixture")
 }

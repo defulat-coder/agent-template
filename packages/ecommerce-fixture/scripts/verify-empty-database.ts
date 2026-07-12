@@ -68,18 +68,40 @@ async function main() {
     await fixture.connect();
     try {
       const result = await fixture.query<{
+        attributions: string;
+        campaigns: string;
         customers: string;
+        invoices: string;
+        inventory_snapshots: string;
         products: string;
         orders: string;
         order_items: string;
         payments: string;
+        procurement_orders: string;
+        refunds: string;
+        settlements: string;
+        shipment_events: string;
+        shipments: string;
+        suppliers: string;
+        warehouses: string;
       }>(`
         SELECT
           (SELECT COUNT(*) FROM ecommerce_fixture."EcommerceCustomer") AS customers,
           (SELECT COUNT(*) FROM ecommerce_fixture."EcommerceProduct") AS products,
           (SELECT COUNT(*) FROM ecommerce_fixture."EcommerceOrder") AS orders,
           (SELECT COUNT(*) FROM ecommerce_fixture."EcommerceOrderItem") AS order_items,
-          (SELECT COUNT(*) FROM ecommerce_fixture."EcommercePayment") AS payments
+          (SELECT COUNT(*) FROM ecommerce_fixture."EcommercePayment") AS payments,
+          (SELECT COUNT(*) FROM ecommerce_fixture."FinanceRefund") AS refunds,
+          (SELECT COUNT(*) FROM ecommerce_fixture."FinanceInvoice") AS invoices,
+          (SELECT COUNT(*) FROM ecommerce_fixture."FinanceSettlement") AS settlements,
+          (SELECT COUNT(*) FROM ecommerce_fixture."InventoryWarehouse") AS warehouses,
+          (SELECT COUNT(*) FROM ecommerce_fixture."InventorySnapshot") AS inventory_snapshots,
+          (SELECT COUNT(*) FROM ecommerce_fixture."LogisticsShipment") AS shipments,
+          (SELECT COUNT(*) FROM ecommerce_fixture."LogisticsShipmentEvent") AS shipment_events,
+          (SELECT COUNT(*) FROM ecommerce_fixture."ProcurementSupplier") AS suppliers,
+          (SELECT COUNT(*) FROM ecommerce_fixture."ProcurementOrder") AS procurement_orders,
+          (SELECT COUNT(*) FROM ecommerce_fixture."MarketingCampaign") AS campaigns,
+          (SELECT COUNT(*) FROM ecommerce_fixture."MarketingAttribution") AS attributions
       `);
       const counts = result.rows[0];
       if (
@@ -88,7 +110,18 @@ async function main() {
         counts.products !== "24" ||
         counts.orders !== "600" ||
         counts.order_items !== "1200" ||
-        counts.payments !== "540"
+        counts.payments !== "540" ||
+        counts.refunds !== "133" ||
+        counts.invoices !== "480" ||
+        counts.settlements !== "240" ||
+        counts.warehouses !== "6" ||
+        counts.inventory_snapshots !== "8640" ||
+        counts.shipments !== "480" ||
+        counts.shipment_events !== "1883" ||
+        counts.suppliers !== "12" ||
+        counts.procurement_orders !== "180" ||
+        counts.campaigns !== "12" ||
+        counts.attributions !== "688"
       ) {
         throw new Error(
           `Unexpected empty-database fixture counts: ${JSON.stringify(counts)}`,
