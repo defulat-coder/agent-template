@@ -1,20 +1,11 @@
-// Validates and stages the current ZRead Wiki version.
-import {
-  cp,
-  mkdir,
-  readFile,
-  realpath,
-  stat,
-  writeFile,
-} from "node:fs/promises";
+// Validates the active ZRead Wiki and stages its native directory unchanged.
+import { cp, readFile, readdir, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import {
   extractZReadSourceCitations,
-  isSafeZReadPathSegment,
-  type ZReadSourceCitation,
-  type ZReadSourceIndex,
-  ZReadWikiManifestSchema,
+  parseZReadCurrentVersionId,
   type ZReadManifestPage,
+  ZReadWikiManifestSchema,
   type ZReadWikiManifest,
 } from "@agent-template/shared";
 
@@ -27,123 +18,118 @@ export type ZReadWikiSnapshot = {
   pages: ZReadPage[];
 };
 
-export async function stageCurrentZReadWiki(
+export async function stageNativeZReadWiki(
   sourceWiki: string,
   destinationWiki: string,
   assertSafeText: (content: string, label: string) => void = () => undefined,
 ): Promise<ZReadWikiSnapshot> {
-  const current = (
-    await readFile(path.join(sourceWiki, "current"), "utf8")
-  ).trim();
-  const id = parseCurrentVersionId(current);
+  await validateNativeWikiTree(sourceWiki, assertSafeText);
+
+  const current = await readFile(path.join(sourceWiki, "current"), "utf8");
+  const id = parseZReadCurrentVersionId(current);
+  if (!id) {
+    throw new Error(`Invalid ZRead current version id: ${current.trim()}`);
+  }
 
   const sourceVersion = path.join(sourceWiki, "versions", id);
-  const manifestPath = path.join(sourceVersion, "wiki.json");
-  const manifestContent = await readFile(manifestPath, "utf8");
-  assertSafeText(manifestContent, "ZRead wiki manifest");
-  const manifest = parseManifest(manifestContent, id);
-  const snapshot = createSnapshot(manifest);
-  const sourceCitations = new Map<
-    string,
-    Map<string, ZReadSourceCitation>
-  >();
-
-  await mkdir(path.join(destinationWiki, "versions", id), { recursive: true });
-  await writeFile(path.join(destinationWiki, "current"), `${id}\n`, "utf8");
-  await writeFile(
-    path.join(destinationWiki, "versions", id, "wiki.json"),
-    `${JSON.stringify(manifest, null, 2)}\n`,
+  const manifestContent = await readFile(
+    path.join(sourceVersion, "wiki.json"),
     "utf8",
   );
+  assertSafeText(manifestContent, "ZRead wiki manifest");
+  const manifest = parseManifest(manifestContent, id);
+  const repositoryRoot = path.resolve(sourceWiki, "../..");
 
   for (const page of manifest.pages) {
     const sourcePage = path.join(sourceVersion, page.file);
-    await assertRegularPage(sourceVersion, sourcePage, page.file);
+    await assertRegularFile(
+      sourceVersion,
+      sourcePage,
+      `ZRead page file: ${page.file}`,
+    );
     const content = await readFile(sourcePage, "utf8");
     assertSafeText(content, `ZRead page ${page.file}`);
     if (/^\s*[-*+]\s+[-*+]\s+/mu.test(content)) {
       throw new Error(`ZRead generated malformed list markers in ${page.file}`);
     }
-    for (const citation of extractZReadSourceCitations(content)) {
-      const ranges = sourceCitations.get(citation.path) ?? new Map();
-      ranges.set(`${citation.startLine}:${citation.endLine}`, citation);
-      sourceCitations.set(citation.path, ranges);
-    }
-
-    const destinationPage = path.join(
-      destinationWiki,
-      "versions",
-      id,
-      page.file,
-    );
-    await mkdir(path.dirname(destinationPage), { recursive: true });
-    await cp(sourcePage, destinationPage);
+    await validateSourceCitations(repositoryRoot, content, assertSafeText);
   }
 
-  const sourceIndex = await createSourceIndex(
-    id,
-    path.resolve(sourceWiki, "../.."),
-    sourceCitations,
-    assertSafeText,
-  );
-  await writeFile(
-    path.join(destinationWiki, "versions", id, "sources.json"),
-    `${JSON.stringify(sourceIndex, null, 2)}\n`,
-    "utf8",
-  );
+  await cp(sourceWiki, destinationWiki, {
+    preserveTimestamps: true,
+    recursive: true,
+  });
 
-  return snapshot;
+  return {
+    generatedAt: manifest.generated_at,
+    id: manifest.id,
+    language: manifest.language,
+    pages: manifest.pages,
+  };
 }
 
-async function createSourceIndex(
-  id: string,
-  repositoryRoot: string,
-  citations: ReadonlyMap<string, ReadonlyMap<string, ZReadSourceCitation>>,
+async function validateNativeWikiTree(
+  wikiRoot: string,
   assertSafeText: (content: string, label: string) => void,
-): Promise<ZReadSourceIndex> {
-  const sources: ZReadSourceIndex["sources"] = [];
-  for (const sourcePath of [...citations.keys()].sort()) {
-    const sourceFile = path.join(repositoryRoot, sourcePath);
-    await assertRegularSource(repositoryRoot, sourceFile, sourcePath);
-    const content = await readFile(sourceFile, "utf8");
-    if (content.includes("\0")) {
-      throw new Error(`ZRead cited source file is not text: ${sourcePath}`);
+): Promise<void> {
+  const pendingDirectories = [wikiRoot];
+  while (pendingDirectories.length > 0) {
+    const directory = pendingDirectories.pop();
+    if (!directory) {
+      continue;
     }
-    assertSafeText(content, `ZRead cited source ${sourcePath}`);
-    const lineCount = content.split("\n").length;
-    const canonicalRanges = new Map<string, { end: number; start: number }>();
-    for (const citation of citations.get(sourcePath)?.values() ?? []) {
-      if (citation.startLine > lineCount) {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const file = path.join(directory, entry.name);
+      const relativeFile = path.relative(wikiRoot, file);
+      if (entry.isDirectory()) {
+        pendingDirectories.push(file);
+        continue;
+      }
+      if (!entry.isFile()) {
         throw new Error(
-          `ZRead source start ${sourcePath}#L${citation.startLine} exceeds ${lineCount} lines`,
+          `ZRead native wiki contains a non-regular file: ${relativeFile}`,
         );
       }
-      const range = {
-        end: Math.min(citation.endLine, lineCount),
-        start: citation.startLine,
-      };
-      canonicalRanges.set(`${range.start}:${range.end}`, range);
+      const content = await readFile(file, "utf8");
+      if (content.includes("\0")) {
+        throw new Error(`ZRead native wiki file is not text: ${relativeFile}`);
+      }
+      assertSafeText(content, `ZRead native wiki file ${relativeFile}`);
     }
-    const ranges = [...canonicalRanges.values()].sort(
-      (left, right) => left.start - right.start || left.end - right.end,
-    );
-    if (ranges.length === 0) {
-      throw new Error(
-        `ZRead cited source has no valid ranges: ${sourcePath}`,
-      );
-    }
-    sources.push({ path: sourcePath, ranges });
   }
-  return { id, sources };
 }
 
-function parseCurrentVersionId(current: string): string {
-  const parts = current.split("/");
-  const id = parts.length === 2 && parts[0] === "versions" ? parts[1] : current;
-  if (!isSafeZReadPathSegment(id)) {
-    throw new Error(`Invalid ZRead current version id: ${current}`);
+async function validateSourceCitations(
+  repositoryRoot: string,
+  markdown: string,
+  assertSafeText: (content: string, label: string) => void,
+): Promise<void> {
+  const citations = new Map(
+    extractZReadSourceCitations(markdown).map((citation) => [
+      `${citation.path}:${citation.startLine}:${citation.endLine}`,
+      citation,
+    ]),
+  );
+
+  for (const citation of citations.values()) {
+    const sourceFile = path.join(repositoryRoot, citation.path);
+    await assertRegularFile(
+      repositoryRoot,
+      sourceFile,
+      `ZRead cited source file: ${citation.path}`,
+    );
+    const content = await readFile(sourceFile, "utf8");
+    if (content.includes("\0")) {
+      throw new Error(`ZRead cited source file is not text: ${citation.path}`);
+    }
+    assertSafeText(content, `ZRead cited source ${citation.path}`);
+    const lineCount = content.split("\n").length;
+    if (citation.startLine > lineCount) {
+      throw new Error(
+        `ZRead source start ${citation.path}#L${citation.startLine} exceeds ${lineCount} lines`,
+      );
+    }
   }
-  return id;
 }
 
 function parseManifest(content: string, expectedId: string): ZReadWikiManifest {
@@ -154,65 +140,26 @@ function parseManifest(content: string, expectedId: string): ZReadWikiManifest {
     throw new Error("ZRead wiki.json is not valid JSON", { cause: error });
   }
 
-  const parsed = ZReadWikiManifestSchema.safeParse(
-    normalizeVendorManifest(value),
-  );
+  const parsed = ZReadWikiManifestSchema.safeParse(value);
   if (!parsed.success) {
     throw new Error(`Invalid ZRead wiki.json: ${parsed.error.message}`);
   }
-
-  const { id } = parsed.data;
-  if (id !== expectedId) {
+  if (parsed.data.id !== expectedId) {
     throw new Error(
-      `ZRead wiki.json id ${id} does not match current version ${expectedId}`,
+      `ZRead wiki.json id ${parsed.data.id} does not match current version ${expectedId}`,
     );
   }
   return parsed.data;
 }
 
-function normalizeVendorManifest(value: unknown): unknown {
-  if (!isRecord(value) || !Array.isArray(value.pages)) {
-    return value;
-  }
-  return {
-    ...value,
-    pages: value.pages.map((page) => {
-      if (!isRecord(page)) {
-        return page;
-      }
-      return {
-        ...page,
-        group:
-          typeof page.group === "string" && page.group
-            ? page.group
-            : page.section,
-        level: typeof page.level === "number" ? String(page.level) : page.level,
-      };
-    }),
-  };
-}
-
-function createSnapshot(manifest: ZReadWikiManifest): ZReadWikiSnapshot {
-  return {
-    generatedAt: manifest.generated_at,
-    id: manifest.id,
-    language: manifest.language,
-    pages: manifest.pages,
-  };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-async function assertRegularPage(
-  versionRoot: string,
+async function assertRegularFile(
+  root: string,
   file: string,
-  relativeFile: string,
+  label: string,
 ): Promise<void> {
   try {
     const [resolvedRoot, resolvedFile, fileStat] = await Promise.all([
-      realpath(versionRoot),
+      realpath(root),
       realpath(file),
       stat(file),
     ]);
@@ -223,43 +170,11 @@ async function assertRegularPage(
       relative.startsWith(`..${path.sep}`) ||
       path.isAbsolute(relative)
     ) {
-      throw new Error(`Invalid ZRead page file: ${relativeFile}`);
+      throw new Error(`Invalid ${label}`);
     }
   } catch (error) {
     if (isFileNotFoundError(error)) {
-      throw new Error(`ZRead page file is missing: ${relativeFile}`, {
-        cause: error,
-      });
-    }
-    throw error;
-  }
-}
-
-async function assertRegularSource(
-  repositoryRoot: string,
-  file: string,
-  relativeFile: string,
-): Promise<void> {
-  try {
-    const [resolvedRoot, resolvedFile, fileStat] = await Promise.all([
-      realpath(repositoryRoot),
-      realpath(file),
-      stat(file),
-    ]);
-    const relative = path.relative(resolvedRoot, resolvedFile);
-    if (
-      !fileStat.isFile() ||
-      relative === ".." ||
-      relative.startsWith(`..${path.sep}`) ||
-      path.isAbsolute(relative)
-    ) {
-      throw new Error(`Invalid ZRead cited source file: ${relativeFile}`);
-    }
-  } catch (error) {
-    if (isFileNotFoundError(error)) {
-      throw new Error(`ZRead cited source file is missing: ${relativeFile}`, {
-        cause: error,
-      });
+      throw new Error(`${label} is missing`, { cause: error });
     }
     throw error;
   }

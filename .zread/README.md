@@ -38,8 +38,8 @@ pnpm docs:zread:update
 pnpm --filter @agent-template/web build
 ```
 
-`docs:zread:update` 会把当前已提交版本克隆到隔离目录，调用 Kimi 生成全部页面，校验 JSONL 终态、写入边界、manifest、Markdown 文件、路径安全以及 stdout、stderr、ZRead log 和生成内容中没有 provider credential 后，仅把当前版本发布到 `.zread/wiki/`。该命令会发送仓库源码上下文并消耗模型额度，必须由有权限的人显式执行。
+`docs:zread:update` 会把当前已提交版本克隆到隔离目录，调用 Kimi 生成全部页面，校验 JSONL 终态、写入边界、当前 manifest、Markdown 文件、引用源码、路径安全以及 stdout、stderr、ZRead log 和生成内容中没有 provider credential 后，把 ZRead 生成的完整原生 Wiki 目录原样发布到 `.zread/wiki/`。该命令会发送仓库源码上下文并消耗模型额度，必须由有权限的人显式执行。
 
-发布 adapter 会把 ZRead vendor manifest 规范化成稳定的项目契约：`current` 只保存版本 ID，缺失的 `group` 使用 `section`，`level` 统一为字符串；同时从 Markdown 引用生成 canonical `sources.json`，验证源码文件、路径和起始行，超出文件末尾的结束行会收敛到真实行数。Web 和其他消费者只读取这些 canonical indexes，不兼容 vendor 的临时格式差异，也不在消费端重新推导源码 allowlist。
+发布 adapter 不新增、删除或改写 ZRead 产物：`current`、`versions/`、`drafts/`（如有）、`wiki.json` 与 Markdown 均保持 CLI 原生结构和内容。项目只在发布前验证当前指针和当前版本；Web 消费端兼容 ZRead 原生的 `current` 两种写法，以及 manifest 中原生的 `level` 和可选 `group` 字段。
 
-Web 构建会读取当前版本的 `sources.json`，并把其中的源码静态生成为 `/docs/source/*` 页面。源码页与 Wiki 一起进入部署产物，不依赖 GitHub 等远端代码托管服务；未进入 canonical index 的文件、目录穿越路径、`.env` 和环境密钥文件不会暴露。非标准构建目录可用 `ZREAD_WIKI_ROOT` 和 `ZREAD_SOURCE_ROOT` 分别指定 Wiki 与仓库源码根目录。
+Web 构建只读取 `current` 指向的 `wiki.json` 及其中列出的 Markdown；从这些 manifest 闭合页面的行号引用推导最小源码 allowlist，并静态生成 `/docs/source/*` 页面。未被当前 Wiki 显式引用的文件、未进入 manifest 的 Markdown、目录穿越路径、`.env` 和密钥文件不会暴露。文档正文由 shadcn/typeset 排版，Mermaid fenced code 在浏览器中以 strict security level 渲染。非标准构建目录可用 `ZREAD_WIKI_ROOT` 和 `ZREAD_SOURCE_ROOT` 分别指定 Wiki 与仓库源码根目录。

@@ -49,7 +49,7 @@
 - `apps/*` 使用 Agent runtime 时只通过 `@agent-template/agent`，不直接依赖具体 runtime package；runtime 仅由部署环境的 `AGENT_RUNTIME=claude|eve` 选择。
 - Claude/Eve 各自持有 Toolbox MCP Client；`@agent-template/toolbox-config` 只维护配置与 schema；Web 不直连 MCP Server。
 - `AGENT_CAPABILITY_PROFILE` 只收窄模型可见 Tool；生产授权由 Toolbox OIDC、Tool scope 和数据库权限强制。
-- Web `/docs` 直接构建 `.zread/wiki` 的当前版本，不把 `zread browse` 作为部署进程；生成只使用项目本地 CLI 和 `.zread/config/` 的多文件配置，在隔离 clone 与隔离 HOME 中执行并只发布校验后的当前版本。长期决策见 `docs/adr/0016-zread-generated-project-wiki.md`。
+- Web `/docs` 直接构建 `.zread/wiki` 的当前版本，不把 `zread browse` 作为部署进程；生成只使用项目本地 CLI 和 `.zread/config/` 的多文件配置，在隔离 clone 与隔离 HOME 中执行，校验后原样发布 ZRead 完整原生 Wiki 目录。长期决策见 `docs/adr/0016-zread-generated-project-wiki.md`。
 
 ## 提交规则
 

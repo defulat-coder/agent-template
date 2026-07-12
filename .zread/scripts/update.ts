@@ -11,7 +11,7 @@ import {
   createZReadChildEnvironment,
 } from "./policy.js";
 import { publishDirectoryAtomically } from "./publication.js";
-import { stageCurrentZReadWiki } from "./wiki.js";
+import { stageNativeZReadWiki } from "./wiki.js";
 import { runZReadCliGeneration } from "./zread-cli.js";
 
 const execFile = promisify(execFileCallback);
@@ -76,7 +76,7 @@ export async function updateZReadWiki(): Promise<void> {
     const changedPaths = await collectChangedPaths(isolatedRepository);
     assertAllowedZReadChanges(changedPaths);
 
-    const snapshot = await stageCurrentZReadWiki(
+    const snapshot = await stageNativeZReadWiki(
       path.join(isolatedRepository, ".zread", "wiki"),
       stagedWiki,
       projectConfig.assertSafeText,

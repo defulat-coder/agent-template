@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  ZReadSourceIndexSchema,
   ZReadWikiManifestSchema,
   extractZReadSourceCitations,
   isSafeZReadSourcePath,
+  parseZReadCurrentVersionId,
   parseZReadSourceHref,
 } from "./zread-wiki";
 
@@ -36,18 +36,18 @@ describe("ZReadWikiManifestSchema", () => {
     expect(ZReadWikiManifestSchema.parse(validManifest)).toEqual(validManifest);
   });
 
-  it("rejects unnormalized vendor pages at the committed manifest seam", () => {
+  it("accepts the native ZRead page shape without project normalization", () => {
     const pages = validManifest.pages.map((page) => ({
       file: page.file,
-      level: "Beginner",
+      level: 1,
       section: page.section,
       slug: page.slug,
       title: page.title,
     }));
 
-    expect(() =>
-      ZReadWikiManifestSchema.parse({ ...validManifest, pages }),
-    ).toThrow();
+    expect(
+      ZReadWikiManifestSchema.parse({ ...validManifest, pages }).pages,
+    ).toEqual(pages);
   });
 
   it("rejects traversal and duplicate slugs", () => {
@@ -92,22 +92,30 @@ describe("ZRead source citation contract", () => {
     });
   });
 
-  it("rejects traversal, secret files and duplicate index entries", () => {
+  it("rejects traversal and secret files", () => {
     expect(isSafeZReadSourcePath(".github/workflows/wiki.yml")).toBe(true);
     expect(isSafeZReadSourcePath(".env.example")).toBe(true);
     expect(isSafeZReadSourcePath("../.env")).toBe(false);
     expect(isSafeZReadSourcePath("apps/web/.env.production")).toBe(false);
     expect(isSafeZReadSourcePath("packages/a/node_modules/x.js")).toBe(false);
     expect(isSafeZReadSourcePath("deploy/private.key")).toBe(false);
+  });
+});
 
-    expect(() =>
-      ZReadSourceIndexSchema.parse({
-        id: validManifest.id,
-        sources: [
-          { path: "README.md", ranges: [{ end: 2, start: 1 }] },
-          { path: "README.md", ranges: [{ end: 4, start: 3 }] },
-        ],
-      }),
-    ).toThrow();
+describe("parseZReadCurrentVersionId", () => {
+  it("accepts both native current pointer forms", () => {
+    expect(parseZReadCurrentVersionId("2026-07-11_2030_abc123\n")).toBe(
+      "2026-07-11_2030_abc123",
+    );
+    expect(
+      parseZReadCurrentVersionId("versions/2026-07-11_2030_abc123\n"),
+    ).toBe("2026-07-11_2030_abc123");
+  });
+
+  it("rejects pointers outside the native versions directory", () => {
+    expect(parseZReadCurrentVersionId("../outside")).toBeNull();
+    expect(parseZReadCurrentVersionId("other/version-id")).toBeNull();
+    expect(parseZReadCurrentVersionId("version-id/extra")).toBeNull();
+    expect(parseZReadCurrentVersionId("drafts/current/wiki")).toBeNull();
   });
 });

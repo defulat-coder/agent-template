@@ -1,16 +1,83 @@
-import { readFile, realpath, stat } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { extractZReadSourceCitations } from "@agent-template/shared";
 import {
-  isSafeZReadPathSegment,
-  ZReadSourceIndexSchema,
-  type ZReadSourceIndex,
-} from "@agent-template/shared";
+  assertRegularFileInside,
+  loadActiveZReadWiki,
+  readActiveZReadPage,
+} from "./zread-wiki";
+
+type ZReadSourceCatalog = {
+  files: ReadonlyMap<string, string>;
+  paths: readonly string[];
+};
+
+const sourceCatalogsByVersion = new Map<string, Promise<ZReadSourceCatalog>>();
 
 export async function listZReadSourcePaths(
   wikiRoot: string,
 ): Promise<string[]> {
-  const index = await loadActiveSourceIndex(wikiRoot);
-  return index.sources.map((source) => source.path);
+  const catalog = await loadZReadSourceCatalog(wikiRoot);
+  return [...catalog.paths];
+}
+
+async function loadZReadSourceCatalog(
+  wikiRoot: string,
+): Promise<ZReadSourceCatalog> {
+  const wiki = await loadActiveZReadWiki(wikiRoot);
+  const repositoryRoot = findRepositoryRoot(wikiRoot);
+  const key = `${path.resolve(wiki.versionRoot)}\0${repositoryRoot}`;
+  const existing = sourceCatalogsByVersion.get(key);
+  if (existing) {
+    return existing;
+  }
+
+  const pending = collectZReadSourceCatalog(wiki, repositoryRoot);
+  sourceCatalogsByVersion.set(key, pending);
+  try {
+    return await pending;
+  } catch (error) {
+    sourceCatalogsByVersion.delete(key);
+    throw error;
+  }
+}
+
+async function collectZReadSourceCatalog(
+  wiki: Awaited<ReturnType<typeof loadActiveZReadWiki>>,
+  repositoryRoot: string,
+): Promise<ZReadSourceCatalog> {
+  const sourcePaths = new Set<string>();
+
+  for (const page of wiki.manifest.pages) {
+    const markdown = await readActiveZReadPage(wiki, page);
+    for (const citation of extractZReadSourceCitations(markdown)) {
+      sourcePaths.add(citation.path);
+    }
+  }
+
+  const paths = [...sourcePaths].sort();
+  const files = new Map<string, string>();
+  await Promise.all(
+    paths.map(async (sourcePath) => {
+      try {
+        const resolvedFile = await assertRegularFileInside(
+          repositoryRoot,
+          path.join(repositoryRoot, sourcePath),
+          `ZRead source file: ${sourcePath}`,
+        );
+        const content = await readFile(resolvedFile, "utf8");
+        if (content.includes("\0")) {
+          throw new Error(`ZRead source file is not text: ${sourcePath}`);
+        }
+        files.set(sourcePath, content);
+      } catch (error) {
+        throw new Error(`ZRead cited source is unreadable: ${sourcePath}`, {
+          cause: error,
+        });
+      }
+    }),
+  );
+  return { files, paths };
 }
 
 export async function readZReadSourceFile(
@@ -18,73 +85,17 @@ export async function readZReadSourceFile(
   requestedPath: readonly string[],
 ): Promise<{ content: string; sourcePath: string } | null> {
   const sourcePath = requestedPath.join("/");
-  const index = await loadActiveSourceIndex(wikiRoot);
-  if (!index.sources.some((source) => source.path === sourcePath)) {
+  const catalog = await loadZReadSourceCatalog(wikiRoot);
+  const content = catalog.files.get(sourcePath);
+  if (content === undefined) {
     return null;
   }
+  return { content, sourcePath };
+}
 
+function findRepositoryRoot(wikiRoot: string): string {
   const configuredRoot = process.env.ZREAD_SOURCE_ROOT?.trim();
-  const repositoryRoot = configuredRoot
+  return configuredRoot
     ? path.resolve(configuredRoot)
     : path.resolve(wikiRoot, "../..");
-  const candidate = path.join(repositoryRoot, sourcePath);
-
-  try {
-    const [resolvedRoot, resolvedFile, fileStat] = await Promise.all([
-      realpath(repositoryRoot),
-      realpath(candidate),
-      stat(candidate),
-    ]);
-    const relativeFile = path.relative(resolvedRoot, resolvedFile);
-    if (
-      !fileStat.isFile() ||
-      relativeFile === ".." ||
-      relativeFile.startsWith(`..${path.sep}`) ||
-      path.isAbsolute(relativeFile)
-    ) {
-      throw new Error(`Invalid ZRead source file: ${sourcePath}`);
-    }
-
-    const content = await readFile(resolvedFile, "utf8");
-    if (content.includes("\0")) {
-      throw new Error(`ZRead source file is not text: ${sourcePath}`);
-    }
-    return { content, sourcePath };
-  } catch (error) {
-    if (isFileNotFoundError(error)) {
-      return null;
-    }
-    throw error;
-  }
-}
-
-async function loadActiveSourceIndex(
-  wikiRoot: string,
-): Promise<ZReadSourceIndex> {
-  const id = (await readFile(path.join(wikiRoot, "current"), "utf8")).trim();
-  if (!isSafeZReadPathSegment(id)) {
-    throw new Error(`Invalid ZRead current version id: ${id}`);
-  }
-
-  const value = JSON.parse(
-    await readFile(
-      path.join(wikiRoot, "versions", id, "sources.json"),
-      "utf8",
-    ),
-  ) as unknown;
-  const parsed = ZReadSourceIndexSchema.safeParse(value);
-  if (!parsed.success || parsed.data.id !== id) {
-    throw new Error(
-      `Invalid ZRead sources.json index${parsed.success ? " id" : `: ${parsed.error.message}`}`,
-    );
-  }
-  return parsed.data;
-}
-
-function isFileNotFoundError(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    "code" in error &&
-    (error as NodeJS.ErrnoException).code === "ENOENT"
-  );
 }

@@ -15,36 +15,39 @@ afterEach(async () => {
   );
 });
 
-test("reads only sources listed by the active canonical index", async () => {
+test("exposes only safe source files cited by active manifest pages", async () => {
   const { repositoryRoot, wikiRoot } = await createFixture();
   await writeFile(path.join(repositoryRoot, "README.md"), "# Project\n");
-  await writeFile(path.join(repositoryRoot, "secret.txt"), "not indexed\n");
+  await writeFile(path.join(repositoryRoot, "secret.txt"), "not cited\n");
 
   assert.deepEqual(await listZReadSourcePaths(wikiRoot), ["README.md"]);
   assert.deepEqual(await readZReadSourceFile(wikiRoot, ["README.md"]), {
     content: "# Project\n",
     sourcePath: "README.md",
   });
-  assert.equal(
-    await readZReadSourceFile(wikiRoot, ["secret.txt"]),
-    null,
-  );
+  assert.equal(await readZReadSourceFile(wikiRoot, ["secret.txt"]), null);
 });
 
-test("rejects source indexes for a different active version", async () => {
-  const { wikiRoot } = await createFixture();
-  const indexPath = path.join(
-    wikiRoot,
-    "versions",
-    "2026-07-11_2030_abc123",
-    "sources.json",
-  );
+test("derives the allowlist only from pages closed by the native manifest", async () => {
+  const { repositoryRoot, versionRoot, wikiRoot } = await createFixture();
+  await writeFile(path.join(repositoryRoot, "README.md"), "# Project\n");
+  await writeFile(path.join(repositoryRoot, "hidden.ts"), "export {}\n");
   await writeFile(
-    indexPath,
-    JSON.stringify({ id: "other-version", sources: [] }),
+    path.join(versionRoot, "unlisted.md"),
+    "[hidden](hidden.ts#L1)",
   );
 
-  await assert.rejects(listZReadSourcePaths(wikiRoot), /sources\.json index id/);
+  assert.deepEqual(await listZReadSourcePaths(wikiRoot), ["README.md"]);
+  assert.equal(await readZReadSourceFile(wikiRoot, ["hidden.ts"]), null);
+});
+
+test("fails the catalog when an active page cites an unreadable source", async () => {
+  const { wikiRoot } = await createFixture();
+
+  await assert.rejects(
+    listZReadSourcePaths(wikiRoot),
+    /ZRead cited source is unreadable: README\.md/,
+  );
 });
 
 async function createFixture() {
@@ -53,19 +56,40 @@ async function createFixture() {
   );
   temporaryRoots.push(repositoryRoot);
   const wikiRoot = path.join(repositoryRoot, ".zread", "wiki");
-  const versionRoot = path.join(
-    wikiRoot,
-    "versions",
-    "2026-07-11_2030_abc123",
-  );
+  const versionRoot = path.join(wikiRoot, "versions", "2026-07-11_2030_abc123");
   await mkdir(versionRoot, { recursive: true });
-  await writeFile(path.join(wikiRoot, "current"), "2026-07-11_2030_abc123\n");
   await writeFile(
-    path.join(versionRoot, "sources.json"),
+    path.join(wikiRoot, "current"),
+    "versions/2026-07-11_2030_abc123\n",
+  );
+  await writeFile(
+    path.join(versionRoot, "wiki.json"),
     JSON.stringify({
+      generated_at: "2026-07-11T12:30:00Z",
       id: "2026-07-11_2030_abc123",
-      sources: [{ path: "README.md", ranges: [{ end: 1, start: 1 }] }],
+      language: "zh",
+      pages: [
+        {
+          file: "overview.md",
+          level: 1,
+          section: "开始",
+          slug: "overview",
+          title: "项目概览",
+        },
+        {
+          file: "architecture.md",
+          level: "Intermediate",
+          section: "架构",
+          slug: "architecture",
+          title: "架构",
+        },
+      ],
     }),
   );
-  return { repositoryRoot, wikiRoot };
+  await writeFile(
+    path.join(versionRoot, "overview.md"),
+    "# 项目概览\n\n[README](README.md#L1)",
+  );
+  await writeFile(path.join(versionRoot, "architecture.md"), "# 架构\n");
+  return { repositoryRoot, versionRoot, wikiRoot };
 }

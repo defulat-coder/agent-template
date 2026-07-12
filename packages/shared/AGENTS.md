@@ -14,7 +14,7 @@
 - Agent Chat 的跨进程事件协议放这里；不加入 runtime 私有 MCP Client、连接配置或浏览器 MCP 代理类型。
 - Redis URL 到 BullMQ connection options 的纯解析放这里。
 - 导出的类型应由 schema 推导，避免 schema 和 type 分叉。
-- ZRead `wiki.json`、`sources.json`、源码路径与行号引用的 canonical schema 和纯解析规则放这里；生成 adapter 与 Web 必须消费同一 interface。
+- ZRead 原生 `current`、`wiki.json`、源码路径与行号引用的 schema 和纯解析规则放这里；生成 adapter 与 Web 必须消费同一 interface，不向原生 Wiki 目录注入项目自定义 index。
 
 ## 不应该做
 

@@ -12,8 +12,8 @@ export const ZReadPageSlugSchema = z
 
 export const ZReadManifestPageSchema = z.object({
   file: ZReadPageFileSchema,
-  group: z.string().min(1),
-  level: z.string().min(1),
+  group: z.string().min(1).optional(),
+  level: z.union([z.string().min(1), z.number()]),
   section: z.string().min(1),
   slug: ZReadPageSlugSchema,
   title: z.string().min(1),
@@ -40,64 +40,15 @@ export const ZReadWikiManifestSchema = z
     }
   });
 
-export const ZReadSourceRangeSchema = z
-  .object({
-    end: z.int().positive(),
-    start: z.int().positive(),
-  })
-  .refine((range) => range.end >= range.start, {
-    message: "source range end must not precede start",
-  });
-
-export const ZReadSourceEntrySchema = z.object({
-  path: z.string().min(1).refine(isSafeZReadSourcePath),
-  ranges: z.array(ZReadSourceRangeSchema).min(1),
-});
-
-export const ZReadSourceIndexSchema = z
-  .object({
-    id: z.string().min(1).refine(isSafeZReadPathSegment),
-    sources: z.array(ZReadSourceEntrySchema),
-  })
-  .superRefine((index, context) => {
-    const paths = new Set<string>();
-    for (const [sourceIndex, source] of index.sources.entries()) {
-      if (paths.has(source.path)) {
-        context.addIssue({
-          code: "custom",
-          message: `duplicate source path: ${source.path}`,
-          path: ["sources", sourceIndex, "path"],
-        });
-      }
-      paths.add(source.path);
-
-      const ranges = new Set<string>();
-      for (const [rangeIndex, range] of source.ranges.entries()) {
-        const key = `${range.start}:${range.end}`;
-        if (ranges.has(key)) {
-          context.addIssue({
-            code: "custom",
-            message: `duplicate source range: ${key}`,
-            path: ["sources", sourceIndex, "ranges", rangeIndex],
-          });
-        }
-        ranges.add(key);
-      }
-    }
-  });
-
 export type ZReadManifestPage = z.infer<typeof ZReadManifestPageSchema>;
 export type ZReadSourceCitation = {
   endLine: number;
   path: string;
   startLine: number;
 };
-export type ZReadSourceEntry = z.infer<typeof ZReadSourceEntrySchema>;
-export type ZReadSourceIndex = z.infer<typeof ZReadSourceIndexSchema>;
 export type ZReadWikiManifest = z.infer<typeof ZReadWikiManifestSchema>;
 
-const ZREAD_SOURCE_CITATION_PATTERN =
-  /\]\(([^()\s#]+)#L(\d+)(?:-L(\d+))?\)/gu;
+const ZREAD_SOURCE_CITATION_PATTERN = /\]\(([^()\s#]+)#L(\d+)(?:-L(\d+))?\)/gu;
 
 export function extractZReadSourceCitations(
   markdown: string,
@@ -129,13 +80,11 @@ export function extractZReadSourceCitations(
   return citations;
 }
 
-export function parseZReadSourceHref(href: string):
-  | {
-      endLine?: number;
-      path: string;
-      startLine?: number;
-    }
-  | null {
+export function parseZReadSourceHref(href: string): {
+  endLine?: number;
+  path: string;
+  startLine?: number;
+} | null {
   const match = href.match(/^([^?#]+)(?:#L(\d+)(?:-L(\d+))?)?$/u);
   const encodedPath = match?.[1];
   if (!encodedPath) {
@@ -221,4 +170,15 @@ export function isSafeZReadPathSegment(segment: string): boolean {
     segment !== "." &&
     segment !== ".."
   );
+}
+
+export function parseZReadCurrentVersionId(current: string): string | null {
+  const parts = current.trim().split("/");
+  const id =
+    parts.length === 1
+      ? parts[0]
+      : parts.length === 2 && parts[0] === "versions"
+        ? parts[1]
+        : undefined;
+  return id && isSafeZReadPathSegment(id) ? id : null;
 }

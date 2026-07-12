@@ -77,7 +77,10 @@ async function createWiki(): Promise<string> {
   temporaryRoots.push(root);
   const versionRoot = path.join(root, "versions", "2026-07-11_2030_abc123");
   await mkdir(path.join(versionRoot, "architecture"), { recursive: true });
-  await writeFile(path.join(root, "current"), "2026-07-11_2030_abc123\n");
+  await writeFile(
+    path.join(root, "current"),
+    "versions/2026-07-11_2030_abc123\n",
+  );
   await writeFile(
     path.join(versionRoot, "wiki.json"),
     JSON.stringify(createManifest()),
@@ -101,16 +104,14 @@ function createManifest() {
     pages: [
       {
         file: "overview.md",
-        group: "开始",
-        level: "1",
+        level: 1,
         section: "开始",
         slug: "overview",
         title: "项目概览",
       },
       {
         file: "architecture/runtime.md",
-        group: "架构",
-        level: "1",
+        level: "Intermediate",
         section: "架构",
         slug: "architecture/runtime",
         title: "Runtime 架构",
