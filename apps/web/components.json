@@ -16,5 +16,13 @@
     "ui": "@agent-template/ui/components",
     "lib": "@/lib",
     "hooks": "@/hooks"
+  },
+  "registries": {
+    "@shadcnblocks": {
+      "url": "https://registry.collectui.vip/api/r/shadcnblocks/{name}",
+      "headers": {
+        "Authorization": "Bearer ${SHADCNBLOCKS_API_KEY}"
+      }
+    }
   }
 }
