@@ -55,6 +55,12 @@
       "skillPath": "skills/engineering/domain-modeling/SKILL.md",
       "computedHash": "67343881f5def98487d56243155716110afbcbf22ec92421c882d532b941cb17"
     },
+    "emil-design-eng": {
+      "source": "emilkowalski/skills",
+      "sourceType": "github",
+      "skillPath": "skills/emil-design-eng/SKILL.md",
+      "computedHash": "8bdf9e4e6de7a4969147bf4828a4ad2c5aacd9fba4b690b250a85e0467ca387d"
+    },
     "enhance-prompt": {
       "source": "google-labs-code/stitch-skills",
       "sourceType": "github",

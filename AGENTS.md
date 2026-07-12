@@ -31,7 +31,7 @@
 - 每个 `.agents/skills/*` 必须有 `skills-lock.json` 锁项；命令、更新流程和已知故障见 `docs/agents/skills.md`。
 - 查找 Skill 时先使用 `find-skills` 工作流，再运行 `npx skills find <query>`。
 - 根目录 `.claude/skills/` 只放 `npx skills` 维护、指向 `.agents/skills/` 的项目协作 Skill 软链接；Claude runtime 业务 Skill 位于 `packages/agent-claude/.claude/skills/`，并与 `packages/agent-eve/agent/skills/` 一起由 `pnpm skills:generate:toolbox` 生成和同步。
-- 前端 UI 设计指导不常驻安装；按 `apps/web/AGENTS.md` 和 `packages/ui/AGENTS.md` 使用固定版本的 UI Skills CLI 动态加载。`shadcn` 等工具型 Skill 仍按上述规则管理。
+- 前端 UI 设计指导默认按 `apps/web/AGENTS.md` 和 `packages/ui/AGENTS.md` 使用固定版本的 UI Skills CLI 动态加载；用户明确要求常驻安装时，仍统一使用项目级 `npx skills` 管理。`shadcn` 等工具型 Skill 也按上述规则管理。
 - 如果 Skill 自带 Codex hook，合并到 `.codex/hooks.json`，不要覆盖已有 hook。
 - 不把已安装 Skills 清单写进 AGENTS.md；这里只写管理方式和协作规则。
 
