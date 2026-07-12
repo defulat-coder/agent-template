@@ -1,0 +1,186 @@
+kind: business-semantic-catalog
+name: synthetic-logistics-operations
+version: 1
+databaseSchema: ecommerce_fixture
+description: 合成运单、承运商、配送 SLA、物流轨迹和运费的认证查询目录。
+metrics:
+  - id: shipment_count
+    labels: [运单量, 发货单量]
+    resultField: shipmentCount
+    definition: 明确发货时间窗内的 LogisticsShipment 数量。
+    timeField: LogisticsShipment.shippedAt
+    tools:
+      [
+        summarize_carrier_performance,
+        summarize_delivery_sla,
+        summarize_freight_costs,
+      ]
+  - id: on_time_delivery_rate
+    labels: [准时签收率, 配送准时率]
+    resultField: onTimeDeliveryRate
+    definition: deliveredAt <= promisedAt 的已签收运单占已签收运单比例。
+    timeField: LogisticsShipment.shippedAt
+    tools: [summarize_carrier_performance, summarize_delivery_sla]
+  - id: logistics_exception_count
+    labels: [物流异常量, 异常运单数]
+    resultField: exceptionCount
+    definition: 状态异常、迟签或超过承诺时间未签收的运单数量。
+    timeField: LogisticsShipment.shippedAt
+    tools: [summarize_carrier_performance]
+  - id: logistics_exception_total
+    labels: [物流异常列表总数, 异常运单总数]
+    resultField: totalCount
+    definition: 当前异常列表条件匹配的运单总数，用于分页，不是承运商聚合字段。
+    timeField: LogisticsShipment.shippedAt
+    tools: [list_logistics_exceptions]
+  - id: average_delivery_hours
+    labels: [平均配送小时, 配送时长]
+    resultField: averageDeliveryHours
+    definition: 已签收运单 deliveredAt - shippedAt 的平均小时数。
+    timeField: LogisticsShipment.shippedAt
+    tools: [summarize_carrier_performance]
+  - id: freight_cost
+    labels: [物流运费, 配送成本]
+    resultField: totalFreightCost
+    definition: LogisticsShipment freightCost 之和，不包含仓储、包装和逆向物流。
+    timeField: LogisticsShipment.shippedAt
+    tools: [summarize_freight_costs]
+dimensions:
+  - id: carrier
+    labels: [承运商, 快递公司]
+    field: LogisticsShipment.carrier
+    valueSource: { kind: enum, description: 使用合成承运商枚举。 }
+  - id: promised_day
+    labels: [承诺签收日, SLA 日期]
+    field: (LogisticsShipment.promisedAt AT TIME ZONE 'UTC')::date
+    valueSource: { kind: time-bucket, description: 按 UTC 承诺日期动态生成。 }
+  - id: shipment_status
+    labels: [运单状态, 物流状态]
+    field: LogisticsShipment.status
+    valueSource: { kind: enum, description: 使用合成运单状态枚举。 }
+  - id: shipment
+    labels: [运单, 包裹]
+    field: LogisticsShipment.shipmentNumber
+    valueSource: { kind: entity-key, description: 使用明确的合成运单号。 }
+queryContracts:
+  - id: carrier_performance
+    tool: summarize_carrier_performance
+    metrics:
+      [
+        shipment_count,
+        on_time_delivery_rate,
+        logistics_exception_count,
+        average_delivery_hours,
+      ]
+    dimensions: [carrier]
+    resultFields:
+      [
+        carrier,
+        shipmentCount,
+        deliveredCount,
+        onTimeCount,
+        exceptionCount,
+        onTimeDeliveryRate,
+        averageDeliveryHours,
+      ]
+    limitations:
+      - 准时率仅以已签收运单为分母，不能把未签收视作准时或迟到。
+  - id: logistics_exception_list
+    tool: list_logistics_exceptions
+    metrics: [logistics_exception_total]
+    dimensions: [carrier, shipment_status, shipment]
+    resultFields:
+      [
+        shipmentNumber,
+        orderNumber,
+        warehouseCode,
+        carrier,
+        status,
+        shippedAt,
+        promisedAt,
+        deliveredAt,
+        hoursPastPromise,
+        totalCount,
+      ]
+    limitations:
+      - 未签收运单以请求参数 to 作为异常参考时刻，并使用 limit/offset 分页。
+  - id: shipment_trace
+    tool: get_shipment_trace
+    metrics: []
+    dimensions: [shipment, shipment_status, carrier]
+    resultFields:
+      [
+        shipmentNumber,
+        orderNumber,
+        carrier,
+        status,
+        shippedAt,
+        promisedAt,
+        deliveredAt,
+        eventType,
+        eventAt,
+        location,
+        detail,
+      ]
+    limitations:
+      - 只接受明确运单号并最多返回 100 条按时间排序的合成轨迹事件。
+  - id: delivery_sla_summary
+    tool: summarize_delivery_sla
+    metrics: [shipment_count, on_time_delivery_rate]
+    dimensions: [promised_day]
+    resultFields:
+      [
+        promisedDate,
+        shipmentCount,
+        onTimeCount,
+        lateCount,
+        undeliveredPastPromiseCount,
+        onTimeDeliveryRate,
+      ]
+    limitations:
+      - 未签收积压单独返回，不进入已签收准时率分母。
+  - id: freight_cost_summary
+    tool: summarize_freight_costs
+    metrics: [shipment_count, freight_cost]
+    dimensions: [carrier]
+    resultFields:
+      [
+        carrier,
+        shipmentCount,
+        totalFreightCost,
+        averageFreightCost,
+        totalDistanceKm,
+        freightCostPerKm,
+      ]
+    limitations:
+      - 运费不包含仓储、包装和逆向物流，不能单独推断订单利润。
+ambiguities:
+  - term: 时效
+    action: clarify
+    reason: 应明确关注平均配送时长、准时签收率还是超时异常。
+questionPatterns:
+  - id: carrier_performance
+    examples: [各承运商准时率和异常量]
+    tool: summarize_carrier_performance
+    contract: carrier_performance
+    required: [time_window]
+  - id: logistics_exceptions
+    examples: [列出延迟和异常运单]
+    tool: list_logistics_exceptions
+    contract: logistics_exception_list
+    required: [time_window, limit, offset]
+  - id: shipment_trace
+    examples: [查询运单轨迹]
+    tool: get_shipment_trace
+    contract: shipment_trace
+    required: [shipment_number]
+  - id: delivery_sla
+    examples: [按承诺日看配送 SLA]
+    tool: summarize_delivery_sla
+    contract: delivery_sla_summary
+    required: [time_window]
+  - id: freight_costs
+    examples: [各承运商物流成本]
+    tool: summarize_freight_costs
+    contract: freight_cost_summary
+    required: [time_window]

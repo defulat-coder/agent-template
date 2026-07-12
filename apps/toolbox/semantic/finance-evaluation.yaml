@@ -1,0 +1,66 @@
+kind: semantic-query-evaluation
+catalog: synthetic-finance-operations
+version: 1
+cases:
+  - id: finance-overview-route
+    category: route
+    question: 本月经营财务概览怎么样？
+    expected:
+      intent: finance_overview
+      tool: summarize_finance_overview
+      terms: [gross_sales, net_collected]
+      requiresClarification: false
+  - id: payment-method-route
+    category: route
+    question: 各支付方式的实收和退款分别多少？
+    expected:
+      intent: payment_methods
+      tool: summarize_payment_methods
+      terms: [payment_method, captured_payments, refund_amount]
+      requiresClarification: false
+  - id: refund-reason-route
+    category: route
+    question: 最近退款主要是什么原因？
+    expected:
+      intent: refund_reasons
+      tool: summarize_refunds_by_reason
+      terms: [refund_reason, refund_amount]
+      requiresClarification: false
+  - id: invoice-route
+    category: route
+    question: 列出开票差额和逾期发票
+    expected:
+      intent: invoice_exceptions
+      tool: list_invoice_exceptions
+      terms: [invoice_status, invoice_mismatch_amount]
+      requiresClarification: false
+  - id: settlement-route
+    category: route
+    question: 各渠道结算差异是多少？
+    expected:
+      intent: settlement_reconciliation
+      tool: reconcile_channel_settlements
+      terms: [sales_channel, settlement_difference]
+      requiresClarification: false
+  - id: ambiguous-income
+    category: ambiguity
+    question: 本月收入是多少？
+    expected:
+      ambiguity: 收入
+      requiresClarification: true
+  - id: empty-future-finance
+    category: empty-result
+    question: 查询 2027 年的经营财务概览
+    expected:
+      intent: finance_overview
+      tool: summarize_finance_overview
+      terms: [gross_sales]
+      requiresClarification: false
+  - id: invoice-exception-case
+    category: exception
+    question: 哪些发票金额和订单不一致？
+    expected:
+      intent: invoice_exceptions
+      tool: list_invoice_exceptions
+      terms: [invoice_mismatch_amount]
+      requiresClarification: false

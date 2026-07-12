@@ -3,6 +3,10 @@ import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  toolboxBusinessCapabilityPacks,
+  toolboxToolNames,
+} from "@agent-template/toolbox-config";
+import {
   checkClaudeAgentReadiness,
   defaultAnthropicBaseUrl,
   defaultClaudeAgentMaxTurns,
@@ -22,27 +26,20 @@ describe("Claude Agent runtime", () => {
     vi.unstubAllEnvs();
   });
   it("installs project Toolbox business skills", () => {
-    const skillNames = [
-      "ecommerce-sales-analysis",
-      "ecommerce-product-analysis",
-      "ecommerce-order-operations",
-      "ecommerce-fulfillment-operations",
-    ];
-
-    for (const skillName of skillNames) {
+    for (const pack of toolboxBusinessCapabilityPacks) {
       const skill = readFileSync(
-        new URL(`../.claude/skills/${skillName}/SKILL.md`, import.meta.url),
+        new URL(`../.claude/skills/${pack.name}/SKILL.md`, import.meta.url),
         "utf8",
       );
 
-      expect(skill).toContain(`name: ${skillName}`);
+      expect(skill).toContain(`name: ${pack.name}`);
       expect(skill).toContain("Toolbox MCP Tool");
       expect(skill).toContain("Business semantic catalog");
       expect(skill).toMatch(/^### `mcp__toolbox__[a-z0-9_-]+`$/m);
 
       const semanticCatalog = readFileSync(
         new URL(
-          `../.claude/skills/${skillName}/references/ecommerce-semantic-catalog.yaml`,
+          `../.claude/skills/${pack.name}/references/${pack.catalog}`,
           import.meta.url,
         ),
         "utf8",
@@ -446,14 +443,11 @@ describe("Claude Agent runtime", () => {
       }
     ).options;
     expect(options.abortController).toBe(abortController);
-    expect(options.allowedTools).toHaveLength(19);
+    expect(options.allowedTools).toHaveLength(toolboxToolNames.length + 1);
     expect(options.allowedTools).toContain("AskUserQuestion");
-    expect(options.skills).toEqual([
-      "ecommerce-sales-analysis",
-      "ecommerce-product-analysis",
-      "ecommerce-order-operations",
-      "ecommerce-fulfillment-operations",
-    ]);
+    expect(options.skills).toEqual(
+      toolboxBusinessCapabilityPacks.map((pack) => pack.name),
+    );
     expect(options.allowedTools).toContain("mcp__toolbox__list-agent-runs");
     expect(options.mcpServers).toMatchObject({
       toolbox: {

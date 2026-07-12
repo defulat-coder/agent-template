@@ -1,0 +1,66 @@
+kind: semantic-query-evaluation
+catalog: synthetic-logistics-operations
+version: 1
+cases:
+  - id: carrier-route
+    category: route
+    question: 各承运商的准时率和平均配送时长怎样？
+    expected:
+      intent: carrier_performance
+      tool: summarize_carrier_performance
+      terms: [carrier, on_time_delivery_rate, average_delivery_hours]
+      requiresClarification: false
+  - id: exception-route
+    category: route
+    question: 列出最近的延迟和异常运单
+    expected:
+      intent: logistics_exceptions
+      tool: list_logistics_exceptions
+      terms: [shipment_status, logistics_exception_total]
+      requiresClarification: false
+  - id: trace-route
+    category: route
+    question: 查询运单 SHP-20260601-0001 的完整轨迹
+    expected:
+      intent: shipment_trace
+      tool: get_shipment_trace
+      terms: [shipment]
+      requiresClarification: false
+  - id: sla-route
+    category: route
+    question: 本月每天的配送 SLA 达成率
+    expected:
+      intent: delivery_sla
+      tool: summarize_delivery_sla
+      terms: [promised_day, on_time_delivery_rate]
+      requiresClarification: false
+  - id: freight-route
+    category: route
+    question: 各承运商的物流运费是多少？
+    expected:
+      intent: freight_costs
+      tool: summarize_freight_costs
+      terms: [carrier, freight_cost]
+      requiresClarification: false
+  - id: ambiguous-delivery-speed
+    category: ambiguity
+    question: 最近物流时效怎么样？
+    expected:
+      ambiguity: 时效
+      requiresClarification: true
+  - id: empty-future-logistics
+    category: empty-result
+    question: 查询 2027 年的运单表现
+    expected:
+      intent: carrier_performance
+      tool: summarize_carrier_performance
+      terms: [shipment_count]
+      requiresClarification: false
+  - id: late-shipment-exception
+    category: exception
+    question: 哪些运单已经超过承诺时间仍未签收？
+    expected:
+      intent: logistics_exceptions
+      tool: list_logistics_exceptions
+      terms: [logistics_exception_total]
+      requiresClarification: false

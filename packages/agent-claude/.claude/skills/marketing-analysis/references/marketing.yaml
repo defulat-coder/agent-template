@@ -1,0 +1,233 @@
+kind: business-semantic-catalog
+name: synthetic-marketing-analysis
+version: 1
+databaseSchema: ecommerce_fixture
+description: 合成营销活动、触点归因、渠道、优惠券和获客的认证查询目录。
+metrics:
+  - id: attributed_revenue
+    labels: [归因收入, 营销归因销售额]
+    resultField: attributedRevenue
+    definition: MarketingAttribution attributedRevenue 之和，是规则归因而非增量收入。
+    timeField: MarketingAttribution.touchpointAt
+    tools:
+      [
+        summarize_campaign_performance,
+        summarize_marketing_by_channel,
+        summarize_coupon_performance,
+        list_underperforming_campaigns,
+        summarize_customer_acquisition,
+      ]
+  - id: allocated_spend
+    labels: [归因分摊费用, 营销分摊成本]
+    resultField: allocatedSpend
+    definition: MarketingAttribution allocatedSpend 之和，不一定等于活动完整 spend。
+    timeField: MarketingAttribution.touchpointAt
+    tools:
+      [
+        summarize_campaign_performance,
+        summarize_marketing_by_channel,
+        summarize_coupon_performance,
+        list_underperforming_campaigns,
+        summarize_customer_acquisition,
+      ]
+  - id: return_on_ad_spend
+    labels: [ROAS, 广告投入产出]
+    resultField: roas
+    definition: attributedRevenue / allocatedSpend；不证明因果增量效果。
+    timeField: MarketingAttribution.touchpointAt
+    tools:
+      [
+        summarize_campaign_performance,
+        summarize_marketing_by_channel,
+        list_underperforming_campaigns,
+      ]
+  - id: attributed_order_count
+    labels: [归因订单数, 营销订单量]
+    resultField: attributedOrderCount
+    definition: 当前维度内去重 MarketingAttribution orderId 数；跨渠道可能重复。
+    timeField: MarketingAttribution.touchpointAt
+    tools:
+      [
+        summarize_campaign_performance,
+        summarize_marketing_by_channel,
+        summarize_coupon_performance,
+      ]
+  - id: new_customer_count
+    labels: [归因新客数, 新客户量]
+    resultField: newCustomerCount
+    definition: isNewCustomer = true 的去重归因订单数，用作合成获客代理指标。
+    timeField: MarketingAttribution.touchpointAt
+    tools:
+      [
+        summarize_campaign_performance,
+        summarize_marketing_by_channel,
+        summarize_coupon_performance,
+        summarize_customer_acquisition,
+      ]
+  - id: customer_acquisition_cost
+    labels: [获客成本, CAC]
+    resultField: customerAcquisitionCost
+    definition: 新客触点 allocatedSpend / 去重新客订单数。
+    timeField: MarketingAttribution.touchpointAt
+    tools: [summarize_customer_acquisition]
+dimensions:
+  - id: campaign
+    labels: [营销活动, 投放活动]
+    field: MarketingCampaign.campaignCode
+    valueSource: { kind: entity-key, description: 使用合成活动编码。 }
+  - id: marketing_channel
+    labels: [营销渠道, 归因渠道]
+    field: MarketingAttribution.channel
+    valueSource: { kind: enum, description: 使用合成营销渠道枚举。 }
+  - id: coupon
+    labels: [优惠券, 券码]
+    field: MarketingAttribution.couponCode
+    valueSource:
+      { kind: entity-key, description: 使用合成优惠券编码，空值表示未用券。 }
+queryContracts:
+  - id: campaign_performance
+    tool: summarize_campaign_performance
+    metrics:
+      [
+        attributed_revenue,
+        allocated_spend,
+        return_on_ad_spend,
+        attributed_order_count,
+        new_customer_count,
+      ]
+    dimensions: [campaign, marketing_channel]
+    resultFields:
+      [
+        campaignCode,
+        campaignName,
+        channel,
+        objective,
+        startAt,
+        endAt,
+        budget,
+        spend,
+        attributedOrderCount,
+        attributedRevenue,
+        allocatedSpend,
+        newCustomerCount,
+        roas,
+      ]
+    limitations:
+      - 归因收入不是增量收入，活动 budget/spend 是完整活动档案值。
+  - id: marketing_channel_summary
+    tool: summarize_marketing_by_channel
+    metrics:
+      [
+        attributed_revenue,
+        allocated_spend,
+        return_on_ad_spend,
+        attributed_order_count,
+        new_customer_count,
+      ]
+    dimensions: [marketing_channel]
+    resultFields:
+      [
+        channel,
+        touchpointCount,
+        attributedOrderCount,
+        attributedRevenue,
+        allocatedSpend,
+        newCustomerCount,
+        roas,
+      ]
+    limitations:
+      - 同一订单可有多个渠道触点，跨渠道订单数不能直接相加去重。
+  - id: coupon_performance
+    tool: summarize_coupon_performance
+    metrics:
+      [
+        attributed_revenue,
+        allocated_spend,
+        attributed_order_count,
+        new_customer_count,
+      ]
+    dimensions: [coupon]
+    resultFields:
+      [
+        couponCode,
+        attributedOrderCount,
+        attributedRevenue,
+        allocatedSpend,
+        newCustomerCount,
+        averageAttributedRevenue,
+      ]
+    limitations:
+      - 当前没有优惠面值和完整促销成本，不能将 allocatedSpend 当作优惠成本。
+  - id: underperforming_campaign_list
+    tool: list_underperforming_campaigns
+    metrics: [attributed_revenue, allocated_spend, return_on_ad_spend]
+    dimensions: [campaign, marketing_channel]
+    resultFields:
+      [
+        campaignCode,
+        campaignName,
+        channel,
+        objective,
+        startAt,
+        endAt,
+        budget,
+        spend,
+        attributedOrderCount,
+        attributedRevenue,
+        allocatedSpend,
+        roas,
+        totalCount,
+      ]
+    limitations:
+      - 低效规则只比较同一窗口内 attributedRevenue 与 allocatedSpend；活动 spend/budget 仅作档案展示，并使用 limit/offset 分页。
+  - id: customer_acquisition_summary
+    tool: summarize_customer_acquisition
+    metrics:
+      [
+        attributed_revenue,
+        allocated_spend,
+        new_customer_count,
+        customer_acquisition_cost,
+      ]
+    dimensions: [marketing_channel]
+    resultFields:
+      [
+        channel,
+        newCustomerCount,
+        attributedRevenue,
+        allocatedSpend,
+        customerAcquisitionCost,
+        revenuePerNewCustomer,
+      ]
+    limitations:
+      - 新客使用 isNewCustomer 合成标记，不代表真实用户身份去重或增量获客。
+ambiguities:
+  - term: 转化率
+    action: clarify
+    reason: 当前目录没有曝光、点击和访问基数，只提供归因订单、收入、费用和获客代理指标。
+questionPatterns:
+  - id: campaign_performance
+    examples: [各营销活动的 ROAS]
+    tool: summarize_campaign_performance
+    contract: campaign_performance
+    required: [time_window]
+  - id: marketing_channels
+    examples: [各营销渠道的归因收入]
+    tool: summarize_marketing_by_channel
+    contract: marketing_channel_summary
+    required: [time_window]
+  - id: coupon_performance
+    examples: [各优惠券带来的归因订单]
+    tool: summarize_coupon_performance
+    contract: coupon_performance
+    required: [time_window]
+  - id: underperforming_campaigns
+    examples: [列出低 ROAS 活动]
+    tool: list_underperforming_campaigns
+    contract: underperforming_campaign_list
+    required: [time_window, limit, offset]
+  - id: customer_acquisition
+    examples: [各渠道新客和获客成本]
+    tool: summarize_customer_acquisition
+    contract: customer_acquisition_summary
+    required: [time_window]

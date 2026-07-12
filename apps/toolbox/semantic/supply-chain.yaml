@@ -1,0 +1,225 @@
+kind: business-semantic-catalog
+name: synthetic-supply-chain-operations
+version: 1
+databaseSchema: ecommerce_fixture
+description: 合成库存快照、仓库、供应商和采购订单的认证供应链查询目录。
+metrics:
+  - id: available_units
+    labels: [可用库存, 可售库存]
+    resultField: availableUnits
+    definition: InventorySnapshot onHand - reserved。
+    timeField: InventorySnapshot.snapshotDate
+    tools:
+      [
+        summarize_inventory_health,
+        list_stockout_risks,
+        summarize_inventory_by_warehouse,
+      ]
+  - id: inventory_value
+    labels: [库存金额, 库存价值]
+    resultField: inventoryValue
+    definition: 每个库存快照的 onHand * unitCost 之和。
+    timeField: InventorySnapshot.snapshotDate
+    tools: [summarize_inventory_health, summarize_inventory_by_warehouse]
+  - id: stock_gap_units
+    labels: [安全库存缺口, 缺货缺口]
+    resultField: stockGapUnits
+    definition: safetyStock - availableUnits；正数表示低于安全库存。
+    timeField: InventorySnapshot.snapshotDate
+    tools: [list_stockout_risks]
+  - id: procurement_amount
+    labels: [采购金额, 采购支出]
+    resultField: procurementAmount
+    definition: 非 CANCELLED ProcurementOrder amount 之和，不代表已付款现金或会计成本。
+    timeField: ProcurementOrder.orderedAt
+    tools: [summarize_procurement_spend, summarize_supplier_performance]
+  - id: supplier_on_time_rate
+    labels: [供应商准时率, 采购准时率]
+    resultField: actualOnTimeRate
+    definition: 非 CANCELLED 且 receivedAt <= expectedAt 的已收货采购单占非取消已收货采购单比例。
+    timeField: ProcurementOrder.orderedAt
+    tools: [summarize_supplier_performance]
+  - id: delayed_purchase_orders
+    labels: [延期采购单, 采购异常量]
+    resultField: delayedOrderCount
+    definition: 非 CANCELLED 且 delayedDays > 0、迟收货或截至 to 仍未按预计日期收货的采购单。
+    timeField: ProcurementOrder.orderedAt
+    tools: [summarize_procurement_spend, summarize_supplier_performance]
+  - id: purchase_order_exception_total
+    labels: [采购异常列表总数, 延期采购单总数]
+    resultField: totalCount
+    definition: 当前采购异常列表条件匹配的非 CANCELLED 采购单总数，用于分页。
+    timeField: ProcurementOrder.orderedAt
+    tools: [list_purchase_order_exceptions]
+dimensions:
+  - id: inventory_risk_level
+    labels: [库存风险等级, 缺货风险]
+    field: InventorySnapshot.riskLevel
+    valueSource: { kind: enum, description: 使用合成库存风险枚举。 }
+  - id: warehouse
+    labels: [仓库, 履约仓]
+    field: InventoryWarehouse.warehouseCode
+    valueSource: { kind: entity-key, description: 使用合成仓库编码。 }
+  - id: supplier
+    labels: [供应商, 供货商]
+    field: ProcurementSupplier.supplierCode
+    valueSource: { kind: entity-key, description: 使用合成供应商编码。 }
+  - id: supplier_category
+    labels: [供应商品类, 采购品类]
+    field: ProcurementSupplier.category
+    valueSource:
+      { kind: entity-value, description: 使用供应商档案中的合成品类。 }
+queryContracts:
+  - id: inventory_health
+    tool: summarize_inventory_health
+    metrics: [available_units, inventory_value]
+    dimensions: [inventory_risk_level]
+    resultFields:
+      [
+        riskLevel,
+        snapshotCount,
+        skuCount,
+        onHandUnits,
+        reservedUnits,
+        availableUnits,
+        inTransitUnits,
+        safetyStockUnits,
+        inventoryValue,
+      ]
+    limitations:
+      - 多日快照会分别计入，不能把时间窗汇总误认为单日库存余额。
+  - id: stockout_risk_list
+    tool: list_stockout_risks
+    metrics: [available_units, stock_gap_units]
+    dimensions: [inventory_risk_level, warehouse]
+    resultFields:
+      [
+        snapshotDate,
+        warehouseCode,
+        warehouseName,
+        sku,
+        productName,
+        riskLevel,
+        onHand,
+        reserved,
+        availableUnits,
+        inTransit,
+        safetyStock,
+        stockGapUnits,
+        totalCount,
+      ]
+    limitations:
+      - 仅返回风险快照并使用 limit/offset 分页；不表示实时可售库存。
+  - id: warehouse_inventory_summary
+    tool: summarize_inventory_by_warehouse
+    metrics: [available_units, inventory_value]
+    dimensions: [warehouse]
+    resultFields:
+      [
+        warehouseCode,
+        warehouseName,
+        region,
+        city,
+        skuCount,
+        onHandUnits,
+        availableUnits,
+        inTransitUnits,
+        riskSnapshotCount,
+        inventoryValue,
+        averageDailyCapacityUtilization,
+      ]
+    limitations:
+      - averageDailyCapacityUtilization 按快照自然日平均整仓在库量计算，不是实时仓容。
+  - id: procurement_spend_summary
+    tool: summarize_procurement_spend
+    metrics: [procurement_amount, delayed_purchase_orders]
+    dimensions: [supplier_category]
+    resultFields:
+      [
+        category,
+        purchaseOrderCount,
+        skuCount,
+        procurementAmount,
+        delayedOrderCount,
+        averageDelayedDays,
+      ]
+    limitations:
+      - 已取消采购单不进入汇总；采购金额是订单金额，不是付款或会计成本确认。
+  - id: supplier_performance_summary
+    tool: summarize_supplier_performance
+    metrics:
+      [procurement_amount, supplier_on_time_rate, delayed_purchase_orders]
+    dimensions: [supplier, supplier_category]
+    resultFields:
+      [
+        supplierCode,
+        supplierName,
+        category,
+        region,
+        rating,
+        leadTimeDays,
+        profileOnTimeRate,
+        purchaseOrderCount,
+        procurementAmount,
+        delayedOrderCount,
+        actualOnTimeRate,
+      ]
+    limitations:
+      - 已取消采购单不进入汇总；实际准时率仅以已收货采购单为分母，区别于供应商档案目标准时率。
+  - id: purchase_order_exception_list
+    tool: list_purchase_order_exceptions
+    metrics: [purchase_order_exception_total]
+    dimensions: [supplier, warehouse]
+    resultFields:
+      [
+        purchaseOrderNumber,
+        supplierCode,
+        supplierName,
+        warehouseCode,
+        status,
+        orderedAt,
+        expectedAt,
+        receivedAt,
+        amount,
+        skuCount,
+        delayedDays,
+        currentDelayedDays,
+        totalCount,
+      ]
+    limitations:
+      - 已取消采购单不属于异常；其他未收货采购单使用请求参数 to 计算当前延期天数，并使用 limit/offset 分页。
+ambiguities:
+  - term: 库存
+    action: clarify
+    reason: 应明确在库、占用、可用、在途、安全库存或库存金额。
+questionPatterns:
+  - id: inventory_health
+    examples: [库存健康情况和风险分布]
+    tool: summarize_inventory_health
+    contract: inventory_health
+    required: [time_window]
+  - id: stockout_risks
+    examples: [列出缺货风险 SKU]
+    tool: list_stockout_risks
+    contract: stockout_risk_list
+    required: [time_window, limit, offset]
+  - id: warehouse_inventory
+    examples: [各仓库库存和仓容]
+    tool: summarize_inventory_by_warehouse
+    contract: warehouse_inventory_summary
+    required: [time_window]
+  - id: procurement_spend
+    examples: [各采购品类的采购金额]
+    tool: summarize_procurement_spend
+    contract: procurement_spend_summary
+    required: [time_window]
+  - id: supplier_performance
+    examples: [供应商准时率和采购额]
+    tool: summarize_supplier_performance
+    contract: supplier_performance_summary
+    required: [time_window]
+  - id: purchase_order_exceptions
+    examples: [列出延期采购单]
+    tool: list_purchase_order_exceptions
+    contract: purchase_order_exception_list
+    required: [time_window, limit, offset]

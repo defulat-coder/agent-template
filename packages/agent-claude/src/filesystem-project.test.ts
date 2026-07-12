@@ -3,7 +3,11 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { toolboxCapabilityProfiles } from "@agent-template/toolbox-config";
+import {
+  toolboxBusinessCapabilityPacks,
+  toolboxCapabilityActivations,
+  type ToolboxSkillName,
+} from "@agent-template/toolbox-config";
 import { resolveClaudeFilesystemProject } from "./filesystem-project.js";
 
 const claudeProjectRoot = dirname(
@@ -37,6 +41,10 @@ describe("Claude filesystem project", () => {
         "ecommerce-product-analysis",
         "ecommerce-order-operations",
         "ecommerce-fulfillment-operations",
+        "finance-analysis",
+        "logistics-operations",
+        "supply-chain-operations",
+        "marketing-analysis",
       ],
     ],
     ["platform-observability", []],
@@ -55,12 +63,16 @@ describe("Claude filesystem project", () => {
       "ecommerce-fulfillment",
       ["ecommerce-order-operations", "ecommerce-fulfillment-operations"],
     ],
+    ["finance-controller", ["finance-analysis"]],
+    ["logistics-operator", ["logistics-operations"]],
+    ["supply-chain-planner", ["supply-chain-operations"]],
+    ["growth-analyst", ["marketing-analysis"]],
   ] as const)(
-    "derives Skills for the %s capability profile",
+    "enables the manifest Skills selected by the %s capability profile",
     (profile, skills) => {
       expect(
         resolveClaudeFilesystemProject({
-          allowedTools: toolboxCapabilityProfiles[profile],
+          enabledSkills: toolboxCapabilityActivations[profile].enabledSkills,
           startDirectories: [claudeProjectRoot],
         }).skills,
       ).toEqual(skills);
@@ -72,7 +84,8 @@ describe("Claude filesystem project", () => {
 
     expect(
       resolveClaudeFilesystemProject({
-        allowedTools: toolboxCapabilityProfiles["ecommerce-sales"],
+        enabledSkills:
+          toolboxCapabilityActivations["ecommerce-sales"].enabledSkills,
         projectDir,
       }),
     ).toEqual({
@@ -86,16 +99,43 @@ describe("Claude filesystem project", () => {
 
     expect(() =>
       resolveClaudeFilesystemProject({
-        allowedTools: toolboxCapabilityProfiles["ecommerce-sales"],
+        enabledSkills:
+          toolboxCapabilityActivations["ecommerce-sales"].enabledSkills,
         projectDir,
       }),
     ).toThrow(
       "Claude project is missing authored surface: .claude/skills/ecommerce-sales-analysis/SKILL.md",
     );
   });
+
+  it("rejects a Skill manifest whose Pack metadata or Tool set drifted", () => {
+    const projectDir = createClaudeProjectFixture(["ecommerce-sales-analysis"]);
+    const salesPack = toolboxBusinessCapabilityPacks.find(
+      (pack) => pack.name === "ecommerce-sales-analysis",
+    )!;
+    writeFileSync(
+      join(projectDir, ".claude/skills-manifest.json"),
+      JSON.stringify({
+        skills: [
+          {
+            ...salesPack,
+            tools: ["list-ecommerce-top-products"],
+          },
+        ],
+      }),
+    );
+
+    expect(() =>
+      resolveClaudeFilesystemProject({
+        enabledSkills:
+          toolboxCapabilityActivations["ecommerce-sales"].enabledSkills,
+        projectDir,
+      }),
+    ).toThrow("Claude project has an invalid Skill manifest");
+  });
 });
 
-function createClaudeProjectFixture(skillNames: string[]) {
+function createClaudeProjectFixture(skillNames: ToolboxSkillName[]) {
   const projectDir = mkdtempSync(join(tmpdir(), "agent-template-claude-"));
   temporaryDirectories.push(projectDir);
   mkdirSync(join(projectDir, ".claude"), { recursive: true });
@@ -108,12 +148,9 @@ function createClaudeProjectFixture(skillNames: string[]) {
     join(projectDir, ".claude/skills-manifest.json"),
     `${JSON.stringify(
       {
-        skills: [
-          {
-            name: "ecommerce-sales-analysis",
-            tools: [...toolboxCapabilityProfiles["ecommerce-sales"]],
-          },
-        ],
+        skills: toolboxBusinessCapabilityPacks.filter(
+          (pack) => pack.name === "ecommerce-sales-analysis",
+        ),
       },
       null,
       2,

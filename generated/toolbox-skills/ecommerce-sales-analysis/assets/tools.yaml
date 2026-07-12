@@ -668,7 +668,7 @@ statement: |
     runs."cancelRequestedAt",
     runs.output,
     runs.reason,
-    runs."sessionId",
+    runs."runtimeSessionId",
     COUNT(events.id)::int AS "eventCount"
   FROM public."AgentRun" AS runs
   LEFT JOIN public."AgentRunEvent" AS events ON events."runId" = runs.id
@@ -824,6 +824,1115 @@ parameters:
     minValue: 1
     maxValue: 100
 ---
+kind: tool
+name: summarize_finance_overview
+type: postgres-sql
+source: agent-template-postgres
+description: |
+  汇总明确 UTC 时间窗内已结算订单、支付、退款和发票的经营财务概览。
+  grossSales 是订单原支付额，refundAmount 来自 FinanceRefund，netCollected = capturedPayments - refundAmount；这些经营指标不是法定财务报表。
+annotations:
+  readOnlyHint: true
+  destructiveHint: false
+  idempotentHint: true
+  openWorldHint: false
+statement: |
+  WITH toolbox_window AS MATERIALIZED (
+    SELECT * FROM public.validate_toolbox_time_window($1::timestamptz, $2::timestamptz)
+  ),
+  orders AS (
+    SELECT
+      COUNT(*)::int AS "settledOrderCount",
+      COALESCE(SUM("paidTotal"), 0) AS "grossSales"
+    FROM "ecommerce_fixture"."EcommerceOrder"
+    CROSS JOIN toolbox_window
+    WHERE status IN ('PAID', 'FULFILLED', 'REFUNDED')
+      AND "paidAt" >= toolbox_window.window_from
+      AND "paidAt" < toolbox_window.window_to
+  ),
+  payments AS (
+    SELECT COALESCE(SUM(amount), 0) AS "capturedPayments"
+    FROM "ecommerce_fixture"."EcommercePayment"
+    CROSS JOIN toolbox_window
+    WHERE status IN ('SUCCEEDED', 'REFUNDED')
+      AND "paidAt" >= toolbox_window.window_from
+      AND "paidAt" < toolbox_window.window_to
+  ),
+  refunds AS (
+    SELECT
+      COUNT(*) FILTER (WHERE status::text = 'COMPLETED')::int AS "completedRefundCount",
+      COALESCE(SUM(amount) FILTER (WHERE status::text = 'COMPLETED'), 0) AS "refundAmount"
+    FROM "ecommerce_fixture"."FinanceRefund"
+    CROSS JOIN toolbox_window
+    WHERE "requestedAt" >= toolbox_window.window_from
+      AND "requestedAt" < toolbox_window.window_to
+  ),
+  invoices AS (
+    SELECT
+      COALESCE(SUM(amount), 0) AS "invoiceAmount",
+      COALESCE(SUM(ABS("mismatchAmount")), 0) AS "invoiceMismatchAmount"
+    FROM "ecommerce_fixture"."FinanceInvoice"
+    CROSS JOIN toolbox_window
+    WHERE "issuedAt" >= toolbox_window.window_from
+      AND "issuedAt" < toolbox_window.window_to
+  )
+  SELECT
+    orders."settledOrderCount",
+    orders."grossSales",
+    payments."capturedPayments",
+    refunds."completedRefundCount",
+    refunds."refundAmount",
+    payments."capturedPayments" - refunds."refundAmount" AS "netCollected",
+    invoices."invoiceAmount",
+    invoices."invoiceMismatchAmount"
+  FROM orders
+  CROSS JOIN payments
+  CROSS JOIN refunds
+  CROSS JOIN invoices;
+parameters:
+  - name: from
+    type: string
+    description: ISO-8601 UTC 财务时间窗开始时间（包含），例如 2026-06-01T00:00:00Z。
+  - name: to
+    type: string
+    description: ISO-8601 UTC 财务时间窗结束时间（不包含），例如 2026-06-30T00:00:00Z。
+---
+kind: tool
+name: summarize_payment_methods
+type: postgres-sql
+source: agent-template-postgres
+description: |
+  按支付方式汇总明确 UTC 财务事件时间窗内的支付笔数、支付金额、已完成退款和净实收。
+  capturedPayments 按 paidAt 统计支付；refundAmount 按 FinanceRefund.requestedAt 统计已完成退款并通过 orderId 归属支付方式。
+annotations:
+  readOnlyHint: true
+  destructiveHint: false
+  idempotentHint: true
+  openWorldHint: false
+statement: |
+  WITH toolbox_window AS MATERIALIZED (
+    SELECT * FROM public.validate_toolbox_time_window($1::timestamptz, $2::timestamptz)
+  ),
+  payment_summary AS (
+    SELECT
+      payment.method,
+      COUNT(*)::int AS "paymentCount",
+      COUNT(*) FILTER (WHERE payment.status::text = 'SUCCEEDED')::int AS "succeededCount",
+      COALESCE(SUM(payment.amount), 0) AS "capturedPayments"
+    FROM "ecommerce_fixture"."EcommercePayment" AS payment
+    CROSS JOIN toolbox_window
+    WHERE payment."paidAt" >= toolbox_window.window_from
+      AND payment."paidAt" < toolbox_window.window_to
+      AND payment.status IN ('SUCCEEDED', 'REFUNDED')
+    GROUP BY payment.method
+  ),
+  refund_summary AS (
+    SELECT
+      payment.method,
+      COUNT(*)::int AS "completedRefundCount",
+      COALESCE(SUM(refund.amount), 0) AS "refundAmount"
+    FROM "ecommerce_fixture"."FinanceRefund" AS refund
+    JOIN "ecommerce_fixture"."EcommercePayment" AS payment ON payment."orderId" = refund."orderId"
+    CROSS JOIN toolbox_window
+    WHERE refund.status::text = 'COMPLETED'
+      AND refund."requestedAt" >= toolbox_window.window_from
+      AND refund."requestedAt" < toolbox_window.window_to
+    GROUP BY payment.method
+  )
+  SELECT
+    COALESCE(payment.method, refund.method)::text AS "paymentMethod",
+    COALESCE(payment."paymentCount", 0) AS "paymentCount",
+    COALESCE(payment."succeededCount", 0) AS "succeededCount",
+    COALESCE(payment."capturedPayments", 0) AS "capturedPayments",
+    COALESCE(refund."completedRefundCount", 0) AS "completedRefundCount",
+    COALESCE(refund."refundAmount", 0) AS "refundAmount",
+    COALESCE(payment."capturedPayments", 0) - COALESCE(refund."refundAmount", 0) AS "netCollected"
+  FROM payment_summary AS payment
+  FULL OUTER JOIN refund_summary AS refund ON refund.method = payment.method
+  ORDER BY "netCollected" DESC, "paymentMethod" ASC;
+parameters:
+  - name: from
+    type: string
+    description: ISO-8601 UTC 财务事件时间窗开始时间（包含），例如 2026-06-01T00:00:00Z。
+  - name: to
+    type: string
+    description: ISO-8601 UTC 财务事件时间窗结束时间（不包含），例如 2026-06-30T00:00:00Z。
+---
+kind: tool
+name: summarize_refunds_by_reason
+type: postgres-sql
+source: agent-template-postgres
+description: |
+  按退款原因汇总明确 UTC 申请时间窗内的退款笔数、完成金额和平均处理时长。
+  refundAmount 只统计 status = COMPLETED 的 FinanceRefund；processingHours 来自合成退款流程记录。
+annotations:
+  readOnlyHint: true
+  destructiveHint: false
+  idempotentHint: true
+  openWorldHint: false
+statement: |
+  WITH toolbox_window AS MATERIALIZED (
+    SELECT * FROM public.validate_toolbox_time_window($1::timestamptz, $2::timestamptz)
+  )
+  SELECT
+    refund.reason::text AS reason,
+    COUNT(*)::int AS "refundRequestCount",
+    COUNT(*) FILTER (WHERE refund.status::text = 'COMPLETED')::int AS "completedRefundCount",
+    COALESCE(SUM(refund.amount) FILTER (WHERE refund.status::text = 'COMPLETED'), 0) AS "refundAmount",
+    ROUND(AVG(refund."processingHours"), 2) AS "averageProcessingHours"
+  FROM "ecommerce_fixture"."FinanceRefund" AS refund
+  CROSS JOIN toolbox_window
+  WHERE refund."requestedAt" >= toolbox_window.window_from
+    AND refund."requestedAt" < toolbox_window.window_to
+  GROUP BY refund.reason
+  ORDER BY "refundAmount" DESC, reason ASC;
+parameters:
+  - name: from
+    type: string
+    description: ISO-8601 UTC 退款申请时间窗开始时间（包含），例如 2026-06-01T00:00:00Z。
+  - name: to
+    type: string
+    description: ISO-8601 UTC 退款申请时间窗结束时间（不包含），例如 2026-06-30T00:00:00Z。
+---
+kind: tool
+name: list_invoice_exceptions
+type: postgres-sql
+source: agent-template-postgres
+description: |
+  分页返回明确 UTC 开票时间窗内存在状态异常、金额差异或截至 to 已逾期的合成发票。
+  mismatchAmount 是带方向的原始差额，invoiceMismatchAmount 是其绝对值；结果按绝对差额、开票时间和发票 ID 稳定排序。
+annotations:
+  readOnlyHint: true
+  destructiveHint: false
+  idempotentHint: true
+  openWorldHint: false
+statement: |
+  WITH toolbox_window AS MATERIALIZED (
+    SELECT * FROM public.validate_toolbox_time_window($1::timestamptz, $2::timestamptz)
+  )
+  SELECT
+    invoice."invoiceNumber",
+    orders."orderNumber",
+    invoice.status::text AS status,
+    invoice.amount,
+    invoice."mismatchAmount",
+    ABS(invoice."mismatchAmount") AS "invoiceMismatchAmount",
+    invoice."issuedAt",
+    invoice."dueAt",
+    COUNT(*) OVER()::int AS "totalCount"
+  FROM "ecommerce_fixture"."FinanceInvoice" AS invoice
+  JOIN "ecommerce_fixture"."EcommerceOrder" AS orders ON orders.id = invoice."orderId"
+  CROSS JOIN toolbox_window
+  WHERE invoice."issuedAt" >= toolbox_window.window_from
+    AND invoice."issuedAt" < toolbox_window.window_to
+    AND (
+      invoice.status::text = 'MISMATCH'
+      OR invoice."mismatchAmount" <> 0
+      OR (invoice."dueAt" < toolbox_window.window_to AND invoice.status::text = 'ISSUED')
+    )
+  ORDER BY ABS(invoice."mismatchAmount") DESC, invoice."issuedAt" DESC, invoice.id DESC
+  LIMIT $3
+  OFFSET $4;
+parameters:
+  - name: from
+    type: string
+    description: ISO-8601 UTC 开票时间窗开始时间（包含），例如 2026-06-01T00:00:00Z。
+  - name: to
+    type: string
+    description: ISO-8601 UTC 开票时间窗结束时间（不包含），例如 2026-06-30T00:00:00Z。
+  - name: limit
+    type: integer
+    description: 最多返回的异常发票数量。
+    default: 50
+    minValue: 1
+    maxValue: 100
+  - name: offset
+    type: integer
+    description: 从稳定排序结果中跳过的异常发票数量；首页传 0。
+    default: 0
+    minValue: 0
+    maxValue: 10000
+---
+kind: tool
+name: reconcile_channel_settlements
+type: postgres-sql
+source: agent-template-postgres
+description: |
+  按渠道和结算状态对账明确 UTC 结算周期开始时间窗内的毛额、退款、手续费、预期结算、实际结算和差异。
+  settlementRefundAmount 和 differenceAmount 均来自 FinanceSettlement，不等同于 FinanceRefund 退款流水或发票差异。
+  PENDING 记录尚无实际结算，settledAmount 和 differenceAmount 返回 null。
+annotations:
+  readOnlyHint: true
+  destructiveHint: false
+  idempotentHint: true
+  openWorldHint: false
+statement: |
+  WITH toolbox_window AS MATERIALIZED (
+    SELECT * FROM public.validate_toolbox_time_window($1::timestamptz, $2::timestamptz)
+  )
+  SELECT
+    settlement.channel::text AS channel,
+    settlement.status::text AS status,
+    COUNT(*)::int AS "settlementCount",
+    COALESCE(SUM(settlement."grossAmount"), 0) AS "grossAmount",
+    COALESCE(SUM(settlement."refundAmount"), 0) AS "settlementRefundAmount",
+    COALESCE(SUM(settlement."feeAmount"), 0) AS "feeAmount",
+    COALESCE(SUM(settlement."expectedAmount"), 0) AS "expectedAmount",
+    SUM(settlement."settledAmount") AS "settledAmount",
+    SUM(settlement."differenceAmount") AS "differenceAmount"
+  FROM "ecommerce_fixture"."FinanceSettlement" AS settlement
+  CROSS JOIN toolbox_window
+  WHERE settlement."periodStart" >= toolbox_window.window_from
+    AND settlement."periodStart" < toolbox_window.window_to
+  GROUP BY settlement.channel, settlement.status
+  ORDER BY ABS(SUM(settlement."differenceAmount")) DESC NULLS LAST, channel ASC, status ASC;
+parameters:
+  - name: from
+    type: string
+    description: ISO-8601 UTC 结算周期开始时间窗的起点（包含），例如 2026-06-01T00:00:00Z。
+  - name: to
+    type: string
+    description: ISO-8601 UTC 结算周期开始时间窗的终点（不包含），例如 2026-06-30T00:00:00Z。
+---
+kind: tool
+name: summarize_carrier_performance
+type: postgres-sql
+source: agent-template-postgres
+description: |
+  按承运商汇总明确 UTC 发货时间窗内的运单量、签收量、准时率、异常量和平均配送时长。
+  准时签收定义为 deliveredAt <= promisedAt；未签收运单不计入平均配送时长。
+annotations:
+  readOnlyHint: true
+  destructiveHint: false
+  idempotentHint: true
+  openWorldHint: false
+statement: |
+  WITH toolbox_window AS MATERIALIZED (
+    SELECT * FROM public.validate_toolbox_time_window($1::timestamptz, $2::timestamptz)
+  )
+  SELECT
+    shipment.carrier::text AS carrier,
+    COUNT(*)::int AS "shipmentCount",
+    COUNT(*) FILTER (WHERE shipment."deliveredAt" IS NOT NULL)::int AS "deliveredCount",
+    COUNT(*) FILTER (
+      WHERE shipment."deliveredAt" IS NOT NULL
+        AND shipment."deliveredAt" <= shipment."promisedAt"
+    )::int AS "onTimeCount",
+    COUNT(*) FILTER (
+      WHERE shipment.status::text IN ('DELAYED', 'LOST', 'RETURNED')
+        OR shipment."deliveredAt" > shipment."promisedAt"
+    )::int AS "exceptionCount",
+    ROUND(
+      100.0 * COUNT(*) FILTER (
+        WHERE shipment."deliveredAt" IS NOT NULL
+          AND shipment."deliveredAt" <= shipment."promisedAt"
+      ) / NULLIF(COUNT(*) FILTER (WHERE shipment."deliveredAt" IS NOT NULL), 0),
+      2
+    ) AS "onTimeDeliveryRate",
+    ROUND(
+      AVG(EXTRACT(EPOCH FROM (shipment."deliveredAt" - shipment."shippedAt")) / 3600)
+        FILTER (WHERE shipment."deliveredAt" IS NOT NULL),
+      2
+    ) AS "averageDeliveryHours"
+  FROM "ecommerce_fixture"."LogisticsShipment" AS shipment
+  CROSS JOIN toolbox_window
+  WHERE shipment."shippedAt" >= toolbox_window.window_from
+    AND shipment."shippedAt" < toolbox_window.window_to
+  GROUP BY shipment.carrier
+  ORDER BY "onTimeDeliveryRate" DESC NULLS LAST, carrier ASC;
+parameters:
+  - name: from
+    type: string
+    description: ISO-8601 UTC 发货时间窗开始时间（包含），例如 2026-06-01T00:00:00Z。
+  - name: to
+    type: string
+    description: ISO-8601 UTC 发货时间窗结束时间（不包含），例如 2026-06-30T00:00:00Z。
+---
+kind: tool
+name: list_logistics_exceptions
+type: postgres-sql
+source: agent-template-postgres
+description: |
+  分页返回明确 UTC 发货时间窗内状态异常、签收超时或截至 to 已超过承诺时间仍未签收的运单。
+  结果包含合成订单、仓库、承运商和异常等待小时数，按超时程度和运单 ID 稳定排序。
+annotations:
+  readOnlyHint: true
+  destructiveHint: false
+  idempotentHint: true
+  openWorldHint: false
+statement: |
+  WITH toolbox_window AS MATERIALIZED (
+    SELECT * FROM public.validate_toolbox_time_window($1::timestamptz, $2::timestamptz)
+  )
+  SELECT
+    shipment."shipmentNumber",
+    orders."orderNumber",
+    warehouse."warehouseCode",
+    shipment.carrier::text AS carrier,
+    shipment.status::text AS status,
+    shipment."shippedAt",
+    shipment."promisedAt",
+    shipment."deliveredAt",
+    ROUND(
+      EXTRACT(EPOCH FROM (
+        COALESCE(shipment."deliveredAt", toolbox_window.window_to) - shipment."promisedAt"
+      )) / 3600,
+      2
+    ) AS "hoursPastPromise",
+    COUNT(*) OVER()::int AS "totalCount"
+  FROM "ecommerce_fixture"."LogisticsShipment" AS shipment
+  JOIN "ecommerce_fixture"."EcommerceOrder" AS orders ON orders.id = shipment."orderId"
+  JOIN "ecommerce_fixture"."InventoryWarehouse" AS warehouse ON warehouse.id = shipment."warehouseId"
+  CROSS JOIN toolbox_window
+  WHERE shipment."shippedAt" >= toolbox_window.window_from
+    AND shipment."shippedAt" < toolbox_window.window_to
+    AND (
+      shipment.status::text IN ('DELAYED', 'LOST', 'RETURNED')
+      OR shipment."deliveredAt" > shipment."promisedAt"
+      OR (shipment."deliveredAt" IS NULL AND shipment."promisedAt" < toolbox_window.window_to)
+    )
+  ORDER BY "hoursPastPromise" DESC, shipment."shippedAt" DESC, shipment.id DESC
+  LIMIT $3
+  OFFSET $4;
+parameters:
+  - name: from
+    type: string
+    description: ISO-8601 UTC 发货时间窗开始时间（包含），例如 2026-06-01T00:00:00Z。
+  - name: to
+    type: string
+    description: ISO-8601 UTC 发货时间窗结束时间（不包含），例如 2026-06-30T00:00:00Z。
+  - name: limit
+    type: integer
+    description: 最多返回的异常运单数量。
+    default: 50
+    minValue: 1
+    maxValue: 100
+  - name: offset
+    type: integer
+    description: 从稳定排序结果中跳过的异常运单数量；首页传 0。
+    default: 0
+    minValue: 0
+    maxValue: 10000
+---
+kind: tool
+name: get_shipment_trace
+type: postgres-sql
+source: agent-template-postgres
+description: |
+  通过明确的合成运单号返回运单、订单和按时间排序的物流轨迹事件。
+  结果最多返回 100 条事件；事件 location 和 detail 均为合成运营信息，不代表实时物流状态。
+annotations:
+  readOnlyHint: true
+  destructiveHint: false
+  idempotentHint: true
+  openWorldHint: false
+statement: |
+  SELECT
+    shipment."shipmentNumber",
+    orders."orderNumber",
+    shipment.carrier::text AS carrier,
+    shipment.status::text AS status,
+    shipment."shippedAt",
+    shipment."promisedAt",
+    shipment."deliveredAt",
+    event.type::text AS "eventType",
+    event."eventAt",
+    event.location,
+    event.detail
+  FROM "ecommerce_fixture"."LogisticsShipment" AS shipment
+  JOIN "ecommerce_fixture"."EcommerceOrder" AS orders ON orders.id = shipment."orderId"
+  LEFT JOIN "ecommerce_fixture"."LogisticsShipmentEvent" AS event ON event."shipmentId" = shipment.id
+  WHERE shipment."shipmentNumber" = $1
+  ORDER BY event."eventAt" ASC NULLS LAST, event.id ASC
+  LIMIT $2;
+parameters:
+  - name: shipmentNumber
+    type: string
+    description: 明确的合成运单号，例如 SHP-20260601-0001。
+  - name: limit
+    type: integer
+    description: 最多返回的物流轨迹事件数量。
+    default: 100
+    minValue: 1
+    maxValue: 100
+---
+kind: tool
+name: summarize_delivery_sla
+type: postgres-sql
+source: agent-template-postgres
+description: |
+  按承诺签收日汇总明确 UTC 发货时间窗内的配送 SLA：准时、迟到和截至 to 未签收运单。
+  onTimeDeliveryRate 仅以已签收运单为分母；未签收积压单独返回，避免伪造完成时效。
+annotations:
+  readOnlyHint: true
+  destructiveHint: false
+  idempotentHint: true
+  openWorldHint: false
+statement: |
+  WITH toolbox_window AS MATERIALIZED (
+    SELECT * FROM public.validate_toolbox_time_window($1::timestamptz, $2::timestamptz)
+  )
+  SELECT
+    (shipment."promisedAt" AT TIME ZONE 'UTC')::date AS "promisedDate",
+    COUNT(*)::int AS "shipmentCount",
+    COUNT(*) FILTER (
+      WHERE shipment."deliveredAt" IS NOT NULL
+        AND shipment."deliveredAt" <= shipment."promisedAt"
+    )::int AS "onTimeCount",
+    COUNT(*) FILTER (WHERE shipment."deliveredAt" > shipment."promisedAt")::int AS "lateCount",
+    COUNT(*) FILTER (
+      WHERE shipment."deliveredAt" IS NULL
+        AND shipment."promisedAt" < toolbox_window.window_to
+    )::int AS "undeliveredPastPromiseCount",
+    ROUND(
+      100.0 * COUNT(*) FILTER (
+        WHERE shipment."deliveredAt" IS NOT NULL
+          AND shipment."deliveredAt" <= shipment."promisedAt"
+      ) / NULLIF(COUNT(*) FILTER (WHERE shipment."deliveredAt" IS NOT NULL), 0),
+      2
+    ) AS "onTimeDeliveryRate"
+  FROM "ecommerce_fixture"."LogisticsShipment" AS shipment
+  CROSS JOIN toolbox_window
+  WHERE shipment."shippedAt" >= toolbox_window.window_from
+    AND shipment."shippedAt" < toolbox_window.window_to
+  GROUP BY "promisedDate"
+  ORDER BY "promisedDate" ASC;
+parameters:
+  - name: from
+    type: string
+    description: ISO-8601 UTC 发货时间窗开始时间（包含），例如 2026-06-01T00:00:00Z。
+  - name: to
+    type: string
+    description: ISO-8601 UTC 发货时间窗结束时间（不包含），例如 2026-06-30T00:00:00Z。
+---
+kind: tool
+name: summarize_freight_costs
+type: postgres-sql
+source: agent-template-postgres
+description: |
+  按承运商汇总明确 UTC 发货时间窗内的运费、平均每单运费、运输距离和每公里成本。
+  freightCost 仅表示合成物流运费，不包含仓储、包装或逆向物流成本，也不能单独代表订单利润。
+annotations:
+  readOnlyHint: true
+  destructiveHint: false
+  idempotentHint: true
+  openWorldHint: false
+statement: |
+  WITH toolbox_window AS MATERIALIZED (
+    SELECT * FROM public.validate_toolbox_time_window($1::timestamptz, $2::timestamptz)
+  )
+  SELECT
+    shipment.carrier::text AS carrier,
+    COUNT(*)::int AS "shipmentCount",
+    COALESCE(SUM(shipment."freightCost"), 0) AS "totalFreightCost",
+    ROUND(AVG(shipment."freightCost"), 2) AS "averageFreightCost",
+    COALESCE(SUM(shipment."distanceKm"), 0)::int AS "totalDistanceKm",
+    ROUND(
+      SUM(shipment."freightCost") / NULLIF(SUM(shipment."distanceKm"), 0),
+      4
+    ) AS "freightCostPerKm"
+  FROM "ecommerce_fixture"."LogisticsShipment" AS shipment
+  CROSS JOIN toolbox_window
+  WHERE shipment."shippedAt" >= toolbox_window.window_from
+    AND shipment."shippedAt" < toolbox_window.window_to
+  GROUP BY shipment.carrier
+  ORDER BY "totalFreightCost" DESC, carrier ASC;
+parameters:
+  - name: from
+    type: string
+    description: ISO-8601 UTC 发货时间窗开始时间（包含），例如 2026-06-01T00:00:00Z。
+  - name: to
+    type: string
+    description: ISO-8601 UTC 发货时间窗结束时间（不包含），例如 2026-06-30T00:00:00Z。
+---
+kind: tool
+name: summarize_inventory_health
+type: postgres-sql
+source: agent-template-postgres
+description: |
+  按库存风险等级汇总明确 UTC 快照时间窗内的 SKU、在库、占用、在途、安全库存和库存金额。
+  availableUnits = onHand - reserved；inventoryValue = onHand * unitCost，单个 SKU 的多日快照会分别计入。
+annotations:
+  readOnlyHint: true
+  destructiveHint: false
+  idempotentHint: true
+  openWorldHint: false
+statement: |
+  WITH toolbox_window AS MATERIALIZED (
+    SELECT * FROM public.validate_toolbox_time_window($1::timestamptz, $2::timestamptz)
+  )
+  SELECT
+    snapshot."riskLevel"::text AS "riskLevel",
+    COUNT(*)::int AS "snapshotCount",
+    COUNT(DISTINCT snapshot."productId")::int AS "skuCount",
+    COALESCE(SUM(snapshot."onHand"), 0)::int AS "onHandUnits",
+    COALESCE(SUM(snapshot.reserved), 0)::int AS "reservedUnits",
+    COALESCE(SUM(snapshot."onHand" - snapshot.reserved), 0)::int AS "availableUnits",
+    COALESCE(SUM(snapshot."inTransit"), 0)::int AS "inTransitUnits",
+    COALESCE(SUM(snapshot."safetyStock"), 0)::int AS "safetyStockUnits",
+    COALESCE(SUM(snapshot."onHand" * snapshot."unitCost"), 0) AS "inventoryValue"
+  FROM "ecommerce_fixture"."InventorySnapshot" AS snapshot
+  CROSS JOIN toolbox_window
+  WHERE snapshot."snapshotDate" >= toolbox_window.window_from
+    AND snapshot."snapshotDate" < toolbox_window.window_to
+  GROUP BY snapshot."riskLevel"
+  ORDER BY "riskLevel" ASC;
+parameters:
+  - name: from
+    type: string
+    description: ISO-8601 UTC 库存快照时间窗开始时间（包含），例如 2026-06-01T00:00:00Z。
+  - name: to
+    type: string
+    description: ISO-8601 UTC 库存快照时间窗结束时间（不包含），例如 2026-06-30T00:00:00Z。
+---
+kind: tool
+name: list_stockout_risks
+type: postgres-sql
+source: agent-template-postgres
+description: |
+  分页返回明确 UTC 快照时间窗内可用库存不高于安全库存或已标记风险的仓库 SKU。
+  availableUnits = onHand - reserved；结果按风险等级、缺口、快照时间和快照 ID 稳定排序。
+annotations:
+  readOnlyHint: true
+  destructiveHint: false
+  idempotentHint: true
+  openWorldHint: false
+statement: |
+  WITH toolbox_window AS MATERIALIZED (
+    SELECT * FROM public.validate_toolbox_time_window($1::timestamptz, $2::timestamptz)
+  )
+  SELECT
+    snapshot."snapshotDate",
+    warehouse."warehouseCode",
+    warehouse.name AS "warehouseName",
+    product.sku,
+    product.name AS "productName",
+    snapshot."riskLevel"::text AS "riskLevel",
+    snapshot."onHand",
+    snapshot.reserved,
+    snapshot."onHand" - snapshot.reserved AS "availableUnits",
+    snapshot."inTransit",
+    snapshot."safetyStock",
+    snapshot."safetyStock" - (snapshot."onHand" - snapshot.reserved) AS "stockGapUnits",
+    COUNT(*) OVER()::int AS "totalCount"
+  FROM "ecommerce_fixture"."InventorySnapshot" AS snapshot
+  JOIN "ecommerce_fixture"."InventoryWarehouse" AS warehouse ON warehouse.id = snapshot."warehouseId"
+  JOIN "ecommerce_fixture"."EcommerceProduct" AS product ON product.id = snapshot."productId"
+  CROSS JOIN toolbox_window
+  WHERE snapshot."snapshotDate" >= toolbox_window.window_from
+    AND snapshot."snapshotDate" < toolbox_window.window_to
+    AND (
+      snapshot."riskLevel"::text <> 'HEALTHY'
+      OR snapshot."onHand" - snapshot.reserved <= snapshot."safetyStock"
+    )
+  ORDER BY snapshot."riskLevel" DESC, "stockGapUnits" DESC, snapshot."snapshotDate" DESC, snapshot.id DESC
+  LIMIT $3
+  OFFSET $4;
+parameters:
+  - name: from
+    type: string
+    description: ISO-8601 UTC 库存快照时间窗开始时间（包含），例如 2026-06-01T00:00:00Z。
+  - name: to
+    type: string
+    description: ISO-8601 UTC 库存快照时间窗结束时间（不包含），例如 2026-06-30T00:00:00Z。
+  - name: limit
+    type: integer
+    description: 最多返回的缺货风险记录数量。
+    default: 50
+    minValue: 1
+    maxValue: 100
+  - name: offset
+    type: integer
+    description: 从稳定排序结果中跳过的风险记录数量；首页传 0。
+    default: 0
+    minValue: 0
+    maxValue: 10000
+---
+kind: tool
+name: summarize_inventory_by_warehouse
+type: postgres-sql
+source: agent-template-postgres
+description: |
+  按仓库汇总明确 UTC 快照时间窗内的 SKU 数、在库、可用、在途、风险 SKU 和库存金额。
+  averageDailyCapacityUtilization 使用时间窗内 onHand 总和 /（capacityUnits * 快照自然日数）；同一仓库多日快照分别计入。
+annotations:
+  readOnlyHint: true
+  destructiveHint: false
+  idempotentHint: true
+  openWorldHint: false
+statement: |
+  WITH toolbox_window AS MATERIALIZED (
+    SELECT * FROM public.validate_toolbox_time_window($1::timestamptz, $2::timestamptz)
+  )
+  SELECT
+    warehouse."warehouseCode",
+    warehouse.name AS "warehouseName",
+    warehouse.region,
+    warehouse.city,
+    COUNT(DISTINCT snapshot."productId")::int AS "skuCount",
+    COALESCE(SUM(snapshot."onHand"), 0)::int AS "onHandUnits",
+    COALESCE(SUM(snapshot."onHand" - snapshot.reserved), 0)::int AS "availableUnits",
+    COALESCE(SUM(snapshot."inTransit"), 0)::int AS "inTransitUnits",
+    COUNT(*) FILTER (
+      WHERE snapshot."onHand" - snapshot.reserved <= snapshot."safetyStock"
+    )::int AS "riskSnapshotCount",
+    COALESCE(SUM(snapshot."onHand" * snapshot."unitCost"), 0) AS "inventoryValue",
+    ROUND(
+      100.0 * SUM(snapshot."onHand")
+        / NULLIF(
+          warehouse."capacityUnits"
+            * COUNT(DISTINCT (snapshot."snapshotDate" AT TIME ZONE 'UTC')::date),
+          0
+        ),
+      2
+    ) AS "averageDailyCapacityUtilization"
+  FROM "ecommerce_fixture"."InventoryWarehouse" AS warehouse
+  JOIN "ecommerce_fixture"."InventorySnapshot" AS snapshot ON snapshot."warehouseId" = warehouse.id
+  CROSS JOIN toolbox_window
+  WHERE snapshot."snapshotDate" >= toolbox_window.window_from
+    AND snapshot."snapshotDate" < toolbox_window.window_to
+  GROUP BY warehouse.id, warehouse."warehouseCode", warehouse.name, warehouse.region, warehouse.city, warehouse."capacityUnits"
+  ORDER BY "inventoryValue" DESC, warehouse."warehouseCode" ASC;
+parameters:
+  - name: from
+    type: string
+    description: ISO-8601 UTC 库存快照时间窗开始时间（包含），例如 2026-06-01T00:00:00Z。
+  - name: to
+    type: string
+    description: ISO-8601 UTC 库存快照时间窗结束时间（不包含），例如 2026-06-30T00:00:00Z。
+---
+kind: tool
+name: summarize_procurement_spend
+type: postgres-sql
+source: agent-template-postgres
+description: |
+  按供应商品类汇总明确 UTC 下单时间窗内的采购单数、SKU 数、采购金额、延期单数和平均延期天数。
+  已取消采购单不进入汇总；amount 是合成采购订单金额，不代表已付款现金支出或会计成本确认。
+annotations:
+  readOnlyHint: true
+  destructiveHint: false
+  idempotentHint: true
+  openWorldHint: false
+statement: |
+  WITH toolbox_window AS MATERIALIZED (
+    SELECT * FROM public.validate_toolbox_time_window($1::timestamptz, $2::timestamptz)
+  )
+  SELECT
+    supplier.category,
+    COUNT(*)::int AS "purchaseOrderCount",
+    COALESCE(SUM(purchase."skuCount"), 0)::int AS "skuCount",
+    COALESCE(SUM(purchase.amount), 0) AS "procurementAmount",
+    COUNT(*) FILTER (WHERE purchase."delayedDays" > 0)::int AS "delayedOrderCount",
+    ROUND(AVG(purchase."delayedDays"), 2) AS "averageDelayedDays"
+  FROM "ecommerce_fixture"."ProcurementOrder" AS purchase
+  JOIN "ecommerce_fixture"."ProcurementSupplier" AS supplier ON supplier.id = purchase."supplierId"
+  CROSS JOIN toolbox_window
+  WHERE purchase."orderedAt" >= toolbox_window.window_from
+    AND purchase."orderedAt" < toolbox_window.window_to
+    AND purchase.status <> 'CANCELLED'
+  GROUP BY supplier.category
+  ORDER BY "procurementAmount" DESC, supplier.category ASC;
+parameters:
+  - name: from
+    type: string
+    description: ISO-8601 UTC 采购下单时间窗开始时间（包含），例如 2026-06-01T00:00:00Z。
+  - name: to
+    type: string
+    description: ISO-8601 UTC 采购下单时间窗结束时间（不包含），例如 2026-06-30T00:00:00Z。
+---
+kind: tool
+name: summarize_supplier_performance
+type: postgres-sql
+source: agent-template-postgres
+description: |
+  按供应商汇总明确 UTC 采购下单时间窗内的采购额、延期单、实际准时率，并返回供应商档案评级和目标准时率。
+  已取消采购单不进入汇总；actualOnTimeRate 以 receivedAt <= expectedAt 的已收货采购单为分母，未收货单不计入该比例。
+annotations:
+  readOnlyHint: true
+  destructiveHint: false
+  idempotentHint: true
+  openWorldHint: false
+statement: |
+  WITH toolbox_window AS MATERIALIZED (
+    SELECT * FROM public.validate_toolbox_time_window($1::timestamptz, $2::timestamptz)
+  )
+  SELECT
+    supplier."supplierCode",
+    supplier.name AS "supplierName",
+    supplier.category,
+    supplier.region,
+    supplier.rating,
+    supplier."leadTimeDays",
+    supplier."onTimeRate" AS "profileOnTimeRate",
+    COUNT(*)::int AS "purchaseOrderCount",
+    COALESCE(SUM(purchase.amount), 0) AS "procurementAmount",
+    COUNT(*) FILTER (WHERE purchase."delayedDays" > 0)::int AS "delayedOrderCount",
+    ROUND(
+      100.0 * COUNT(*) FILTER (
+        WHERE purchase."receivedAt" IS NOT NULL
+          AND purchase."receivedAt" <= purchase."expectedAt"
+      ) / NULLIF(COUNT(*) FILTER (WHERE purchase."receivedAt" IS NOT NULL), 0),
+      2
+    ) AS "actualOnTimeRate"
+  FROM "ecommerce_fixture"."ProcurementSupplier" AS supplier
+  JOIN "ecommerce_fixture"."ProcurementOrder" AS purchase ON purchase."supplierId" = supplier.id
+  CROSS JOIN toolbox_window
+  WHERE purchase."orderedAt" >= toolbox_window.window_from
+    AND purchase."orderedAt" < toolbox_window.window_to
+    AND purchase.status <> 'CANCELLED'
+  GROUP BY supplier.id, supplier."supplierCode", supplier.name, supplier.category, supplier.region, supplier.rating, supplier."leadTimeDays", supplier."onTimeRate"
+  ORDER BY "actualOnTimeRate" DESC NULLS LAST, "procurementAmount" DESC, supplier."supplierCode" ASC;
+parameters:
+  - name: from
+    type: string
+    description: ISO-8601 UTC 采购下单时间窗开始时间（包含），例如 2026-06-01T00:00:00Z。
+  - name: to
+    type: string
+    description: ISO-8601 UTC 采购下单时间窗结束时间（不包含），例如 2026-06-30T00:00:00Z。
+---
+kind: tool
+name: list_purchase_order_exceptions
+type: postgres-sql
+source: agent-template-postgres
+description: |
+  分页返回明确 UTC 采购下单时间窗内已延期、迟收货或截至 to 超过预计到货时间仍未收货的采购单。
+  已取消采购单不属于异常；delayedDays 使用合成采购记录，对未收货单同时返回相对 to 的 currentDelayedDays。
+annotations:
+  readOnlyHint: true
+  destructiveHint: false
+  idempotentHint: true
+  openWorldHint: false
+statement: |
+  WITH toolbox_window AS MATERIALIZED (
+    SELECT * FROM public.validate_toolbox_time_window($1::timestamptz, $2::timestamptz)
+  )
+  SELECT
+    purchase."purchaseOrderNumber",
+    supplier."supplierCode",
+    supplier.name AS "supplierName",
+    warehouse."warehouseCode",
+    purchase.status::text AS status,
+    purchase."orderedAt",
+    purchase."expectedAt",
+    purchase."receivedAt",
+    purchase.amount,
+    purchase."skuCount",
+    purchase."delayedDays",
+    GREATEST(
+      purchase."delayedDays",
+      FLOOR(EXTRACT(EPOCH FROM (toolbox_window.window_to - purchase."expectedAt")) / 86400)::int
+    ) AS "currentDelayedDays",
+    COUNT(*) OVER()::int AS "totalCount"
+  FROM "ecommerce_fixture"."ProcurementOrder" AS purchase
+  JOIN "ecommerce_fixture"."ProcurementSupplier" AS supplier ON supplier.id = purchase."supplierId"
+  JOIN "ecommerce_fixture"."InventoryWarehouse" AS warehouse ON warehouse.id = purchase."warehouseId"
+  CROSS JOIN toolbox_window
+  WHERE purchase."orderedAt" >= toolbox_window.window_from
+    AND purchase."orderedAt" < toolbox_window.window_to
+    AND purchase.status <> 'CANCELLED'
+    AND (
+      purchase."delayedDays" > 0
+      OR purchase."receivedAt" > purchase."expectedAt"
+      OR (purchase."receivedAt" IS NULL AND purchase."expectedAt" < toolbox_window.window_to)
+    )
+  ORDER BY "currentDelayedDays" DESC, purchase."orderedAt" DESC, purchase.id DESC
+  LIMIT $3
+  OFFSET $4;
+parameters:
+  - name: from
+    type: string
+    description: ISO-8601 UTC 采购下单时间窗开始时间（包含），例如 2026-06-01T00:00:00Z。
+  - name: to
+    type: string
+    description: ISO-8601 UTC 采购下单时间窗结束时间（不包含），例如 2026-06-30T00:00:00Z。
+  - name: limit
+    type: integer
+    description: 最多返回的异常采购单数量。
+    default: 50
+    minValue: 1
+    maxValue: 100
+  - name: offset
+    type: integer
+    description: 从稳定排序结果中跳过的异常采购单数量；首页传 0。
+    default: 0
+    minValue: 0
+    maxValue: 10000
+---
+kind: tool
+name: summarize_campaign_performance
+type: postgres-sql
+source: agent-template-postgres
+description: |
+  按营销活动汇总明确 UTC 触点时间窗内的归因订单、归因收入、分摊费用、新客数和 ROAS。
+  attributedRevenue 是规则归因结果，不代表增量收入或因果效果；活动 budget/spend 是完整活动档案值。
+annotations:
+  readOnlyHint: true
+  destructiveHint: false
+  idempotentHint: true
+  openWorldHint: false
+statement: |
+  WITH toolbox_window AS MATERIALIZED (
+    SELECT * FROM public.validate_toolbox_time_window($1::timestamptz, $2::timestamptz)
+  ),
+  attribution AS (
+    SELECT
+      "campaignId",
+      COUNT(DISTINCT "orderId")::int AS "attributedOrderCount",
+      COALESCE(SUM("attributedRevenue"), 0) AS "attributedRevenue",
+      COALESCE(SUM("allocatedSpend"), 0) AS "allocatedSpend",
+      COUNT(DISTINCT "orderId") FILTER (WHERE "isNewCustomer")::int AS "newCustomerCount"
+    FROM "ecommerce_fixture"."MarketingAttribution"
+    CROSS JOIN toolbox_window
+    WHERE "touchpointAt" >= toolbox_window.window_from
+      AND "touchpointAt" < toolbox_window.window_to
+    GROUP BY "campaignId"
+  )
+  SELECT
+    campaign."campaignCode",
+    campaign.name AS "campaignName",
+    campaign.channel::text AS channel,
+    campaign.objective::text AS objective,
+    campaign."startAt",
+    campaign."endAt",
+    campaign.budget,
+    campaign.spend,
+    COALESCE(attribution."attributedOrderCount", 0) AS "attributedOrderCount",
+    COALESCE(attribution."attributedRevenue", 0) AS "attributedRevenue",
+    COALESCE(attribution."allocatedSpend", 0) AS "allocatedSpend",
+    COALESCE(attribution."newCustomerCount", 0) AS "newCustomerCount",
+    ROUND(
+      COALESCE(attribution."attributedRevenue", 0) / NULLIF(attribution."allocatedSpend", 0),
+      4
+    ) AS roas
+  FROM "ecommerce_fixture"."MarketingCampaign" AS campaign
+  CROSS JOIN toolbox_window
+  LEFT JOIN attribution ON attribution."campaignId" = campaign.id
+  WHERE campaign."startAt" < toolbox_window.window_to
+    AND campaign."endAt" >= toolbox_window.window_from
+  ORDER BY "attributedRevenue" DESC, campaign."campaignCode" ASC;
+parameters:
+  - name: from
+    type: string
+    description: ISO-8601 UTC 营销触点时间窗开始时间（包含），例如 2026-06-01T00:00:00Z。
+  - name: to
+    type: string
+    description: ISO-8601 UTC 营销触点时间窗结束时间（不包含），例如 2026-06-30T00:00:00Z。
+---
+kind: tool
+name: summarize_marketing_by_channel
+type: postgres-sql
+source: agent-template-postgres
+description: |
+  按归因渠道汇总明确 UTC 触点时间窗内的订单、归因收入、分摊费用、新客和 ROAS。
+  channel 来自 MarketingAttribution；跨渠道归因可能包含同一订单的多个触点，回答不得直接等同于独立订单总数。
+annotations:
+  readOnlyHint: true
+  destructiveHint: false
+  idempotentHint: true
+  openWorldHint: false
+statement: |
+  WITH toolbox_window AS MATERIALIZED (
+    SELECT * FROM public.validate_toolbox_time_window($1::timestamptz, $2::timestamptz)
+  )
+  SELECT
+    attribution.channel::text AS channel,
+    COUNT(*)::int AS "touchpointCount",
+    COUNT(DISTINCT attribution."orderId")::int AS "attributedOrderCount",
+    COALESCE(SUM(attribution."attributedRevenue"), 0) AS "attributedRevenue",
+    COALESCE(SUM(attribution."allocatedSpend"), 0) AS "allocatedSpend",
+    COUNT(DISTINCT attribution."orderId") FILTER (WHERE attribution."isNewCustomer")::int AS "newCustomerCount",
+    ROUND(
+      SUM(attribution."attributedRevenue") / NULLIF(SUM(attribution."allocatedSpend"), 0),
+      4
+    ) AS roas
+  FROM "ecommerce_fixture"."MarketingAttribution" AS attribution
+  CROSS JOIN toolbox_window
+  WHERE attribution."touchpointAt" >= toolbox_window.window_from
+    AND attribution."touchpointAt" < toolbox_window.window_to
+  GROUP BY attribution.channel
+  ORDER BY "attributedRevenue" DESC, channel ASC;
+parameters:
+  - name: from
+    type: string
+    description: ISO-8601 UTC 营销触点时间窗开始时间（包含），例如 2026-06-01T00:00:00Z。
+  - name: to
+    type: string
+    description: ISO-8601 UTC 营销触点时间窗结束时间（不包含），例如 2026-06-30T00:00:00Z。
+---
+kind: tool
+name: summarize_coupon_performance
+type: postgres-sql
+source: agent-template-postgres
+description: |
+  按优惠券编码汇总明确 UTC 触点时间窗内的使用订单、归因收入、分摊费用、新客和平均归因订单金额。
+  couponCode 仅表示营销归因记录中的合成优惠标识，不包含优惠券面值或完整促销成本。
+annotations:
+  readOnlyHint: true
+  destructiveHint: false
+  idempotentHint: true
+  openWorldHint: false
+statement: |
+  WITH toolbox_window AS MATERIALIZED (
+    SELECT * FROM public.validate_toolbox_time_window($1::timestamptz, $2::timestamptz)
+  )
+  SELECT
+    attribution."couponCode",
+    COUNT(DISTINCT attribution."orderId")::int AS "attributedOrderCount",
+    COALESCE(SUM(attribution."attributedRevenue"), 0) AS "attributedRevenue",
+    COALESCE(SUM(attribution."allocatedSpend"), 0) AS "allocatedSpend",
+    COUNT(DISTINCT attribution."orderId") FILTER (WHERE attribution."isNewCustomer")::int AS "newCustomerCount",
+    ROUND(AVG(attribution."attributedRevenue"), 2) AS "averageAttributedRevenue"
+  FROM "ecommerce_fixture"."MarketingAttribution" AS attribution
+  CROSS JOIN toolbox_window
+  WHERE attribution."touchpointAt" >= toolbox_window.window_from
+    AND attribution."touchpointAt" < toolbox_window.window_to
+    AND attribution."couponCode" IS NOT NULL
+  GROUP BY attribution."couponCode"
+  ORDER BY "attributedRevenue" DESC, attribution."couponCode" ASC;
+parameters:
+  - name: from
+    type: string
+    description: ISO-8601 UTC 优惠归因时间窗开始时间（包含），例如 2026-06-01T00:00:00Z。
+  - name: to
+    type: string
+    description: ISO-8601 UTC 优惠归因时间窗结束时间（不包含），例如 2026-06-30T00:00:00Z。
+---
+kind: tool
+name: list_underperforming_campaigns
+type: postgres-sql
+source: agent-template-postgres
+description: |
+  分页返回与明确 UTC 时间窗重叠、窗口内有归因费用且归因收入低于归因费用的活动。
+  低效判断只比较同一窗口内 attributedRevenue 与 allocatedSpend；活动 spend/budget 仅作为档案返回，不参与部分窗口 ROAS 判定。
+annotations:
+  readOnlyHint: true
+  destructiveHint: false
+  idempotentHint: true
+  openWorldHint: false
+statement: |
+  WITH toolbox_window AS MATERIALIZED (
+    SELECT * FROM public.validate_toolbox_time_window($1::timestamptz, $2::timestamptz)
+  ),
+  attribution AS (
+    SELECT
+      "campaignId",
+      COUNT(DISTINCT "orderId")::int AS "attributedOrderCount",
+      COALESCE(SUM("attributedRevenue"), 0) AS "attributedRevenue",
+      COALESCE(SUM("allocatedSpend"), 0) AS "allocatedSpend"
+    FROM "ecommerce_fixture"."MarketingAttribution"
+    CROSS JOIN toolbox_window
+    WHERE "touchpointAt" >= toolbox_window.window_from
+      AND "touchpointAt" < toolbox_window.window_to
+    GROUP BY "campaignId"
+  ),
+  exceptions AS (
+    SELECT
+      campaign.id,
+      campaign."campaignCode",
+      campaign.name AS "campaignName",
+      campaign.channel::text AS channel,
+      campaign.objective::text AS objective,
+      campaign."startAt",
+      campaign."endAt",
+      campaign.budget,
+      campaign.spend,
+      COALESCE(attribution."attributedOrderCount", 0) AS "attributedOrderCount",
+      COALESCE(attribution."attributedRevenue", 0) AS "attributedRevenue",
+      COALESCE(attribution."allocatedSpend", 0) AS "allocatedSpend",
+      ROUND(
+        COALESCE(attribution."attributedRevenue", 0) / NULLIF(attribution."allocatedSpend", 0),
+        4
+      ) AS roas
+    FROM "ecommerce_fixture"."MarketingCampaign" AS campaign
+    CROSS JOIN toolbox_window
+    LEFT JOIN attribution ON attribution."campaignId" = campaign.id
+    WHERE campaign."startAt" < toolbox_window.window_to
+      AND campaign."endAt" >= toolbox_window.window_from
+      AND COALESCE(attribution."allocatedSpend", 0) > 0
+      AND COALESCE(attribution."attributedRevenue", 0) < attribution."allocatedSpend"
+  )
+  SELECT
+    exceptions."campaignCode",
+    exceptions."campaignName",
+    exceptions.channel,
+    exceptions.objective,
+    exceptions."startAt",
+    exceptions."endAt",
+    exceptions.budget,
+    exceptions.spend,
+    exceptions."attributedOrderCount",
+    exceptions."attributedRevenue",
+    exceptions."allocatedSpend",
+    exceptions.roas,
+    COUNT(*) OVER()::int AS "totalCount"
+  FROM exceptions
+  ORDER BY exceptions.roas ASC NULLS FIRST, exceptions.spend DESC, exceptions.id DESC
+  LIMIT $3
+  OFFSET $4;
+parameters:
+  - name: from
+    type: string
+    description: ISO-8601 UTC 活动评估时间窗开始时间（包含），例如 2026-06-01T00:00:00Z。
+  - name: to
+    type: string
+    description: ISO-8601 UTC 活动评估时间窗结束时间（不包含），例如 2026-06-30T00:00:00Z。
+  - name: limit
+    type: integer
+    description: 最多返回的低效活动数量。
+    default: 50
+    minValue: 1
+    maxValue: 100
+  - name: offset
+    type: integer
+    description: 从稳定排序结果中跳过的低效活动数量；首页传 0。
+    default: 0
+    minValue: 0
+    maxValue: 10000
+---
+kind: tool
+name: summarize_customer_acquisition
+type: postgres-sql
+source: agent-template-postgres
+description: |
+  按归因渠道汇总明确 UTC 触点时间窗内的新客数、新客归因收入、分摊费用和获客成本。
+  customerAcquisitionCost = 新客触点 allocatedSpend / 去重新客订单数；没有实验数据时不得解释为增量获客效果。
+annotations:
+  readOnlyHint: true
+  destructiveHint: false
+  idempotentHint: true
+  openWorldHint: false
+statement: |
+  WITH toolbox_window AS MATERIALIZED (
+    SELECT * FROM public.validate_toolbox_time_window($1::timestamptz, $2::timestamptz)
+  )
+  SELECT
+    attribution.channel::text AS channel,
+    COUNT(DISTINCT attribution."orderId")::int AS "newCustomerCount",
+    COALESCE(SUM(attribution."attributedRevenue"), 0) AS "attributedRevenue",
+    COALESCE(SUM(attribution."allocatedSpend"), 0) AS "allocatedSpend",
+    ROUND(
+      SUM(attribution."allocatedSpend") / NULLIF(COUNT(DISTINCT attribution."orderId"), 0),
+      2
+    ) AS "customerAcquisitionCost",
+    ROUND(
+      SUM(attribution."attributedRevenue") / NULLIF(COUNT(DISTINCT attribution."orderId"), 0),
+      2
+    ) AS "revenuePerNewCustomer"
+  FROM "ecommerce_fixture"."MarketingAttribution" AS attribution
+  CROSS JOIN toolbox_window
+  WHERE attribution."touchpointAt" >= toolbox_window.window_from
+    AND attribution."touchpointAt" < toolbox_window.window_to
+    AND attribution."isNewCustomer"
+  GROUP BY attribution.channel
+  ORDER BY "newCustomerCount" DESC, channel ASC;
+parameters:
+  - name: from
+    type: string
+    description: ISO-8601 UTC 新客归因时间窗开始时间（包含），例如 2026-06-01T00:00:00Z。
+  - name: to
+    type: string
+    description: ISO-8601 UTC 新客归因时间窗结束时间（不包含），例如 2026-06-30T00:00:00Z。
+---
 kind: toolset
 name: agent_template_read_model
 tools:
@@ -845,6 +1954,27 @@ tools:
   - list-ecommerce-orders-in-window
   - get-ecommerce-order-detail
   - list-ecommerce-fulfillment-exceptions
+  - summarize_finance_overview
+  - summarize_payment_methods
+  - summarize_refunds_by_reason
+  - list_invoice_exceptions
+  - reconcile_channel_settlements
+  - summarize_carrier_performance
+  - list_logistics_exceptions
+  - get_shipment_trace
+  - summarize_delivery_sla
+  - summarize_freight_costs
+  - summarize_inventory_health
+  - list_stockout_risks
+  - summarize_inventory_by_warehouse
+  - summarize_procurement_spend
+  - summarize_supplier_performance
+  - list_purchase_order_exceptions
+  - summarize_campaign_performance
+  - summarize_marketing_by_channel
+  - summarize_coupon_performance
+  - list_underperforming_campaigns
+  - summarize_customer_acquisition
 ---
 kind: toolset
 name: ecommerce-sales-analytics
@@ -871,3 +2001,40 @@ name: ecommerce-fulfillment-operations
 tools:
   - list-ecommerce-fulfillment-exceptions
   - get-ecommerce-order-detail
+---
+kind: toolset
+name: finance-analysis
+tools:
+  - summarize_finance_overview
+  - summarize_payment_methods
+  - summarize_refunds_by_reason
+  - list_invoice_exceptions
+  - reconcile_channel_settlements
+---
+kind: toolset
+name: logistics-operations
+tools:
+  - summarize_carrier_performance
+  - list_logistics_exceptions
+  - get_shipment_trace
+  - summarize_delivery_sla
+  - summarize_freight_costs
+---
+kind: toolset
+name: supply-chain-operations
+tools:
+  - summarize_inventory_health
+  - list_stockout_risks
+  - summarize_inventory_by_warehouse
+  - summarize_procurement_spend
+  - summarize_supplier_performance
+  - list_purchase_order_exceptions
+---
+kind: toolset
+name: marketing-analysis
+tools:
+  - summarize_campaign_performance
+  - summarize_marketing_by_channel
+  - summarize_coupon_performance
+  - list_underperforming_campaigns
+  - summarize_customer_acquisition

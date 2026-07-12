@@ -7,6 +7,8 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import {
   toolboxCapabilityProfiles,
   toolboxToolNames,
+  toolboxToolScopes,
+  type ToolboxToolScope,
 } from "@agent-template/toolbox-config";
 import { startLocalToolbox } from "./local-toolbox-server.js";
 
@@ -21,13 +23,45 @@ const database = {
   user: process.env.TOOLBOX_POSTGRES_USER ?? "project_template",
 };
 const audience = process.env.TOOLBOX_OIDC_AUDIENCE ?? "agent-template-toolbox";
+const businessWindow = {
+  from: "2026-06-01T00:00:00Z",
+  to: "2026-07-01T00:00:00Z",
+};
+const minimumScopeCases = {
+  "agent-template:observe": {
+    arguments: { limit: 1 },
+    tool: "list-template-events",
+  },
+  "ecommerce:read": {
+    arguments: businessWindow,
+    tool: "summarize_sales_by_region",
+  },
+  "finance:read": {
+    arguments: businessWindow,
+    tool: "summarize_finance_overview",
+  },
+  "logistics:read": {
+    arguments: businessWindow,
+    tool: "summarize_carrier_performance",
+  },
+  "marketing:read": {
+    arguments: businessWindow,
+    tool: "summarize_marketing_by_channel",
+  },
+  "supply-chain:read": {
+    arguments: businessWindow,
+    tool: "summarize_inventory_health",
+  },
+} as const satisfies Record<
+  ToolboxToolScope,
+  { arguments: Record<string, unknown>; tool: string }
+>;
 
 async function main() {
   const oidc = await startLocalOidcIssuer(audience);
   let toolbox: Awaited<ReturnType<typeof startLocalToolbox>> | undefined;
   let client: Client | undefined;
-  let ecommerceClient: Client | undefined;
-  let observeClient: Client | undefined;
+  const scopedClients: Client[] = [];
 
   try {
     toolbox = await startLocalToolbox({
@@ -68,49 +102,21 @@ async function main() {
       },
     });
     assert.equal(result.isError, undefined);
-    assert.ok(result.content.length > 0);
+    assert.ok(Array.isArray(result.content) && result.content.length > 0);
 
-    ecommerceClient = await connectClient(
+    const denialCount = await verifyMinimumScopeMatrix(
       toolbox.url,
-      oidc.tokens.ecommerceRead,
-    );
-    const ecommerceResult = await ecommerceClient.callTool({
-      name: "summarize_sales_by_region",
-      arguments: {
-        from: "2026-06-01T00:00:00Z",
-        to: "2026-07-01T00:00:00Z",
-      },
-    });
-    assert.equal(ecommerceResult.isError, undefined);
-    await assertToolCallIsForbidden(
-      ecommerceClient,
-      "list-template-events",
-      { limit: 1 },
-      "agent-template:observe",
-    );
-
-    observeClient = await connectClient(toolbox.url, oidc.tokens.observe);
-    const observeResult = await observeClient.callTool({
-      name: "list-template-events",
-      arguments: { limit: 1 },
-    });
-    assert.equal(observeResult.isError, undefined);
-    await assertToolCallIsForbidden(
-      observeClient,
-      "summarize_sales_by_region",
-      {
-        from: "2026-06-01T00:00:00Z",
-        to: "2026-07-01T00:00:00Z",
-      },
-      "ecommerce:read",
+      oidc.scopes,
+      oidc.tokens.byScope,
+      scopedClients,
     );
 
     console.log(
-      `Local Toolbox OIDC verification passed: unauthenticated MCP rejected, 18 scoped tools listed, ${Object.keys(toolboxCapabilityProfiles).length} Agent capability profiles matched live tools, and ecommerce/observe minimum-scope clients passed positive and negative Tool calls.`,
+      `Local Toolbox OIDC verification passed: unauthenticated MCP rejected, ${toolboxToolNames.length} scoped tools listed, ${Object.keys(toolboxCapabilityProfiles).length} Agent capability profiles matched live tools, ${oidc.scopes.length} minimum-scope clients passed their positive calls, and all ${denialCount} directed cross-scope calls were denied.`,
     );
   } finally {
     await Promise.allSettled(
-      [observeClient, ecommerceClient, client]
+      [...scopedClients, client]
         .filter((item): item is Client => Boolean(item))
         .map((item) => withTimeout(item.close(), 2_000)),
     );
@@ -121,6 +127,51 @@ async function main() {
       await withTimeout(closeServer(oidc.server), 2_000).catch(() => undefined);
     }
   }
+}
+
+async function verifyMinimumScopeMatrix(
+  toolboxUrl: string,
+  scopes: readonly ToolboxToolScope[],
+  tokens: Readonly<Record<ToolboxToolScope, string>>,
+  clients: Client[],
+) {
+  const clientsByScope = new Map<ToolboxToolScope, Client>();
+
+  for (const scope of scopes) {
+    const scopedClient = await connectClient(toolboxUrl, tokens[scope]);
+    clients.push(scopedClient);
+    clientsByScope.set(scope, scopedClient);
+    const testCase = minimumScopeCases[scope];
+    const result = await scopedClient.callTool({
+      name: testCase.tool,
+      arguments: testCase.arguments,
+    });
+    assert.equal(
+      result.isError,
+      undefined,
+      `${scope} must authorize its representative tool ${testCase.tool}`,
+    );
+  }
+
+  let denialCount = 0;
+  for (const callerScope of scopes) {
+    const scopedClient = clientsByScope.get(callerScope);
+    assert.ok(scopedClient, `Missing minimum-scope client for ${callerScope}`);
+    for (const requiredScope of scopes) {
+      if (requiredScope === callerScope) continue;
+      const testCase = minimumScopeCases[requiredScope];
+      await assertToolCallIsForbidden(
+        scopedClient,
+        testCase.tool,
+        testCase.arguments,
+        requiredScope,
+      );
+      denialCount += 1;
+    }
+  }
+
+  assert.equal(denialCount, scopes.length * (scopes.length - 1));
+  return denialCount;
 }
 
 async function assertToolCallIsForbidden(
@@ -243,13 +294,20 @@ async function startLocalOidcIssuer(aud: string) {
       keyId,
     );
 
+  const scopes = Array.from(
+    new Set(Object.values(toolboxToolScopes)),
+  ) as ToolboxToolScope[];
+  const byScope = Object.fromEntries(
+    scopes.map((scope) => [scope, createToken(`mcp:tools ${scope}`)]),
+  ) as Record<ToolboxToolScope, string>;
+
   return {
     issuer,
+    scopes,
     server,
     tokens: {
-      all: createToken("mcp:tools ecommerce:read agent-template:observe"),
-      ecommerceRead: createToken("mcp:tools ecommerce:read"),
-      observe: createToken("mcp:tools agent-template:observe"),
+      all: createToken(`mcp:tools ${scopes.join(" ")}`),
+      byScope,
     },
   };
 }

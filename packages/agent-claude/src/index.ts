@@ -132,7 +132,7 @@ export async function checkClaudeAgentReadiness(
   let client: ClaudeToolboxReadinessClient | undefined;
   try {
     resolveClaudeFilesystemProject({
-      allowedTools: config.toolbox?.allowedTools,
+      enabledSkills: config.toolbox?.enabledSkills,
       projectDir: config.projectDir,
     });
     if (!config.toolbox) {
@@ -225,7 +225,7 @@ export async function runClaudeAgent(
 
   const sdk = await (options.loadSdk ?? loadClaudeAgentSdk)();
   const filesystemProject = resolveClaudeFilesystemProject({
-    allowedTools: config.toolbox?.allowedTools,
+    enabledSkills: config.toolbox?.enabledSkills,
     projectDir: config.projectDir,
   });
   const runEvents: AgentRunEvent[] = [];

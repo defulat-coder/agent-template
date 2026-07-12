@@ -2,34 +2,99 @@
   "generatedBy": "scripts/generate-toolbox-business-skills.ts",
   "skills": [
     {
+      "catalog": "ecommerce.yaml",
       "name": "ecommerce-sales-analysis",
+      "scope": "ecommerce:read",
       "tools": [
         "summarize-ecommerce-sales-by-channel",
         "summarize-ecommerce-sales-by-day",
         "summarize_sales_by_customer_segment",
         "summarize_sales_by_region"
-      ]
+      ],
+      "toolset": "ecommerce-sales-analytics"
     },
     {
+      "catalog": "ecommerce.yaml",
       "name": "ecommerce-product-analysis",
+      "scope": "ecommerce:read",
       "tools": [
         "list-ecommerce-top-products",
         "summarize_merchandise_by_category"
-      ]
+      ],
+      "toolset": "ecommerce-product-analytics"
     },
     {
+      "catalog": "ecommerce.yaml",
       "name": "ecommerce-order-operations",
+      "scope": "ecommerce:read",
       "tools": [
         "get-ecommerce-order-detail",
         "list-ecommerce-orders-in-window"
-      ]
+      ],
+      "toolset": "ecommerce-order-operations"
     },
     {
+      "catalog": "ecommerce.yaml",
       "name": "ecommerce-fulfillment-operations",
+      "scope": "ecommerce:read",
       "tools": [
         "get-ecommerce-order-detail",
         "list-ecommerce-fulfillment-exceptions"
-      ]
+      ],
+      "toolset": "ecommerce-fulfillment-operations"
+    },
+    {
+      "catalog": "finance.yaml",
+      "name": "finance-analysis",
+      "scope": "finance:read",
+      "tools": [
+        "list_invoice_exceptions",
+        "reconcile_channel_settlements",
+        "summarize_finance_overview",
+        "summarize_payment_methods",
+        "summarize_refunds_by_reason"
+      ],
+      "toolset": "finance-analysis"
+    },
+    {
+      "catalog": "logistics.yaml",
+      "name": "logistics-operations",
+      "scope": "logistics:read",
+      "tools": [
+        "get_shipment_trace",
+        "list_logistics_exceptions",
+        "summarize_carrier_performance",
+        "summarize_delivery_sla",
+        "summarize_freight_costs"
+      ],
+      "toolset": "logistics-operations"
+    },
+    {
+      "catalog": "supply-chain.yaml",
+      "name": "supply-chain-operations",
+      "scope": "supply-chain:read",
+      "tools": [
+        "list_purchase_order_exceptions",
+        "list_stockout_risks",
+        "summarize_inventory_by_warehouse",
+        "summarize_inventory_health",
+        "summarize_procurement_spend",
+        "summarize_supplier_performance"
+      ],
+      "toolset": "supply-chain-operations"
+    },
+    {
+      "catalog": "marketing.yaml",
+      "name": "marketing-analysis",
+      "scope": "marketing:read",
+      "tools": [
+        "list_underperforming_campaigns",
+        "summarize_campaign_performance",
+        "summarize_coupon_performance",
+        "summarize_customer_acquisition",
+        "summarize_marketing_by_channel"
+      ],
+      "toolset": "marketing-analysis"
     }
   ]
 }

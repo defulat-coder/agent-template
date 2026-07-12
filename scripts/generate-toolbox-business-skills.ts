@@ -15,77 +15,29 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { format } from "prettier";
 import {
-  toolboxCapabilityProfiles,
+  toolboxBusinessCapabilityPacks,
   toolboxToolNames,
+  type ToolboxBusinessCapabilityPackDefinition,
   type ToolboxToolName,
 } from "@agent-template/toolbox-config";
 
-type BusinessSkill = {
-  description: string;
-  name: string;
-  toolset: string;
-  workflow: string;
-};
+type BusinessSkill = ToolboxBusinessCapabilityPackDefinition;
 
 type GeneratedBusinessSkillMetadata = {
+  catalog: string;
   name: string;
+  scope: BusinessSkill["scope"];
   tools: ToolboxToolName[];
+  toolset: string;
 };
 
-const businessSkills: BusinessSkill[] = [
-  {
-    name: "ecommerce-sales-analysis",
-    toolset: "ecommerce-sales-analytics",
-    description:
-      "分析电商销售额、退款、净销售额、买家数与渠道表现。用户询问销售趋势、GMV、退款、净销售额或渠道对比时使用。",
-    workflow: `1. 要求或确认不超过 31 天的 UTC \`[from, to)\` 时间窗。
-2. 先调用 \`summarize-ecommerce-sales-by-day\` 判断趋势和异常日期。
-3. 需要渠道归因时，再调用 \`summarize-ecommerce-sales-by-channel\`。
-4. 用户询问大区时调用 \`summarize_sales_by_region\`；询问新客、活跃、VIP 或流失风险人群时调用 \`summarize_sales_by_customer_segment\`。
-5. 指标口径仅包含 \`PAID\`、\`FULFILLED\` 和 \`REFUNDED\` 订单；明确区分 \`grossSales\`、\`refundAmount\` 与 \`netSales\`。
-6. 渠道、区域和分群 \`averageOrderValue\` 是平均单笔净销售额，不要把退款前销售额描述成实际收入。`,
-  },
-  {
-    name: "ecommerce-product-analysis",
-    toolset: "ecommerce-product-analytics",
-    description:
-      "按销量、商品销售总额和退款调整后的净商品销售额分析商品表现。用户询问商品排行、畅销商品、品类表现或选品分析时使用。",
-    workflow: `1. 要求或确认不超过 31 天的 UTC \`[from, to)\` 时间窗，并设置有界 \`limit\`。
-2. 调用 \`list-ecommerce-top-products\` 获取商品排行。
-3. 用户询问品类时调用 \`summarize_merchandise_by_category\`，不把商品排行当作品类汇总。
-4. 同时解释销量、毛商品销售额与退款分摊后的净商品销售额；这两个销售额都不包含运费。
-5. 不从排行结果推断库存、利润或转化率；当前 Tool 没有这些字段。`,
-  },
-  {
-    name: "ecommerce-order-operations",
-    toolset: "ecommerce-order-operations",
-    description:
-      "通过有界订单列表和精确订单明细排查电商订单。用户询问订单状态、客户分群背景、具体订单号或订单级故障时使用。",
-    workflow: `1. 用户提供订单号时，直接调用 \`get-ecommerce-order-detail\`，不要先扫描订单列表。
-2. 用户询问一段时间的订单时，调用 \`list-ecommerce-orders-in-window\`，时间窗不超过 31 天且结果有界。
-3. 需要继续核查时，只对用户选中的具体订单调用详情 Tool。
-4. 返回合成 customer code、segment 和地区即可；不要声称存在联系方式或真实个人信息。`,
-  },
-  {
-    name: "ecommerce-fulfillment-operations",
-    toolset: "ecommerce-fulfillment-operations",
-    description:
-      "查找已付款但未履约的电商订单并支持履约异常排查。用户询问履约积压、等待时长、延迟订单或运营异常时使用。",
-    workflow: `1. 要求或确认不超过 31 天的 UTC \`[from, to)\` 时间窗，并设置有界 \`limit\`。
-2. 调用 \`list-ecommerce-fulfillment-exceptions\` 获取已支付未履约订单。
-3. 将 \`to\` 解释为等待时长的参考时间，不要当作当前系统时间。
-4. 需要订单项时，仅对具体异常订单调用 \`get-ecommerce-order-detail\`。`,
-  },
-];
+const businessSkills: readonly BusinessSkill[] = toolboxBusinessCapabilityPacks;
 
 const repositoryRoot = fileURLToPath(new URL("..", import.meta.url));
 const claudePackageRoot = join(repositoryRoot, "packages/agent-claude");
 const evePackageRoot = join(repositoryRoot, "packages/agent-eve");
 const toolboxConfig = join(repositoryRoot, "apps/toolbox/tools.yaml");
-const ecommerceSemanticCatalog = join(
-  repositoryRoot,
-  "apps/toolbox/semantic/ecommerce.yaml",
-);
+const semanticCatalogRoot = join(repositoryRoot, "apps/toolbox/semantic");
 const toolboxExecutable = join(
   repositoryRoot,
   "node_modules/.bin",
@@ -108,7 +60,11 @@ const staleOutputs: string[] = [];
 const generatedBusinessSkillMetadata: GeneratedBusinessSkillMetadata[] = [];
 const claudeSkillsRoot = join(claudePackageRoot, ".claude/skills");
 const eveSkillsRoot = join(evePackageRoot, "agent/skills");
-const eveSemanticCatalogModule = join(
+const eveSemanticCatalogsModule = join(
+  evePackageRoot,
+  "agent/lib/business-semantic-catalogs.ts",
+);
+const compatibilityEveSemanticCatalogModule = join(
   evePackageRoot,
   "agent/lib/ecommerce-semantic-catalog.ts",
 );
@@ -120,21 +76,45 @@ main().catch((error: unknown) => {
 
 async function main() {
   try {
-    const eveSemanticCatalogSource = await renderEveSemanticCatalogModule();
+    const eveSemanticCatalogSource = await renderEveSemanticCatalogsModule();
+    const compatibilityEveSemanticCatalogSource =
+      await renderCompatibilityEveSemanticCatalogModule();
     if (checkOnly) {
       if (
-        !existsSync(eveSemanticCatalogModule) ||
-        readFileSync(eveSemanticCatalogModule, "utf8") !==
+        !existsSync(eveSemanticCatalogsModule) ||
+        readFileSync(eveSemanticCatalogsModule, "utf8") !==
           eveSemanticCatalogSource
       ) {
-        staleOutputs.push(eveSemanticCatalogModule);
+        staleOutputs.push(eveSemanticCatalogsModule);
+      }
+      if (
+        !existsSync(compatibilityEveSemanticCatalogModule) ||
+        readFileSync(compatibilityEveSemanticCatalogModule, "utf8") !==
+          compatibilityEveSemanticCatalogSource
+      ) {
+        staleOutputs.push(compatibilityEveSemanticCatalogModule);
       }
     } else {
-      mkdirSync(dirname(eveSemanticCatalogModule), { recursive: true });
-      writeFileSync(eveSemanticCatalogModule, eveSemanticCatalogSource, "utf8");
+      mkdirSync(dirname(eveSemanticCatalogsModule), { recursive: true });
+      writeFileSync(
+        eveSemanticCatalogsModule,
+        eveSemanticCatalogSource,
+        "utf8",
+      );
+      writeFileSync(
+        compatibilityEveSemanticCatalogModule,
+        compatibilityEveSemanticCatalogSource,
+        "utf8",
+      );
     }
 
     for (const skill of businessSkills) {
+      const semanticCatalog = join(semanticCatalogRoot, skill.catalog);
+      if (!existsSync(semanticCatalog)) {
+        throw new Error(
+          `${skill.name} semantic catalog does not exist: ${semanticCatalog}`,
+        );
+      }
       execFileSync(
         toolboxExecutable,
         [
@@ -172,12 +152,16 @@ async function main() {
         toolNames,
       );
       generatedBusinessSkillMetadata.push({
+        catalog: skill.catalog,
         name: skill.name,
+        scope: skill.scope,
         tools: validatedToolNames.sort(),
+        toolset: skill.toolset,
       });
       const adaptedMarkdown = adaptSkillMarkdown(
         generatedMarkdown,
         skill.workflow,
+        skill.catalog,
       );
 
       if (checkOnly) {
@@ -194,7 +178,8 @@ async function main() {
       const claudeMarkdown = join(claudeSkill, "SKILL.md");
       const claudeSemanticCatalog = join(
         claudeSkill,
-        "references/ecommerce-semantic-catalog.yaml",
+        "references",
+        skill.catalog,
       );
       const formattedClaudeMarkdown = await format(
         useRuntimeToolNames(adaptedMarkdown, toolNames, "claude"),
@@ -208,14 +193,10 @@ async function main() {
       const eveSource = await renderEveDynamicSkill(
         skill,
         formattedEveMarkdown,
-        validatedToolNames,
       );
 
       if (checkOnly) {
-        const expectedClaudeFiles = [
-          "SKILL.md",
-          "references/ecommerce-semantic-catalog.yaml",
-        ];
+        const expectedClaudeFiles = ["SKILL.md", `references/${skill.catalog}`];
         const claudeFiles = existsSync(claudeSkill)
           ? listRelativeFiles(claudeSkill)
           : [];
@@ -225,7 +206,7 @@ async function main() {
           readFileSync(claudeMarkdown, "utf8") !== formattedClaudeMarkdown ||
           !existsSync(claudeSemanticCatalog) ||
           !readFileSync(claudeSemanticCatalog).equals(
-            readFileSync(ecommerceSemanticCatalog),
+            readFileSync(semanticCatalog),
           )
         ) {
           staleOutputs.push(claudeMarkdown);
@@ -244,7 +225,7 @@ async function main() {
       mkdirSync(claudeSkill, { recursive: true });
       writeFileSync(claudeMarkdown, formattedClaudeMarkdown, "utf8");
       mkdirSync(dirname(claudeSemanticCatalog), { recursive: true });
-      copyFileSync(ecommerceSemanticCatalog, claudeSemanticCatalog);
+      copyFileSync(semanticCatalog, claudeSemanticCatalog);
 
       rmSync(join(eveSkillsRoot, skill.name), { force: true, recursive: true });
       mkdirSync(eveSkillsRoot, { recursive: true });
@@ -272,7 +253,11 @@ async function main() {
   }
 }
 
-function adaptSkillMarkdown(markdown: string, workflow: string) {
+function adaptSkillMarkdown(
+  markdown: string,
+  workflow: string,
+  semanticCatalog: string,
+) {
   const usageHeading = "\n## Usage\n";
   const scriptsHeading = "\n## Scripts\n";
   const usageIndex = markdown.indexOf(usageHeading);
@@ -300,40 +285,37 @@ ${workflow}
 
 ## Business semantic catalog
 
-涉及业务术语、指标、维度或枚举取值时，先读取 \`references/ecommerce-semantic-catalog.yaml\`。只使用其中认证的术语、口径和 Tool；遇到标记为 \`clarify\` 的术语，先向用户澄清，不要猜测或生成任意 SQL。
+涉及业务术语、指标、维度或枚举取值时，先读取 \`references/${semanticCatalog}\`。只使用其中认证的术语、口径和 Tool；遇到标记为 \`clarify\` 的术语，先向用户澄清，不要猜测或生成任意 SQL。
 ${toolReference}`;
 }
 
-async function renderEveDynamicSkill(
-  skill: BusinessSkill,
-  markdown: string,
-  requiredTools: readonly ToolboxToolName[],
-) {
+async function renderEveDynamicSkill(skill: BusinessSkill, markdown: string) {
   const body = markdown.replace(/^---\n[\s\S]*?\n---\n+/u, "");
 
   return format(
     `import { defineDynamic, defineSkill } from "eve/skills";
-import { hasToolboxCapabilities } from "../lib/capability-profile";
-import { ecommerceSemanticCatalog } from "../lib/ecommerce-semantic-catalog";
+import { hasToolboxSkill } from "../lib/capability-profile";
+import { businessSemanticCatalogs } from "../lib/business-semantic-catalogs";
 
-const requiredTools = ${JSON.stringify(requiredTools)} as const;
 const skill = defineSkill(${JSON.stringify(
       {
         description: skill.description,
         markdown: body,
         files: {
-          "references/ecommerce-semantic-catalog.yaml":
-            "__ECOMMERCE_SEMANTIC_CATALOG__",
+          [`references/${skill.catalog}`]: "__BUSINESS_SEMANTIC_CATALOG__",
         },
       },
       null,
       2,
-    ).replace('"__ECOMMERCE_SEMANTIC_CATALOG__"', "ecommerceSemanticCatalog")});
+    ).replace(
+      '"__BUSINESS_SEMANTIC_CATALOG__"',
+      `businessSemanticCatalogs[${JSON.stringify(skill.catalog)}]`,
+    )});
 
 export default defineDynamic({
   events: {
     "session.started": () =>
-      hasToolboxCapabilities(requiredTools) ? skill : null,
+      hasToolboxSkill(${JSON.stringify(skill.name)}) ? skill : null,
   },
 });
 `,
@@ -341,10 +323,30 @@ export default defineDynamic({
   );
 }
 
-async function renderEveSemanticCatalogModule() {
-  const catalog = readFileSync(ecommerceSemanticCatalog, "utf8");
+async function renderEveSemanticCatalogsModule() {
+  const catalogs = Object.fromEntries(
+    Array.from(new Set(businessSkills.map((skill) => skill.catalog)))
+      .sort()
+      .map((catalog) => [
+        catalog,
+        readFileSync(join(semanticCatalogRoot, catalog), "utf8"),
+      ]),
+  );
   return format(
-    `export const ecommerceSemanticCatalog = ${JSON.stringify(catalog)};\n`,
+    `export const businessSemanticCatalogs = ${JSON.stringify(catalogs, null, 2)} as const;\n`,
+    { parser: "typescript" },
+  );
+}
+
+async function renderCompatibilityEveSemanticCatalogModule() {
+  return format(
+    `import { businessSemanticCatalogs } from "./business-semantic-catalogs";
+
+// Preserve the former single-domain export for downstream imports and durable
+// source links stored in committed ZRead snapshots.
+export const ecommerceSemanticCatalog =
+  businessSemanticCatalogs["ecommerce.yaml"];
+`,
     { parser: "typescript" },
   );
 }
@@ -579,7 +581,7 @@ function containsChinese(value: string) {
 function validateExecutionSurfaces(skillName: string, toolNames: string[]) {
   const knownTools = new Set(toolboxToolNames);
   const profiledTools = new Set(
-    Object.values(toolboxCapabilityProfiles).flat(),
+    toolboxBusinessCapabilityPacks.flatMap((pack) => pack.tools),
   );
   const eveConnection = readFileSync(
     join(evePackageRoot, "agent/connections/toolbox.ts"),

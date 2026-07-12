@@ -1,0 +1,66 @@
+kind: semantic-query-evaluation
+catalog: synthetic-marketing-analysis
+version: 1
+cases:
+  - id: campaign-route
+    category: route
+    question: 本月各营销活动的 ROAS 怎样？
+    expected:
+      intent: campaign_performance
+      tool: summarize_campaign_performance
+      terms: [campaign, return_on_ad_spend, attributed_revenue]
+      requiresClarification: false
+  - id: channel-route
+    category: route
+    question: 各营销渠道的归因收入和新客数
+    expected:
+      intent: marketing_channels
+      tool: summarize_marketing_by_channel
+      terms: [marketing_channel, attributed_revenue, new_customer_count]
+      requiresClarification: false
+  - id: coupon-route
+    category: route
+    question: 哪个优惠券带来的归因订单最多？
+    expected:
+      intent: coupon_performance
+      tool: summarize_coupon_performance
+      terms: [coupon, attributed_order_count]
+      requiresClarification: false
+  - id: underperforming-route
+    category: route
+    question: 列出花费高但 ROAS 低的活动
+    expected:
+      intent: underperforming_campaigns
+      tool: list_underperforming_campaigns
+      terms: [campaign, return_on_ad_spend]
+      requiresClarification: false
+  - id: acquisition-route
+    category: route
+    question: 各渠道新客数和获客成本是多少？
+    expected:
+      intent: customer_acquisition
+      tool: summarize_customer_acquisition
+      terms: [marketing_channel, new_customer_count, customer_acquisition_cost]
+      requiresClarification: false
+  - id: ambiguous-conversion
+    category: ambiguity
+    question: 本月营销转化率多少？
+    expected:
+      ambiguity: 转化率
+      requiresClarification: true
+  - id: empty-future-marketing
+    category: empty-result
+    question: 查询 2027 年的活动表现
+    expected:
+      intent: campaign_performance
+      tool: summarize_campaign_performance
+      terms: [attributed_revenue]
+      requiresClarification: false
+  - id: underperforming-exception
+    category: exception
+    question: 哪些活动窗口内归因收入低于归因费用？
+    expected:
+      intent: underperforming_campaigns
+      tool: list_underperforming_campaigns
+      terms: [allocated_spend, return_on_ad_spend]
+      requiresClarification: false

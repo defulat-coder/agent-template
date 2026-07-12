@@ -5,6 +5,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import {
   parseToolboxAgentConfig,
+  toolboxBusinessCapabilityPacks,
   toolboxToolNames,
 } from "@agent-template/toolbox-config";
 import { prisma } from "@agent-template/db";
@@ -113,10 +114,17 @@ async function assertToolCallFails(
 
 async function main() {
   const dockerMode = process.argv.includes("--docker");
+  const preparedDatabase = process.argv.includes("--prepared-database");
+  assert.ok(
+    !(dockerMode && preparedDatabase),
+    "--docker and --prepared-database cannot be combined",
+  );
   if (dockerMode) run("docker", ["compose", "up", "-d", "postgres", "toolbox"]);
-  run("pnpm", ["db:generate"]);
-  run("pnpm", ["db:deploy"]);
-  run("pnpm", ["db:seed"]);
+  if (!preparedDatabase) {
+    run("pnpm", ["db:generate"]);
+    run("pnpm", ["db:deploy"]);
+    run("pnpm", ["db:seed"]);
+  }
   await seedAgentRunVerificationData();
   if (dockerMode) {
     run("docker", ["compose", "up", "-d", "--force-recreate", "toolbox"]);
@@ -254,6 +262,137 @@ async function main() {
     assert.equal(fulfillment.length, 3);
     assert.equal(fulfillment[0]?.orderNumber, "EC20260601004");
 
+    const financeProfile = parseToolboxAgentConfig({
+      AGENT_CAPABILITY_PROFILE: "finance-controller",
+      TOOLBOX_URL: toolboxUrl,
+    });
+    assert.deepEqual(financeProfile?.enabledSkills, ["finance-analysis"]);
+    assert.equal(financeProfile?.allowedTools.length, 5);
+    const financeOverview = await callRows(
+      client,
+      "summarize_finance_overview",
+      timeWindow,
+    );
+    assert.equal(financeOverview.length, 1);
+    assert.ok(Number(financeOverview[0]?.netCollected) > 0);
+    assert.ok(
+      (await callRows(client, "summarize_payment_methods", timeWindow)).length >
+        0,
+    );
+    assert.ok(
+      (await callRows(client, "summarize_refunds_by_reason", timeWindow))
+        .length > 0,
+    );
+    const invoiceExceptions = await callRows(
+      client,
+      "list_invoice_exceptions",
+      { ...timeWindow, limit: 5, offset: 0 },
+    );
+    assert.ok(invoiceExceptions.length > 0);
+    const channelSettlements = await callRows(
+      client,
+      "reconcile_channel_settlements",
+      timeWindow,
+    );
+    assert.ok(channelSettlements.length > 0);
+    const pendingSettlements = channelSettlements.filter(
+      (row) => row.status === "PENDING",
+    );
+    assert.ok(pendingSettlements.length > 0);
+    assert.ok(
+      pendingSettlements.every(
+        (row) => row.settledAmount === null && row.differenceAmount === null,
+      ),
+      "pending settlements must not expose actual settlement amounts",
+    );
+
+    const carrierPerformance = await callRows(
+      client,
+      "summarize_carrier_performance",
+      timeWindow,
+    );
+    assert.equal(carrierPerformance.length, 4);
+    const logisticsExceptions = await callRows(
+      client,
+      "list_logistics_exceptions",
+      { ...timeWindow, limit: 5, offset: 0 },
+    );
+    assert.ok(logisticsExceptions.length > 0);
+    const shipmentTrace = await callRows(client, "get_shipment_trace", {
+      shipmentNumber: logisticsExceptions[0]?.shipmentNumber,
+      limit: 100,
+    });
+    assert.ok(shipmentTrace.length >= 3);
+    assert.ok(
+      (await callRows(client, "summarize_delivery_sla", timeWindow)).length > 0,
+    );
+    assert.ok(
+      (await callRows(client, "summarize_freight_costs", timeWindow)).length >
+        0,
+    );
+
+    const inventoryHealth = await callRows(
+      client,
+      "summarize_inventory_health",
+      timeWindow,
+    );
+    assert.ok(inventoryHealth.length >= 3);
+    const stockoutRisks = await callRows(client, "list_stockout_risks", {
+      ...timeWindow,
+      limit: 5,
+      offset: 0,
+    });
+    assert.ok(stockoutRisks.length > 0);
+    const supplierPerformance = await callRows(
+      client,
+      "summarize_supplier_performance",
+      timeWindow,
+    );
+    assert.ok(supplierPerformance.length > 0);
+    assert.ok(
+      (await callRows(client, "summarize_inventory_by_warehouse", timeWindow))
+        .length > 0,
+    );
+    assert.ok(
+      (await callRows(client, "summarize_procurement_spend", timeWindow))
+        .length > 0,
+    );
+    const purchaseOrderExceptions = await callRows(
+      client,
+      "list_purchase_order_exceptions",
+      { ...timeWindow, limit: 100, offset: 0 },
+    );
+    assert.ok(purchaseOrderExceptions.length > 0);
+    assert.ok(
+      purchaseOrderExceptions.every((row) => row.status !== "CANCELLED"),
+      "cancelled purchase orders must not be classified as exceptions",
+    );
+
+    const campaignPerformance = await callRows(
+      client,
+      "summarize_campaign_performance",
+      timeWindow,
+    );
+    assert.ok(campaignPerformance.length > 0);
+    const underperformingCampaigns = await callRows(
+      client,
+      "list_underperforming_campaigns",
+      { ...timeWindow, limit: 5, offset: 0 },
+    );
+    assert.ok(underperformingCampaigns.length > 0);
+    assert.ok(
+      (await callRows(client, "summarize_marketing_by_channel", timeWindow))
+        .length > 0,
+    );
+    assert.ok(
+      (await callRows(client, "summarize_coupon_performance", timeWindow))
+        .length > 0,
+    );
+    assert.ok(
+      (await callRows(client, "summarize_customer_acquisition", timeWindow))
+        .length > 0,
+    );
+
     const agentRuns = await callRows(client, "list-agent-runs", { limit: 100 });
     const completedRun = agentRuns.find(
       (row) => row.runId === verificationRunIds[0],
@@ -321,7 +460,7 @@ async function main() {
     );
 
     console.log(
-      `Toolbox MCP ${dockerMode ? "Docker" : "local"} verification passed: 18 tools listed, 10 Ecommerce scenarios, and 5 durable Agent run scenarios verified.`,
+      `Toolbox MCP ${dockerMode ? "Docker" : "local"} verification passed: ${toolboxToolNames.length} tools listed, ${new Set(toolboxBusinessCapabilityPacks.flatMap((pack) => pack.tools)).size} business tools executed across ${toolboxBusinessCapabilityPacks.length} Capability Packs, plus durable Agent run scenarios.`,
     );
   } finally {
     await client?.close();

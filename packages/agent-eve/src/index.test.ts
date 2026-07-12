@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import {
+  toolboxBusinessCapabilityPacks,
+  toolboxToolNames,
+} from "@agent-template/toolbox-config";
+import {
   checkEveAgentReadiness,
   defaultEveAgentModel,
   eveAgentDirectory,
@@ -13,33 +17,31 @@ import {
 
 describe("Eve Agent runtime", () => {
   it("installs the Toolbox business skills in the authored surface", () => {
-    const skillNames = [
-      "ecommerce-sales-analysis",
-      "ecommerce-product-analysis",
-      "ecommerce-order-operations",
-      "ecommerce-fulfillment-operations",
-    ];
-
-    for (const skillName of skillNames) {
+    for (const pack of toolboxBusinessCapabilityPacks) {
       const skill = readFileSync(
-        new URL(`../agent/skills/${skillName}.ts`, import.meta.url),
+        new URL(`../agent/skills/${pack.name}.ts`, import.meta.url),
         "utf8",
       );
 
       expect(skill).toContain("defineDynamic");
-      expect(skill).toContain("hasToolboxCapabilities(requiredTools)");
+      expect(skill).toContain(`hasToolboxSkill("${pack.name}")`);
       expect(skill).toContain("Toolbox MCP");
       expect(skill).toContain("Business semantic catalog");
       expect(skill).toContain("### `toolbox__");
-      expect(skill).toContain("ecommerceSemanticCatalog");
+      expect(skill).toContain(`references/${pack.catalog}`);
+      expect(skill).toContain(`businessSemanticCatalogs["${pack.catalog}"]`);
     }
 
-    expect(
-      readFileSync(
-        new URL("../agent/lib/ecommerce-semantic-catalog.ts", import.meta.url),
-        "utf8",
-      ),
-    ).toContain("kind: business-semantic-catalog");
+    const catalogs = readFileSync(
+      new URL("../agent/lib/business-semantic-catalogs.ts", import.meta.url),
+      "utf8",
+    );
+    expect(catalogs).toContain("kind: business-semantic-catalog");
+    for (const catalog of new Set(
+      toolboxBusinessCapabilityPacks.map((pack) => pack.catalog),
+    )) {
+      expect(catalogs).toContain(`"${catalog}"`);
+    }
   });
 
   it("points at the package-local authored surface", () => {
@@ -131,7 +133,7 @@ describe("Eve Agent runtime", () => {
     };
 
     expect(toolbox.url).toBe("http://localhost:15000/mcp");
-    expect(toolbox.tools?.allow).toHaveLength(18);
+    expect(toolbox.tools?.allow).toHaveLength(toolboxToolNames.length);
     expect(toolbox.tools?.allow).toContain("summarize_sales_by_region");
     expect(
       existsSync(new URL("../agent/tools/toolbox.ts", import.meta.url)),
