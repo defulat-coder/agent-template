@@ -20,7 +20,7 @@ pnpm db:seed
 pnpm dev
 ```
 
-Docker Compose 是显式选择的容器启动方式，不是默认构建或回归验证路径。
+Docker Compose 是显式选择的容器启动方式，不是默认构建或回归验证路径。启动前必须设置至少 16 位的 `AGENT_API_TOKEN`；Compose 会先运行一次 `pnpm db:deploy`，成功后才启动 Toolbox、API 和 Worker，Web 通过容器内地址和同一个 Token 访问 API。
 
 默认服务：
 
@@ -40,6 +40,7 @@ pnpm build
 pnpm lint
 pnpm typecheck
 pnpm test
+pnpm deploy:check
 pnpm db:generate
 pnpm db:migrate
 pnpm db:seed

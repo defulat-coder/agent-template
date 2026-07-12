@@ -17,11 +17,14 @@ x-runtime-environment: &runtime-environment
   EVE_AGENT_SERVICE_TOKEN: ${EVE_AGENT_SERVICE_TOKEN:-}
   CLAUDE_CODE_AUTO_COMPACT_WINDOW: ${CLAUDE_CODE_AUTO_COMPACT_WINDOW:-262144}
 
-x-app-service: &app-service
+x-app-build: &app-build
   build:
     context: .
     dockerfile: Dockerfile
     provenance: false
+
+x-app-service: &app-service
+  <<: *app-build
   restart: unless-stopped
   depends_on:
     postgres:
@@ -60,6 +63,17 @@ services:
       timeout: 3s
       retries: 10
 
+  db-migrate:
+    <<: *app-build
+    command: pnpm db:deploy
+    restart: "no"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://project_template:project_template@postgres:5432/project_template?schema=public
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   toolbox:
     image: us-central1-docker.pkg.dev/database-toolbox/toolbox/toolbox:1.6.0
     restart: unless-stopped
@@ -83,8 +97,8 @@ services:
       TOOLBOX_POSTGRES_USER: project_template
       TOOLBOX_POSTGRES_PASSWORD: project_template
     depends_on:
-      postgres:
-        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
     ports:
       - "127.0.0.1:15000:15000"
     volumes:
@@ -97,9 +111,10 @@ services:
       <<: *runtime-environment
       API_HOST: 0.0.0.0
       API_PORT: 14000
+      AGENT_API_TOKEN: ${AGENT_API_TOKEN:?set AGENT_API_TOKEN to at least 16 characters}
     depends_on:
-      postgres:
-        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       toolbox:
@@ -120,8 +135,8 @@ services:
     environment:
       <<: *runtime-environment
     depends_on:
-      postgres:
-        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       toolbox:
@@ -144,7 +159,11 @@ services:
     ports:
       - "127.0.0.1:13010:13010"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:13010/eve/v1/health >/dev/null"]
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://127.0.0.1:13010/eve/v1/health >/dev/null",
+        ]
       interval: 10s
       timeout: 3s
       retries: 10
@@ -154,7 +173,8 @@ services:
     command: pnpm --filter @agent-template/web start
     environment:
       NODE_ENV: production
-      NEXT_PUBLIC_API_BASE_URL: http://localhost:14000
+      AGENT_API_URL: http://api:14000
+      AGENT_TEMPLATE_TOKEN: ${AGENT_API_TOKEN:?set AGENT_API_TOKEN to at least 16 characters}
     depends_on:
       api:
         condition: service_healthy

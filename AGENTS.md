@@ -13,6 +13,7 @@
 - 使用 pnpm：`pnpm install`、`pnpm dev`、`pnpm lint`、`pnpm test`、`pnpm typecheck`、`pnpm build`、`pnpm db:generate`、`pnpm db:migrate`、`pnpm db:seed`。
 - 按影响范围运行 `pnpm --filter <package> lint|typecheck|test`；跨模块改动再运行全仓门禁。
 - 默认在本地验证；只有用户明确要求时才运行 Docker Compose 或内部调用它的 verifier。
+- `pnpm deploy:check` 静态校验 Docker install layer 的 workspace manifest 闭包，以及 Compose 的迁移、内部 Agent API 地址和 Token 闭包；根 `pnpm build` 自动运行该门禁。
 - 服务端口：Web `13000`、API `14000`、Toolbox `15000`、PostgreSQL `15432`、Redis `16379`；`pnpm toolbox:verify:local` 自行管理临时 Toolbox。
 - 项目 Wiki 由项目 `devDependencies` 中的 ZRead CLI 通过 `pnpm docs:zread:update` 生成；`.zread/config/index.yaml` 组合项目级配置，`.zread/wiki/current` 指向版本的 `wiki.json` 与 Markdown 是产物事实源。生成页不得手工维护，CI 只允许手动触发并通过 PR 更新。
 

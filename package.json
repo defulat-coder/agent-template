@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "turbo dev",
-    "build": "turbo build",
+    "build": "pnpm deploy:check && turbo build",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck && pnpm docs:zread:typecheck",
     "test": "turbo test && pnpm docs:zread:test",
@@ -18,6 +18,9 @@
     "docs:zread:test": "node --import tsx --test .zread/scripts/*.test.ts",
     "docs:zread:typecheck": "tsc --noEmit --module preserve --moduleResolution bundler --target es2024 --types node --skipLibCheck --strict .zread/scripts/*.ts",
     "docs:zread:update": "node --env-file-if-exists=.env --import tsx .zread/scripts/update.ts",
+    "deploy:check": "pnpm deploy:check:dockerfile && pnpm deploy:check:compose",
+    "deploy:check:compose": "tsx scripts/check-compose-deployment.ts",
+    "deploy:check:dockerfile": "tsx scripts/check-docker-workspace-manifests.ts",
     "db:verify:boundaries": "tsx scripts/verify-database-boundaries.ts",
     "db:verify:fixture:empty": "pnpm --filter @agent-template/ecommerce-fixture exec tsx scripts/verify-empty-database.ts",
     "db:verify:fixture:partial": "pnpm --filter @agent-template/ecommerce-fixture exec tsx scripts/verify-empty-database.ts --partial",
