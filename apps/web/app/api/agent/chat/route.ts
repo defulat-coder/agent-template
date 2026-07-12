@@ -1,108 +1,72 @@
-import { createAgentPlatformClient } from "@agent-template/agent-client";
 import { AgentRunInputSchema } from "@agent-template/shared";
+import {
+  createServerAgentClient,
+  createServerAgentErrorResponse,
+  describeServerAgentError,
+  linkAbortSignal,
+} from "@/lib/server-agent-client";
 
 export async function POST(request: Request) {
-  const raw = await request.json();
-  const input = AgentRunInputSchema.parse(raw);
-  const client = createAgentPlatformClient({
-    baseUrl:
-      process.env.AGENT_API_URL ??
-      process.env.NEXT_PUBLIC_API_BASE_URL ??
-      "http://localhost:14000",
-    ...((process.env.AGENT_TEMPLATE_TOKEN ?? process.env.AGENT_API_TOKEN)
-      ? {
-          token:
-            process.env.AGENT_TEMPLATE_TOKEN ?? process.env.AGENT_API_TOKEN,
-        }
-      : {}),
-  });
-  const conversationId = readConversationId(raw);
-  const conversation = conversationId
-    ? await client.conversations.get(conversationId, {
-        signal: request.signal,
-      })
-    : await client.conversations.create(
+  try {
+    const raw = await request.json();
+    const input = AgentRunInputSchema.parse(raw);
+    const client = createServerAgentClient();
+    const upstreamAbort = new AbortController();
+    const removeRequestAbort = linkAbortSignal(request.signal, upstreamAbort);
+    const conversationId = readConversationId(raw);
+    try {
+      const conversation = conversationId
+        ? await client.conversations.get(conversationId, {
+            signal: upstreamAbort.signal,
+          })
+        : await client.conversations.create(
+            { title: toConversationTitle(input.prompt) },
+            { signal: upstreamAbort.signal },
+          );
+      const frames = client.conversations.send(conversation.id, input, {
+        signal: upstreamAbort.signal,
+      });
+      const encoder = new TextEncoder();
+
+      return new Response(
+        new ReadableStream({
+          async start(controller) {
+            try {
+              for await (const frame of frames) {
+                controller.enqueue(encoder.encode(encodeSse("frame", frame)));
+              }
+            } catch (error) {
+              if (!upstreamAbort.signal.aborted) {
+                const { envelope } = describeServerAgentError(error);
+                controller.enqueue(
+                  encoder.encode(encodeSse("error", envelope)),
+                );
+              }
+            } finally {
+              removeRequestAbort();
+              if (!upstreamAbort.signal.aborted) controller.close();
+            }
+          },
+          cancel() {
+            upstreamAbort.abort("Agent chat response cancelled");
+            removeRequestAbort();
+          },
+        }),
         {
-          title:
-            input.prompt.length > 60
-              ? `${input.prompt.slice(0, 57)}...`
-              : input.prompt,
-        },
-        {
-          signal: request.signal,
+          headers: {
+            "Cache-Control": "no-cache, no-transform",
+            "Content-Type": "text/event-stream; charset=utf-8",
+            "X-Accel-Buffering": "no",
+          },
         },
       );
-  const upstreamAbort = new AbortController();
-  const abortUpstream = () => upstreamAbort.abort(request.signal.reason);
-  request.signal.addEventListener("abort", abortUpstream, { once: true });
-  const frames = client.conversations.send(conversation.id, input, {
-    signal: upstreamAbort.signal,
-  });
-  const encoder = new TextEncoder();
-
-  return new Response(
-    new ReadableStream({
-      async start(controller) {
-        try {
-          for await (const frame of frames) {
-            if (frame.type === "accepted") {
-              controller.enqueue(
-                encoder.encode(
-                  `event: run-accepted\ndata: ${JSON.stringify({
-                    runId: frame.runId,
-                    ...(frame.conversationId
-                      ? { conversationId: frame.conversationId }
-                      : {}),
-                  })}\n\n`,
-                ),
-              );
-            }
-            if (frame.type === "event") {
-              controller.enqueue(
-                encoder.encode(
-                  `event: agent-event\ndata: ${JSON.stringify(frame.event)}\n\n`,
-                ),
-              );
-            }
-            if (frame.type === "terminal") {
-              controller.enqueue(
-                encoder.encode(
-                  `event: result\ndata: ${JSON.stringify(frame.result)}\n\n`,
-                ),
-              );
-            }
-          }
-        } catch (error) {
-          if (!upstreamAbort.signal.aborted) {
-            controller.enqueue(
-              encoder.encode(
-                `event: error\ndata: ${JSON.stringify({
-                  message:
-                    error instanceof Error
-                      ? error.message
-                      : "Agent chat failed",
-                })}\n\n`,
-              ),
-            );
-          }
-        } finally {
-          request.signal.removeEventListener("abort", abortUpstream);
-          if (!upstreamAbort.signal.aborted) controller.close();
-        }
-      },
-      cancel() {
-        upstreamAbort.abort("Agent chat response cancelled");
-        request.signal.removeEventListener("abort", abortUpstream);
-      },
-    }),
-    {
-      headers: {
-        "Cache-Control": "no-cache, no-transform",
-        "Content-Type": "text/event-stream; charset=utf-8",
-        "X-Accel-Buffering": "no",
-      },
-    },
-  );
+    } catch (error) {
+      removeRequestAbort();
+      throw error;
+    }
+  } catch (error) {
+    return createServerAgentErrorResponse(error);
+  }
 }
 
 function readConversationId(input: unknown): string | undefined {
@@ -114,5 +78,13 @@ function readConversationId(input: unknown): string | undefined {
     return undefined;
   }
   const value = input.conversationId;
-  return typeof value === "string" && value.trim() ? value : undefined;
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function toConversationTitle(prompt: string): string {
+  return prompt.length > 60 ? `${prompt.slice(0, 57)}...` : prompt;
+}
+
+function encodeSse(event: "error" | "frame", value: unknown): string {
+  return `event: ${event}\ndata: ${JSON.stringify(value)}\n\n`;
 }

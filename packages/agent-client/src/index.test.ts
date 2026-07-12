@@ -1,5 +1,30 @@
 import { describe, expect, it, vi } from "vitest";
-import { createAgentPlatformClient } from "./index";
+import { createAgentPlatformClient, readAgentRunStreamFrames } from "./index";
+
+describe("readAgentRunStreamFrames", () => {
+  it("reads the public v1 frame and error envelope interface", async () => {
+    const response = new Response(
+      createStream(
+        [
+          'event: frame\ndata: {"type":"accepted","runId":"run-1"}\n\n',
+          'event: error\ndata: {"error":{"code":"CONVERSATION_BUSY","message":"会话繁忙","retryable":true}}\n\n',
+        ].join(""),
+      ),
+      { headers: { "Content-Type": "text/event-stream" } },
+    );
+    const iterator = readAgentRunStreamFrames(response)[Symbol.asyncIterator]();
+
+    await expect(iterator.next()).resolves.toEqual({
+      done: false,
+      value: { type: "accepted", runId: "run-1" },
+    });
+    await expect(iterator.next()).rejects.toMatchObject({
+      code: "CONVERSATION_BUSY",
+      message: "会话繁忙",
+      retryable: true,
+    });
+  });
+});
 
 describe("createAgentPlatformClient", () => {
   it("sends bearer auth and validates Agent run pages", async () => {
@@ -177,3 +202,12 @@ const runSummary = {
   model: null,
   reason: null,
 };
+
+function createStream(input: string) {
+  return new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode(input));
+      controller.close();
+    },
+  });
+}

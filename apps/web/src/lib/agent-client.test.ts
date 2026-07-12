@@ -1,108 +1,43 @@
 import { describe, expect, it, vi } from "vitest";
-import {
-  cancelAgentRun,
-  fetchAgentRun,
-  streamAgentChat,
-  submitAgentJob,
-} from "./agent-client";
-
-describe("submitAgentJob", () => {
-  it("rejects an empty prompt before calling the backend", async () => {
-    const fetcher = vi.fn();
-
-    await expect(submitAgentJob({ prompt: "   ", fetcher })).rejects.toThrow(
-      "Prompt is required",
-    );
-
-    expect(fetcher).not.toHaveBeenCalled();
-  });
-
-  it("submits a valid Agent job to the configured API base URL", async () => {
-    const fetcher = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ id: "job-1", queue: "agent-jobs" }),
-    });
-
-    await submitAgentJob({
-      prompt: "  Summarize this template  ",
-      baseUrl: "http://api.test",
-      fetcher,
-    });
-
-    expect(fetcher).toHaveBeenCalledWith("http://api.test/agent/jobs", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: expect.any(String),
-    });
-    expect(JSON.parse(fetcher.mock.calls[0][1].body)).toMatchObject({
-      prompt: "Summarize this template",
-    });
-    expect(
-      new Date(
-        JSON.parse(fetcher.mock.calls[0][1].body).requestedAt,
-      ).toString(),
-    ).not.toBe("Invalid Date");
-  });
-
-  it("returns accepted Agent job metadata from the backend", async () => {
-    const fetcher = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ id: "job-42", queue: "agent-jobs" }),
-    });
-
-    await expect(
-      submitAgentJob({ prompt: "Run agent", fetcher }),
-    ).resolves.toEqual({
-      id: "job-42",
-      queue: "agent-jobs",
-    });
-  });
-
-  it("reports backend submission failures separately from network failures", async () => {
-    const fetcher = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 400,
-    });
-
-    await expect(
-      submitAgentJob({ prompt: "Run agent", fetcher }),
-    ).rejects.toThrow("Agent job intake rejected the request with status 400");
-  });
-
-  it("reports network failures separately from backend submission failures", async () => {
-    const fetcher = vi.fn().mockRejectedValue(new TypeError("fetch failed"));
-
-    await expect(
-      submitAgentJob({ prompt: "Run agent", fetcher }),
-    ).rejects.toThrow("Unable to reach Agent job intake API");
-  });
-
-  it("rejects invalid Agent job intake metadata from the backend", async () => {
-    const fetcher = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ id: "job-1" }),
-    });
-
-    await expect(
-      submitAgentJob({ prompt: "Run agent", fetcher }),
-    ).rejects.toThrow();
-  });
-});
+import { cancelAgentRun, streamAgentChat } from "./agent-client";
 
 describe("streamAgentChat", () => {
-  it("streams Agent events and returns the final result", async () => {
+  it("consumes v1 Agent run frames and returns the terminal result", async () => {
     const events: unknown[] = [];
     const accepted: unknown[] = [];
-    const fetcher = vi.fn().mockResolvedValue({
-      body: createStream(
-        [
-          'event: run-accepted\ndata: {"runId":"run-1","conversationId":"conversation-1"}\n\n',
-          'event: agent-event\ndata: {"kind":"text","text":"Working"}\n\n',
-          'event: result\ndata: {"promptLength":9,"runtime":"claude","configured":true,"model":"kimi-for-coding","status":"completed","events":[{"kind":"text","text":"Working"},{"kind":"done","result":"Done"}],"output":"Done","runId":"run-1"}\n\n',
-        ].join(""),
-      ),
-      ok: true,
-    });
+    const fetcher = vi.fn().mockResolvedValue(
+      streamResponse([
+        {
+          type: "accepted",
+          runId: "run-1",
+          conversationId: "conversation-1",
+        },
+        {
+          type: "event",
+          runId: "run-1",
+          sequence: 0,
+          event: { kind: "text", text: "Working" },
+        },
+        {
+          type: "terminal",
+          runId: "run-1",
+          result: {
+            promptLength: 9,
+            runtime: "claude",
+            configured: true,
+            model: "kimi-for-coding",
+            status: "completed",
+            events: [
+              { kind: "text", text: "Working" },
+              { kind: "done", result: "Done" },
+            ],
+            output: "Done",
+            runId: "run-1",
+            conversationId: "conversation-1",
+          },
+        },
+      ]),
+    );
 
     await expect(
       streamAgentChat({
@@ -134,12 +69,25 @@ describe("streamAgentChat", () => {
   });
 
   it("continues an existing platform conversation", async () => {
-    const fetcher = vi.fn().mockResolvedValue({
-      body: createStream(
-        'event: result\ndata: {"promptLength":8,"runtime":"claude","configured":true,"model":"test","status":"completed","events":[],"output":"Done","runId":"run-2","conversationId":"conversation-1"}\n\n',
-      ),
-      ok: true,
-    });
+    const fetcher = vi.fn().mockResolvedValue(
+      streamResponse([
+        {
+          type: "terminal",
+          runId: "run-2",
+          result: {
+            promptLength: 8,
+            runtime: "claude",
+            configured: true,
+            model: "test",
+            status: "completed",
+            events: [],
+            output: "Done",
+            runId: "run-2",
+            conversationId: "conversation-1",
+          },
+        },
+      ]),
+    );
 
     await streamAgentChat({
       conversationId: "conversation-1",
@@ -154,6 +102,27 @@ describe("streamAgentChat", () => {
         prompt: "Continue",
         conversationId: "conversation-1",
       }),
+    });
+  });
+
+  it("preserves the v1 stream error envelope", async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(
+          createStream(
+            'event: error\ndata: {"error":{"code":"CONVERSATION_BUSY","message":"Agent conversation 已有运行中的 Agent run","retryable":true}}\n\n',
+          ),
+          { headers: { "Content-Type": "text/event-stream" } },
+        ),
+      );
+
+    await expect(
+      streamAgentChat({ prompt: "Run agent", fetcher }),
+    ).rejects.toMatchObject({
+      code: "CONVERSATION_BUSY",
+      message: "Agent conversation 已有运行中的 Agent run",
+      retryable: true,
     });
   });
 
@@ -173,7 +142,7 @@ describe("streamAgentChat", () => {
     ).rejects.toThrow("Agent chat cancelled");
   });
 
-  it("releases the SSE reader after a completed stream", async () => {
+  it("releases the shared SSE reader after a completed stream", async () => {
     const releaseLock = vi.fn();
     const cancel = vi.fn();
     const read = vi
@@ -181,13 +150,27 @@ describe("streamAgentChat", () => {
       .mockResolvedValueOnce({
         done: false,
         value: new TextEncoder().encode(
-          'event: result\ndata: {"promptLength":9,"runtime":"claude","configured":true,"model":"test","status":"completed","events":[],"output":"Done"}\n\n',
+          frame({
+            type: "terminal",
+            runId: "run-1",
+            result: {
+              promptLength: 9,
+              runtime: "claude",
+              configured: true,
+              model: "test",
+              status: "completed",
+              events: [],
+              output: "Done",
+              runId: "run-1",
+            },
+          }),
         ),
       })
       .mockResolvedValueOnce({ done: true, value: undefined });
     const fetcher = vi.fn().mockResolvedValue({
       body: { getReader: () => ({ cancel, read, releaseLock }) },
       ok: true,
+      status: 200,
     });
 
     await streamAgentChat({ prompt: "Run agent", fetcher });
@@ -196,34 +179,7 @@ describe("streamAgentChat", () => {
     expect(cancel).not.toHaveBeenCalled();
   });
 
-  it("cancels and releases the SSE reader after a protocol error", async () => {
-    const releaseLock = vi.fn();
-    const cancel = vi.fn().mockResolvedValue(undefined);
-    const fetcher = vi.fn().mockResolvedValue({
-      body: {
-        getReader: () => ({
-          cancel,
-          read: vi.fn().mockResolvedValue({
-            done: false,
-            value: new TextEncoder().encode(
-              "event: result\ndata: not-json\n\n",
-            ),
-          }),
-          releaseLock,
-        }),
-      },
-      ok: true,
-    });
-
-    await expect(
-      streamAgentChat({ prompt: "Run agent", fetcher }),
-    ).rejects.toThrow();
-
-    expect(cancel).toHaveBeenCalledOnce();
-    expect(releaseLock).toHaveBeenCalledOnce();
-  });
-
-  it("rejects an unterminated SSE message before buffering without limit", async () => {
+  it("rejects an unterminated v1 frame before buffering without limit", async () => {
     const releaseLock = vi.fn();
     const cancel = vi.fn().mockResolvedValue(undefined);
     const fetcher = vi.fn().mockResolvedValue({
@@ -238,18 +194,19 @@ describe("streamAgentChat", () => {
         }),
       },
       ok: true,
+      status: 200,
     });
 
     await expect(
       streamAgentChat({ prompt: "Run agent", fetcher }),
-    ).rejects.toThrow("Agent chat SSE message exceeded 16 MiB");
+    ).rejects.toThrow("Agent SSE message exceeded 16 MiB");
     expect(cancel).toHaveBeenCalledOnce();
     expect(releaseLock).toHaveBeenCalledOnce();
   });
 });
 
-describe("Agent run lifecycle client", () => {
-  it("loads and cancels a durable Agent run", async () => {
+describe("cancelAgentRun", () => {
+  it("uses the minimal same-origin run adapter", async () => {
     const snapshot = {
       id: "run-1",
       conversationId: null,
@@ -274,23 +231,23 @@ describe("Agent run lifecycle client", () => {
     });
 
     await expect(
-      fetchAgentRun("run-1", { baseUrl: "http://api.test", fetcher }),
-    ).resolves.toMatchObject({ id: "run-1", status: "queued" });
-    await expect(
       cancelAgentRun("run-1", { baseUrl: "http://api.test", fetcher }),
     ).resolves.toMatchObject({ id: "run-1", status: "queued" });
-    expect(fetcher).toHaveBeenNthCalledWith(
-      1,
-      "http://api.test/agent/runs/run-1",
-      { method: "GET" },
-    );
-    expect(fetcher).toHaveBeenNthCalledWith(
-      2,
-      "http://api.test/agent/runs/run-1",
-      { method: "DELETE" },
-    );
+    expect(fetcher).toHaveBeenCalledWith("http://api.test/agent/runs/run-1", {
+      method: "DELETE",
+    });
   });
 });
+
+function streamResponse(frames: unknown[]) {
+  return new Response(createStream(frames.map(frame).join("")), {
+    headers: { "Content-Type": "text/event-stream" },
+  });
+}
+
+function frame(value: unknown) {
+  return `event: frame\ndata: ${JSON.stringify(value)}\n\n`;
+}
 
 function createStream(input: string) {
   return new ReadableStream({

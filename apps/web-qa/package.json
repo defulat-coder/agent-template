@@ -16,6 +16,7 @@
     "@agent-template/shared": "workspace:*"
   },
   "devDependencies": {
+    "@agent-template/agent-client": "workspace:*",
     "@types/node": "^26.0.1",
     "vitest": "^4.1.9"
   }

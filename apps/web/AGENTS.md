@@ -9,7 +9,8 @@
 - 使用 App Router，页面入口在 `app/`。
 - 共享 UI 组件从 `@agent-template/ui` 引入。
 - 共享类型和响应 schema 从 `@agent-template/shared` 引入。
-- 浏览器通过同源 `/api/agent/chat` 调用 Next.js Route Handler；Route Handler 使用服务端 `AGENT_API_URL` 和 `AGENT_TEMPLATE_TOKEN` 访问 Agent API。
+- 浏览器通过同源 `/api/agent/chat` 调用 Next.js Route Handler；Route Handler 只使用服务端 `AGENT_API_URL` 和 `AGENT_TEMPLATE_TOKEN` 访问 Agent API，不回退 `NEXT_PUBLIC_*`。
+- Web、CLI 和 Web QA 共用 `@agent-template/agent-client` 的 v1 `frame`/`error` stream Interface；Web gateway 只注入服务端凭据并保持该协议，不再维护私有 SSE 事件协议。
 
 ## 不应该做
 

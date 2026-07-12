@@ -91,7 +91,7 @@ export async function startWebQaEnvironment(
     );
 
     const web = spawnProcess("web", {
-      NEXT_PUBLIC_API_BASE_URL: webQaTopology.fixture.url,
+      AGENT_API_URL: webQaTopology.fixture.url,
     });
     children.push(web);
     watchChild(web, "web", () => stopping, stop, options.onUnexpectedExit);

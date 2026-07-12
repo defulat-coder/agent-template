@@ -26,4 +26,4 @@ mode: deterministic
 ## 证据
 
 - 错误状态截图。
-- `/agent/chat` Response 与 Console 证据。
+- `/api/agent/chat` v1 frame Response 与 Console 证据。

@@ -19,7 +19,7 @@ pnpm qa:web:scenario chat-completed
 修复后重跑失败 case，最后执行 P0 smoke。
 ```
 
-Web 地址为 `http://localhost:13000`，fixture 默认为 `http://127.0.0.1:14100`。`pnpm qa:web:start` 退出时会清理两个子进程。
+Web 地址为 `http://localhost:13000`，fixture 默认为 `http://127.0.0.1:14100`。fixture 只实现 Web gateway 实际消费的 v1 Agent frame interface；`pnpm qa:web:start` 通过服务端 `AGENT_API_URL` 接线，退出时会清理两个子进程。
 
 ## 两种验证模式
 

@@ -48,13 +48,7 @@ export function createWebQaServer(options: CreateWebQaServerOptions = {}) {
       { eventDelayMs, slowDelayMs },
     ).catch((error: unknown) => {
       if (!response.headersSent) {
-        sendJson(
-          response,
-          error instanceof RequestBodyTooLargeError ? 413 : 400,
-          {
-            message: error instanceof Error ? error.message : "Invalid request",
-          },
-        );
+        sendRequestError(request, response, error);
       } else if (!response.writableEnded) {
         response.end();
       }
@@ -100,7 +94,7 @@ async function handleRequest(
   if (request.method === "GET" && conversationRequest) {
     const conversationId = decodeURIComponent(conversationRequest[1] ?? "");
     if (conversationId !== "qa-conversation-1") {
-      sendJson(response, 404, { message: "Conversation not found" });
+      sendAgentError(response, 404, "NOT_FOUND", "Conversation not found");
       return;
     }
     sendJson(
@@ -178,22 +172,11 @@ async function handleRequest(
     return;
   }
 
-  if (request.method === "POST" && request.url === "/agent/chat") {
-    const input = AgentRunInputSchema.parse(await readJson(request));
-    const scenario = createChatScenario(
-      state.getScenario(),
-      input.prompt.length,
-      input.inputResponses,
-    );
-
-    await streamScenario(request, response, scenario, timing, {
-      event: (event) => encodeSse("agent-event", event),
-      result: (result) => encodeSse("result", result),
-    });
-    return;
+  if (request.url?.startsWith("/v1/")) {
+    sendAgentError(response, 404, "NOT_FOUND", "Not found");
+  } else {
+    sendJson(response, 404, { message: "Not found" });
   }
-
-  sendJson(response, 404, { message: "Not found" });
 }
 
 function createConversationView(title: string | null) {
@@ -263,13 +246,6 @@ async function streamScenario(
     request.removeListener("aborted", abort);
     response.removeListener("close", abort);
   }
-}
-
-function encodeSse(
-  event: "agent-event" | "result",
-  data: AgentRunEvent | AgentRunResult,
-) {
-  return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 }
 
 function encodeFrame(frame: AgentRunStreamFrame) {
@@ -345,6 +321,31 @@ class RequestBodyTooLargeError extends Error {
     super("Request body exceeds 1 MiB");
     this.name = "RequestBodyTooLargeError";
   }
+}
+
+function sendRequestError(
+  request: IncomingMessage,
+  response: ServerResponse,
+  error: unknown,
+) {
+  const status = error instanceof RequestBodyTooLargeError ? 413 : 400;
+  const message = error instanceof Error ? error.message : "Invalid request";
+  if (request.url?.startsWith("/v1/")) {
+    sendAgentError(response, status, "INVALID_INPUT", message);
+    return;
+  }
+  sendJson(response, status, { message });
+}
+
+function sendAgentError(
+  response: ServerResponse,
+  statusCode: number,
+  code: string,
+  message: string,
+) {
+  sendJson(response, statusCode, {
+    error: { code, message, retryable: false },
+  });
 }
 
 function sendJson(response: ServerResponse, statusCode: number, body: unknown) {

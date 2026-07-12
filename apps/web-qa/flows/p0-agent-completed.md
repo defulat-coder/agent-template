@@ -28,4 +28,4 @@ mode: deterministic
 ## 证据
 
 - 运行中与完成后的截图。
-- `/agent/chat` 为 SSE 且 Console 无未处理错误。
+- `/api/agent/chat` 为 v1 `event: frame` SSE 且 Console 无未处理错误。

@@ -195,6 +195,9 @@ importers:
         specifier: workspace:*
         version: link:../../packages/shared
     devDependencies:
+      '@agent-template/agent-client':
+        specifier: workspace:*
+        version: link:../../packages/agent-client
       '@types/node':
         specifier: ^26.0.1
         version: 26.0.1

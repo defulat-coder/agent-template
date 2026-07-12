@@ -27,4 +27,4 @@ mode: deterministic
 ## 证据
 
 - 取消前后截图。
-- Network 中 `/agent/chat` 的取消状态。
+- Network 中 `/api/agent/chat` 的取消状态。

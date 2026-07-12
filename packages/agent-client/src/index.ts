@@ -121,6 +121,59 @@ export class AgentClientError extends Error {
   }
 }
 
+export async function* readAgentRunStreamFrames(
+  response: Response,
+): AsyncIterable<AgentRunStreamFrame> {
+  if (!response.ok) throw await readResponseError(response);
+  if (!response.body) {
+    throw new AgentClientError({
+      code: "PROTOCOL_ERROR",
+      message: "Agent API 未返回事件流",
+      status: response.status,
+    });
+  }
+
+  for await (const message of parseSse(response.body)) {
+    if (message.event === "frame") {
+      try {
+        yield AgentRunStreamFrameSchema.parse(JSON.parse(message.data));
+      } catch (cause) {
+        throw new AgentClientError({
+          code: "PROTOCOL_ERROR",
+          message: "Agent 事件流包含不兼容的数据",
+          status: response.status,
+          cause,
+        });
+      }
+      continue;
+    }
+
+    if (message.event === "error") {
+      let value: unknown;
+      try {
+        value = JSON.parse(message.data);
+      } catch (cause) {
+        throw new AgentClientError({
+          code: "PROTOCOL_ERROR",
+          message: "Agent 事件流包含不兼容的错误数据",
+          status: response.status,
+          cause,
+        });
+      }
+      const envelope = AgentErrorEnvelopeSchema.safeParse(value);
+      throw new AgentClientError(
+        envelope.success
+          ? envelope.data.error
+          : {
+              code: "STREAM_FAILED",
+              message: "Agent 事件流失败",
+              status: response.status,
+            },
+      );
+    }
+  }
+}
+
 export function createAgentPlatformClient(
   config: AgentClientConfig,
 ): AgentPlatformClient {
@@ -186,36 +239,7 @@ export function createAgentPlatformClient(
         cause,
       });
     }
-    if (!response.ok) throw await readResponseError(response);
-    if (!response.body) {
-      throw new AgentClientError({
-        code: "PROTOCOL_ERROR",
-        message: "Agent API 未返回事件流",
-        status: response.status,
-      });
-    }
-    for await (const message of parseSse(response.body)) {
-      if (message.event === "frame") {
-        try {
-          yield AgentRunStreamFrameSchema.parse(JSON.parse(message.data));
-        } catch (cause) {
-          throw new AgentClientError({
-            code: "PROTOCOL_ERROR",
-            message: "Agent 事件流包含不兼容的数据",
-            cause,
-          });
-        }
-      } else if (message.event === "error") {
-        const envelope = AgentErrorEnvelopeSchema.safeParse(
-          JSON.parse(message.data),
-        );
-        throw new AgentClientError(
-          envelope.success
-            ? envelope.data.error
-            : { code: "STREAM_FAILED", message: "Agent 事件流失败" },
-        );
-      }
-    }
+    yield* readAgentRunStreamFrames(response);
   }
 
   return {
