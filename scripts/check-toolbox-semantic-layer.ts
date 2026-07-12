@@ -2,7 +2,11 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseAllDocuments } from "yaml";
-import { BusinessSemanticCatalogSchema } from "@agent-template/toolbox-config";
+import {
+  BusinessSemanticCatalogSchema,
+  toolboxToolNames,
+  toolboxToolScopes,
+} from "@agent-template/toolbox-config";
 
 type ToolboxEntry = Record<string, unknown>;
 
@@ -134,6 +138,16 @@ const sources = entries.filter((entry) => entry.kind === "source");
 const tools = entries.filter((entry) => entry.kind === "tool");
 const toolsets = entries.filter((entry) => entry.kind === "toolset");
 const toolNames = new Set(tools.map((tool) => readName(tool, "tool")));
+validateSameMembers(
+  "tools.yaml tools and toolboxToolNames",
+  toolNames,
+  new Set(toolboxToolNames),
+);
+validateSameMembers(
+  "tools.yaml tools and toolboxToolScopes",
+  toolNames,
+  new Set(Object.keys(toolboxToolScopes)),
+);
 const toolsetByName = new Map(
   toolsets.map((toolset) => [readName(toolset, "toolset"), toolset]),
 );
@@ -369,6 +383,21 @@ function validateTool(tool: ToolboxEntry) {
     if (!offset || typeof offset.maxValue !== "number") {
       errors.push(`${name}.offset: pageable tools require a bounded offset`);
     }
+  }
+}
+
+function validateSameMembers(
+  label: string,
+  actual: ReadonlySet<string>,
+  expected: ReadonlySet<string>,
+) {
+  const missing = [...expected].filter((item) => !actual.has(item)).sort();
+  const unexpected = [...actual].filter((item) => !expected.has(item)).sort();
+  if (missing.length > 0) {
+    errors.push(`${label}: missing [${missing.join(", ")}]`);
+  }
+  if (unexpected.length > 0) {
+    errors.push(`${label}: unexpected [${unexpected.join(", ")}]`);
   }
 }
 

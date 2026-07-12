@@ -63,6 +63,14 @@ describe("Toolbox Agent config", () => {
     );
   });
 
+  it("derives platform observability from the explicit production scope", () => {
+    expect(toolboxCapabilityProfiles["platform-observability"]).toEqual(
+      toolboxToolNames.filter(
+        (toolName) => toolboxToolScopes[toolName] === "agent-template:observe",
+      ),
+    );
+  });
+
   it("rejects unknown deployment profiles", () => {
     expect(() =>
       parseToolboxAgentConfig({

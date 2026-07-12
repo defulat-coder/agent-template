@@ -46,9 +46,13 @@ export const toolboxToolScopes = {
 
 export type ToolboxToolScope = "agent-template:observe" | "ecommerce:read";
 
+const platformObservabilityTools = toolboxToolNames.filter(
+  (toolName) => toolboxToolScopes[toolName] === "agent-template:observe",
+);
+
 export const toolboxCapabilityProfiles = {
   "development-all": toolboxToolNames,
-  "platform-observability": toolboxToolNames.slice(0, 9),
+  "platform-observability": platformObservabilityTools,
   "ecommerce-analyst": [
     "summarize-ecommerce-sales-by-day",
     "summarize-ecommerce-sales-by-channel",

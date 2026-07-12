@@ -25,7 +25,7 @@
 
 - ADR 0006 持有智能问数的长期架构决策；[INTELLIGENT_QUERY.md](./INTELLIGENT_QUERY.md) 是对应的执行规范与 Tool 分类准入 matrix。
 - 当前业务契约维护在 [SEMANTIC_LAYER.md](./SEMANTIC_LAYER.md) 与 `semantic/`，生产授权维护在 [PRODUCTION_AUTH.md](./PRODUCTION_AUTH.md)；不要在本文件重复这些规则。
-- 新增或修改 Tool 时同步事实源与生成产物，并通过 `pnpm toolbox:check` 及对应的本地 native verifier。
+- 新增或修改 Tool 时同步事实源与生成产物；`pnpm toolbox:check:semantic` 会双向校验 `tools.yaml` 与共享 Tool/scope taxonomy 的完整一致性，再通过 `pnpm toolbox:check` 及对应的本地 native verifier。
 
 ## 不应该做
 
