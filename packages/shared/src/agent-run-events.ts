@@ -54,7 +54,7 @@ export const AgentRunEventSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("semantic-query"),
     callId: z.string().min(1),
-    status: z.enum(["clarification", "unsupported", "result"]),
+    status: z.enum(["clarification", "unsupported", "result", "failed"]),
     queryId: z.string().min(1),
     catalog: z.string().min(1).optional(),
     catalogVersion: z.union([z.string().min(1), z.number()]).optional(),
@@ -63,6 +63,7 @@ export const AgentRunEventSchema = z.discriminatedUnion("kind", [
     planHash: z.string().min(1).optional(),
     rowCount: z.number().int().nonnegative().optional(),
     durationMs: z.number().int().nonnegative().optional(),
+    stage: z.enum(["result_validation", "tool_execution"]).optional(),
   }),
   z.object({
     kind: z.literal("input-request"),

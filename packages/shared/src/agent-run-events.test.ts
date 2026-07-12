@@ -138,6 +138,26 @@ describe("AgentRunEventSchema", () => {
         ...(catalogVersion ? { catalogVersion } : {}),
       });
     }
+
+    expect(
+      AgentRunEventSchema.parse({
+        kind: "semantic-query",
+        callId: "call-failed",
+        status: "failed",
+        queryId: "query-failed",
+        toolName: "summarize_finance_overview",
+        planHash: "b".repeat(64),
+        stage: "tool_execution",
+      }),
+    ).toEqual({
+      kind: "semantic-query",
+      callId: "call-failed",
+      status: "failed",
+      queryId: "query-failed",
+      toolName: "summarize_finance_overview",
+      planHash: "b".repeat(64),
+      stage: "tool_execution",
+    });
   });
 
   it("rejects semantic query payload data and invalid metadata", () => {

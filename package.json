@@ -32,7 +32,7 @@
     "qa:web:start": "pnpm --filter @agent-template/web-qa start",
     "qa:web:scenario": "pnpm --filter @agent-template/web-qa scenario",
     "qa:web:check": "pnpm --filter @agent-template/web-qa check",
-    "toolbox:check:semantic": "tsx scripts/check-toolbox-semantic-layer.ts && tsx scripts/check-toolbox-semantic-evaluations.ts",
+    "toolbox:check:semantic": "tsx scripts/check-toolbox-semantic-layer.ts && tsx scripts/check-toolbox-semantic-resolver-evaluations.ts",
     "toolbox:check": "pnpm skills:check:toolbox && pnpm toolbox:check:production",
     "toolbox:generate:production": "tsx scripts/generate-toolbox-production-config.ts",
     "toolbox:check:production": "tsx scripts/generate-toolbox-production-config.ts --check",

@@ -353,6 +353,7 @@ describe("Eve Agent runtime", () => {
                 yield {
                   type: "action.result",
                   data: {
+                    status: "completed",
                     result: {
                       kind: "tool-result",
                       callId: "semantic-call-1",
@@ -426,6 +427,14 @@ describe("Eve Agent runtime", () => {
         output: { queryId: "sq_invalid_status", type: "unknown" },
       },
       {
+        message: "has invalid durationMs",
+        output: {
+          queryId: "sq_invalid_duration",
+          type: "clarification",
+          durationMs: -1,
+        },
+      },
+      {
         message: "is missing its plan",
         output: { queryId: "sq_missing_plan", type: "result" },
       },
@@ -464,6 +473,7 @@ describe("Eve Agent runtime", () => {
                     yield {
                       type: "action.result",
                       data: {
+                        status: "completed",
                         result: {
                           kind: "tool-result",
                           callId: "semantic-call-invalid",
@@ -481,6 +491,78 @@ describe("Eve Agent runtime", () => {
           },
         ),
       ).rejects.toThrow(testCase.message);
+    }
+  });
+
+  it("projects a failed semantic Tool result as metadata-only failure", async () => {
+    const result = await runEveAgent(
+      { prompt: "查看 GMV" },
+      parseEveAgentConfig({ EVE_AGENT_HOST: "http://eve.local" }),
+      {
+        createClient: () => ({
+          session: () => ({
+            state: {
+              continuationToken: "continuation-semantic-error",
+              sessionId: "eve-session-semantic-error",
+              streamIndex: 1,
+            },
+            send: async () => ({
+              sessionId: "eve-session-semantic-error",
+              async *[Symbol.asyncIterator]() {
+                yield {
+                  type: "action.result",
+                  data: {
+                    status: "failed",
+                    error: { message: "Toolbox permission denied" },
+                    result: {
+                      kind: "tool-result",
+                      callId: "semantic-call-error",
+                      toolName: "query_business_data",
+                      isError: true,
+                      output: `Semantic query sq_wire_failed failed during tool_execution for certified Tool summarize-ecommerce-sales-by-day: Toolbox permission denied\n[semantic-query-failure] ${JSON.stringify(
+                        {
+                          planHash: "b".repeat(64),
+                          queryId: "sq_wire_failed",
+                          stage: "tool_execution",
+                          tool: "summarize-ecommerce-sales-by-day",
+                        },
+                      )}`,
+                    },
+                  },
+                };
+              },
+            }),
+          }),
+        }),
+      },
+    );
+
+    expect(result).toMatchObject({
+      status: "completed",
+      events: [
+        {
+          kind: "tool-result",
+          callId: "semantic-call-error",
+          toolName: "query_business_data",
+        },
+        {
+          kind: "semantic-query",
+          callId: "semantic-call-error",
+          status: "failed",
+          queryId: "sq_wire_failed",
+          planHash: "b".repeat(64),
+          stage: "tool_execution",
+          toolName: "summarize-ecommerce-sales-by-day",
+        },
+        { kind: "done", result: "" },
+      ],
+    });
+    if (result.status === "completed") {
+      const semanticEvent = result.events.find(
+        (event) => event.kind === "semantic-query",
+      );
+      expect(semanticEvent).not.toHaveProperty("data");
+      expect(semanticEvent).not.toHaveProperty("rows");
     }
   });
 

@@ -1,8 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type {
-  createSdkMcpServer,
-  tool,
-} from "@anthropic-ai/claude-agent-sdk";
+import type { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import { parseClaudeAgentConfig } from "./index.js";
 import {
   ClaudeSemanticQueryToolInputSchema,
@@ -61,7 +58,9 @@ const salesCatalog = {
 
 describe("Claude semantic query MCP Tool", () => {
   it("exposes only the five governed proposal fields", () => {
-    expect(new Set(Object.keys(ClaudeSemanticQueryToolInputSchema.shape))).toEqual(
+    expect(
+      new Set(Object.keys(ClaudeSemanticQueryToolInputSchema.shape)),
+    ).toEqual(
       new Set(["question", "catalog", "intent", "terms", "timeExpression"]),
     );
     expect(
@@ -75,28 +74,25 @@ describe("Claude semantic query MCP Tool", () => {
   });
 
   it("projects only semantic provenance metadata and requires queryId", () => {
-    const event = readClaudeSemanticQueryEvent(
-      "semantic-call-1",
-      [
-        {
-          type: "text",
-          text: JSON.stringify({
-            type: "result",
-            queryId: "sq_sales_1",
-            planHash: "a".repeat(64),
-            rowCount: 1,
-            durationMs: 12,
-            data: [{ grossSales: 42 }],
-            plan: {
-              catalog: "ecommerce-retail-example",
-              catalogVersion: 1,
-              contract: "daily_sales_summary",
-              tool: "summarize-ecommerce-sales-by-day",
-            },
-          }),
-        },
-      ],
-    );
+    const event = readClaudeSemanticQueryEvent("semantic-call-1", [
+      {
+        type: "text",
+        text: JSON.stringify({
+          type: "result",
+          queryId: "sq_sales_1",
+          planHash: "a".repeat(64),
+          rowCount: 1,
+          durationMs: 12,
+          data: [{ grossSales: 42 }],
+          plan: {
+            catalog: "ecommerce-retail-example",
+            catalogVersion: 1,
+            contract: "daily_sales_summary",
+            tool: "summarize-ecommerce-sales-by-day",
+          },
+        }),
+      },
+    ]);
 
     expect(event).toEqual({
       kind: "semantic-query",
@@ -118,6 +114,18 @@ describe("Claude semantic query MCP Tool", () => {
         JSON.stringify({ type: "clarification" }),
       ),
     ).toThrow("is missing queryId");
+    expect(() =>
+      readClaudeSemanticQueryEvent(
+        "semantic-call-invalid-duration",
+        JSON.stringify({
+          type: "clarification",
+          queryId: "sq_invalid_duration",
+          durationMs: -1,
+        }),
+      ),
+    ).toThrow(
+      "Claude semantic query Tool result semantic-call-invalid-duration has invalid durationMs",
+    );
   });
 
   it("executes one certified Toolbox Tool and closes its runtime-owned MCP Client", async () => {
@@ -186,27 +194,30 @@ describe("Claude semantic query MCP Tool", () => {
     [
       "an MCP error",
       { isError: true, content: [{ type: "text", text: "permission denied" }] },
-      /Certified Toolbox Tool .* failed/u,
+      /Semantic query sq_.* failed during tool_execution.*Certified Toolbox Tool .* failed/u,
     ],
     [
       "non-JSON content",
       { content: [{ type: "text", text: "not-json" }] },
-      /returned invalid JSON/u,
+      /Semantic query sq_.* failed during tool_execution.*returned invalid JSON/u,
     ],
-  ])("fails explicitly on %s and still closes the MCP Client", async (_, response, expected) => {
-    const harness = createHarness(response);
+  ])(
+    "fails explicitly on %s and still closes the MCP Client",
+    async (_, response, expected) => {
+      const harness = createHarness(response);
 
-    await expect(
-      harness.handler({
-        question: "最近7天 GMV 趋势",
-        catalog: "ecommerce-retail-example",
-        intent: "sales_trend",
-        terms: ["gross_sales"],
-        timeExpression: "最近7天",
-      }),
-    ).rejects.toThrow(expected);
-    expect(harness.close).toHaveBeenCalledOnce();
-  });
+      await expect(
+        harness.handler({
+          question: "最近7天 GMV 趋势",
+          catalog: "ecommerce-retail-example",
+          intent: "sales_trend",
+          terms: ["gross_sales"],
+          timeExpression: "最近7天",
+        }),
+      ).rejects.toThrow(expected);
+      expect(harness.close).toHaveBeenCalledOnce();
+    },
+  );
 });
 
 function createHarness(toolResult: unknown) {
@@ -225,13 +236,11 @@ function createHarness(toolResult: unknown) {
       return { name };
     },
   ) as unknown as typeof tool;
-  const createServer = vi.fn(
-    (input: { name: string; tools: unknown[] }) => ({
-      type: "sdk" as const,
-      name: input.name,
-      instance: {},
-    }),
-  ) as unknown as typeof createSdkMcpServer;
+  const createServer = vi.fn((input: { name: string; tools: unknown[] }) => ({
+    type: "sdk" as const,
+    name: input.name,
+    instance: {},
+  })) as unknown as typeof createSdkMcpServer;
   const config = parseClaudeAgentConfig({
     AGENT_CAPABILITY_PROFILE: "ecommerce-sales",
     ANTHROPIC_AUTH_TOKEN: "test-token",

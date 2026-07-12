@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { Client, type SessionState } from "eve/client";
+import { readSemanticQueryFailureMetadata } from "@agent-template/semantic-query";
 import {
   appendCompactedAgentRunEvent,
   type AgentInputRequest,
@@ -280,14 +281,24 @@ function formatEveAgentEvents(event: unknown): AgentRunEvent[] {
   }
 
   if (event.type === "action.result" && isRecord(event.data)) {
-    const semanticQuery = readEveSemanticQueryEvent(event.data.result);
+    const completedSemanticQuery =
+      event.data.status === "completed" &&
+      (!isRecord(event.data.result) || event.data.result.isError !== true)
+        ? readEveSemanticQueryEvent(event.data.result)
+        : undefined;
+    const failedSemanticQuery =
+      event.data.status !== "completed" ||
+      (isRecord(event.data.result) && event.data.result.isError === true)
+        ? readEveSemanticQueryFailureEvent(event.data.result)
+        : undefined;
     const tool = readEveActionResult(event.data.result);
     if (!tool) {
       return [{ kind: "unknown", text: formatEveOutput(event.data.result) }];
     }
     return [
       { kind: "tool-result", ...tool },
-      ...(semanticQuery ? [semanticQuery] : []),
+      ...(completedSemanticQuery ? [completedSemanticQuery] : []),
+      ...(failedSemanticQuery ? [failedSemanticQuery] : []),
     ];
   }
 
@@ -436,10 +447,7 @@ function readEveActionResult(
 function readEveSemanticQueryEvent(
   result: unknown,
 ): Extract<AgentRunEvent, { kind: "semantic-query" }> | undefined {
-  if (
-    !isRecord(result) ||
-    result.toolName !== "query_business_data"
-  ) {
+  if (!isRecord(result) || result.toolName !== "query_business_data") {
     return undefined;
   }
 
@@ -468,15 +476,17 @@ function readEveSemanticQueryEvent(
       `Eve semantic query Tool result ${callId} has invalid status`,
     );
   }
+  const durationMs = readEveSemanticQueryDurationMs(
+    result.output.durationMs,
+    callId,
+  );
 
   const base = {
     kind: "semantic-query" as const,
     callId,
     status,
     queryId,
-    ...(isNonNegativeSafeInteger(result.output.durationMs)
-      ? { durationMs: result.output.durationMs }
-      : {}),
+    ...(durationMs === undefined ? {} : { durationMs }),
   };
   if (status !== "result") return base;
   if (!isRecord(result.output.plan)) {
@@ -515,6 +525,46 @@ function readEveSemanticQueryEvent(
   };
 }
 
+function readEveSemanticQueryFailureEvent(
+  result: unknown,
+): Extract<AgentRunEvent, { kind: "semantic-query" }> | undefined {
+  if (!isRecord(result) || result.toolName !== "query_business_data") {
+    return undefined;
+  }
+  if (result.kind !== "tool-result") {
+    throw new Error("Eve semantic query action result has an invalid kind");
+  }
+  const callId = readNonEmptyString(result.callId);
+  if (!callId) {
+    throw new Error("Eve semantic query action result is missing callId");
+  }
+  if (typeof result.output !== "string") return undefined;
+  const metadata = readSemanticQueryFailureMetadata(result.output);
+  if (!metadata) return undefined;
+  return {
+    kind: "semantic-query",
+    callId,
+    status: "failed",
+    queryId: metadata.queryId,
+    planHash: metadata.planHash,
+    stage: metadata.stage,
+    toolName: metadata.tool,
+  };
+}
+
+function readEveSemanticQueryDurationMs(
+  value: unknown,
+  callId: string,
+): number | undefined {
+  if (value === undefined) return undefined;
+  if (!isNonNegativeSafeInteger(value)) {
+    throw new Error(
+      `Eve semantic query Tool result ${callId} has invalid durationMs`,
+    );
+  }
+  return value;
+}
+
 function readSemanticQueryStatus(
   value: unknown,
 ): "clarification" | "result" | "unsupported" | undefined {
@@ -533,9 +583,7 @@ function isCatalogVersion(value: unknown): value is string | number {
 }
 
 function isNonNegativeSafeInteger(value: unknown): value is number {
-  return (
-    typeof value === "number" && Number.isSafeInteger(value) && value >= 0
-  );
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }
 
 function readNonEmptyString(value: unknown) {

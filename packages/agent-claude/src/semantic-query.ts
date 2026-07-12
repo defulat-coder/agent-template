@@ -5,6 +5,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import {
   createSemanticQueryEngine,
+  readSemanticQueryFailureMetadata,
   SemanticQueryExecutionError,
   SemanticQueryProposalSchema,
 } from "@agent-template/semantic-query";
@@ -184,12 +185,14 @@ export function readClaudeSemanticQueryEvent(
       `Claude semantic query Tool result ${callId} is missing queryId`,
     );
   }
+  const durationMs = readSemanticQueryDurationMs(response.durationMs, callId);
 
   const base = {
     kind: "semantic-query" as const,
     callId,
     queryId: response.queryId,
     status: response.type,
+    ...(durationMs === undefined ? {} : { durationMs }),
   };
   if (response.type !== "result") return base;
   if (!isRecord(response.plan)) {
@@ -225,12 +228,39 @@ export function readClaudeSemanticQueryEvent(
     toolName: plan.tool,
     planHash: response.planHash,
     rowCount: response.rowCount,
-    ...(typeof response.durationMs === "number" &&
-    Number.isSafeInteger(response.durationMs) &&
-    response.durationMs >= 0
-      ? { durationMs: response.durationMs }
-      : {}),
   };
+}
+
+export function readClaudeSemanticQueryFailureEvent(
+  callId: string,
+  content: unknown,
+): Extract<AgentRunEvent, { kind: "semantic-query" }> | undefined {
+  const text = readClaudeToolResultText(content);
+  if (text === undefined) return undefined;
+  const metadata = readSemanticQueryFailureMetadata(text);
+  if (!metadata) return undefined;
+  return {
+    kind: "semantic-query",
+    callId,
+    status: "failed",
+    queryId: metadata.queryId,
+    planHash: metadata.planHash,
+    stage: metadata.stage,
+    toolName: metadata.tool,
+  };
+}
+
+function readSemanticQueryDurationMs(
+  value: unknown,
+  callId: string,
+): number | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
+    throw new Error(
+      `Claude semantic query Tool result ${callId} has invalid durationMs`,
+    );
+  }
+  return value;
 }
 
 async function connectToolbox(
@@ -317,17 +347,7 @@ function readAbortSignal(extra: unknown): AbortSignal | undefined {
 }
 
 function parseSemanticToolResponse(content: unknown): SemanticToolResponse {
-  const text =
-    typeof content === "string"
-      ? content
-      : Array.isArray(content)
-        ? content.find(
-            (part) =>
-              isRecord(part) &&
-              part.type === "text" &&
-              typeof part.text === "string",
-          )?.text
-        : undefined;
+  const text = readClaudeToolResultText(content);
   if (typeof text !== "string") {
     throw new Error("Claude semantic query Tool returned no JSON text content");
   }
@@ -349,6 +369,19 @@ function parseSemanticToolResponse(content: unknown): SemanticToolResponse {
   throw new Error(
     "Claude semantic query Tool returned an invalid response type",
   );
+}
+
+function readClaudeToolResultText(content: unknown): string | undefined {
+  return typeof content === "string"
+    ? content
+    : Array.isArray(content)
+      ? content.find(
+          (part) =>
+            isRecord(part) &&
+            part.type === "text" &&
+            typeof part.text === "string",
+        )?.text
+      : undefined;
 }
 
 type SemanticToolResponse = Record<string, unknown> & {

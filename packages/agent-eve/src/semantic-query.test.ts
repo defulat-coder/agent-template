@@ -123,6 +123,34 @@ describe("Eve semantic query Tool", () => {
     );
   });
 
+  it("preserves semantic query correlation when the executor fails", async () => {
+    const databaseError = new Error("database down");
+    const runtime = createEveSemanticQueryRuntime(businessEnv, {
+      catalogs: [salesCatalog],
+      executeTool: vi.fn(async () => {
+        throw databaseError;
+      }),
+      now: () => new Date("2026-07-12T08:00:00.000Z"),
+    });
+
+    await expect(
+      runtime?.query({
+        question: "最近7天 GMV 趋势",
+        catalog: "ecommerce-retail-example",
+        intent: "sales_trend",
+        terms: ["gross_sales"],
+        timeExpression: "最近7天",
+      }),
+    ).rejects.toMatchObject({
+      name: "SemanticQueryExecutionError",
+      planHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      queryId: expect.stringMatching(/^sq_/),
+      stage: "tool_execution",
+      tool: "summarize-ecommerce-sales-by-day",
+      cause: databaseError,
+    });
+  });
+
   it("executes through an injectable MCP Client and always closes it", async () => {
     const config = parseToolboxAgentConfig({
       ...businessEnv,

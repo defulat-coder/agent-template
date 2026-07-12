@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   createSemanticQueryEngine,
+  readSemanticQueryFailureMetadata,
   SemanticQueryExecutionError,
 } from "./index.js";
 
@@ -681,6 +682,43 @@ describe("semantic query engine", () => {
     );
   });
 
+  it("rejects page-based pagination when the contract has no offset parameter", async () => {
+    const limitOnlyCatalog = {
+      ...pagedCatalog,
+      name: "limit-only-products",
+      queryContracts: [
+        {
+          ...pagedCatalog.queryContracts[0],
+          parameters: [{ name: "limit", default: 20 }],
+        },
+      ],
+    };
+    const executeTool = vi.fn();
+    const engine = createSemanticQueryEngine({
+      catalogs: [limitOnlyCatalog],
+      allowedTools: ["list_products"],
+      executeTool,
+      now: () => new Date("2026-07-12T08:00:00.000Z"),
+    });
+
+    await expect(
+      engine.query({
+        question: "近7天商品销量第2页，每页10条",
+        proposal: {
+          catalog: "limit-only-products",
+          intent: "top_products",
+          terms: ["units_sold", "product"],
+          timeExpression: "近7天",
+        },
+      }),
+    ).resolves.toMatchObject({
+      type: "unsupported",
+      code: "invalid_pagination",
+      queryId: expect.any(String),
+    });
+    expect(executeTool).not.toHaveBeenCalled();
+  });
+
   it("extracts a certified entity key without accepting it from the proposal", async () => {
     const executeTool = vi
       .fn()
@@ -968,12 +1006,68 @@ describe("semantic query engine", () => {
           timeExpression: "本月",
         },
       }),
-    ).rejects.toBeInstanceOf(SemanticQueryExecutionError);
+    ).rejects.toMatchObject({
+      name: "SemanticQueryExecutionError",
+      planHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      queryId: expect.stringMatching(/^sq_/),
+      stage: "result_validation",
+      tool: "summarize_sales",
+      cause: expect.any(SemanticQueryExecutionError),
+    });
     expect(executeTool).toHaveBeenCalledTimes(1);
   });
 
   it("does not turn an executor exception into a successful response", async () => {
-    const executeTool = vi.fn().mockRejectedValue(new Error("database down"));
+    const databaseError = new Error("database down");
+    const executeTool = vi.fn().mockRejectedValue(databaseError);
+    const engine = createSemanticQueryEngine({
+      catalogs: [catalog],
+      allowedTools: ["summarize_sales"],
+      executeTool,
+      now: () => new Date("2026-07-12T08:00:00.000Z"),
+    });
+
+    const failure = engine.query({
+      question: "本月 GMV",
+      proposal: {
+        catalog: "sales",
+        intent: "sales_summary",
+        terms: ["gross_sales"],
+        timeExpression: "本月",
+      },
+    });
+    await expect(failure).rejects.toMatchObject({
+      name: "SemanticQueryExecutionError",
+      planHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      queryId: expect.stringMatching(/^sq_/),
+      stage: "tool_execution",
+      tool: "summarize_sales",
+      cause: databaseError,
+    });
+    const error = await failure.catch((cause: unknown) => cause);
+    expect(error).toBeInstanceOf(SemanticQueryExecutionError);
+    expect(readSemanticQueryFailureMetadata((error as Error).message)).toEqual({
+      planHash: (error as SemanticQueryExecutionError).planHash,
+      queryId: (error as SemanticQueryExecutionError).queryId,
+      stage: "tool_execution",
+      tool: "summarize_sales",
+    });
+    expect(executeTool).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects corrupted serialized failure metadata", () => {
+    expect(() =>
+      readSemanticQueryFailureMetadata(
+        "Tool failed\n[semantic-query-failure] not-json",
+      ),
+    ).toThrow("Semantic query failure metadata is invalid");
+  });
+
+  it("preserves cancellation instead of wrapping it as a backend failure", async () => {
+    const abortError = Object.assign(new Error("cancelled"), {
+      name: "AbortError",
+    });
+    const executeTool = vi.fn().mockRejectedValue(abortError);
     const engine = createSemanticQueryEngine({
       catalogs: [catalog],
       allowedTools: ["summarize_sales"],
@@ -991,7 +1085,7 @@ describe("semantic query engine", () => {
           timeExpression: "本月",
         },
       }),
-    ).rejects.toThrow("database down");
+    ).rejects.toBe(abortError);
     expect(executeTool).toHaveBeenCalledTimes(1);
   });
 });

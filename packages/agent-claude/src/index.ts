@@ -31,6 +31,7 @@ import {
   claudeSemanticQueryServerName,
   createClaudeSemanticQueryMcpServer,
   readClaudeSemanticQueryEvent,
+  readClaudeSemanticQueryFailureEvent,
 } from "./semantic-query.js";
 
 export { defaultClaudeAgentModel };
@@ -666,9 +667,14 @@ function formatClaudeUserMessage(
         toolName,
       });
       if (toolName === claudeSemanticQueryAllowedTool) {
-        events.push(
-          readClaudeSemanticQueryEvent(item.tool_use_id, item.content),
-        );
+        const semanticQuery =
+          item.is_error === true
+            ? readClaudeSemanticQueryFailureEvent(
+                item.tool_use_id,
+                item.content,
+              )
+            : readClaudeSemanticQueryEvent(item.tool_use_id, item.content);
+        if (semanticQuery) events.push(semanticQuery);
       }
     }
   }

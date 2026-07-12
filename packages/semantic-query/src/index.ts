@@ -177,8 +177,66 @@ export type SemanticQueryEngineOptions = {
   now: Date | string | (() => Date | string);
 };
 
+export type SemanticQueryFailureStage = "result_validation" | "tool_execution";
+
+const SemanticQueryFailureMetadataSchema = z
+  .object({
+    planHash: z.string().regex(/^[a-f0-9]{64}$/u),
+    queryId: z.string().min(1),
+    stage: z.enum(["result_validation", "tool_execution"]),
+    tool: z.string().min(1),
+  })
+  .strict();
+
+export type SemanticQueryFailureMetadata = z.infer<
+  typeof SemanticQueryFailureMetadataSchema
+>;
+
+const semanticQueryFailureMarker = "[semantic-query-failure]";
+
+export function readSemanticQueryFailureMetadata(
+  message: string,
+): SemanticQueryFailureMetadata | undefined {
+  const markerIndex = message.lastIndexOf(semanticQueryFailureMarker);
+  if (markerIndex < 0) return undefined;
+  const payloadStart = markerIndex + semanticQueryFailureMarker.length;
+  const payloadEnd = message.indexOf("\n", payloadStart);
+  const payload = message
+    .slice(payloadStart, payloadEnd < 0 ? undefined : payloadEnd)
+    .trim();
+  try {
+    return SemanticQueryFailureMetadataSchema.parse(JSON.parse(payload));
+  } catch (cause) {
+    throw new Error("Semantic query failure metadata is invalid", { cause });
+  }
+}
+
 export class SemanticQueryExecutionError extends Error {
+  readonly planHash?: string;
+  readonly queryId?: string;
+  readonly stage?: SemanticQueryFailureStage;
+  readonly tool?: string;
   override readonly name = "SemanticQueryExecutionError";
+
+  constructor(
+    message: string,
+    options: {
+      cause?: unknown;
+      planHash?: string;
+      queryId?: string;
+      stage?: SemanticQueryFailureStage;
+      tool?: string;
+    } = {},
+  ) {
+    super(
+      message,
+      options.cause === undefined ? undefined : { cause: options.cause },
+    );
+    if (options.planHash !== undefined) this.planHash = options.planHash;
+    if (options.queryId !== undefined) this.queryId = options.queryId;
+    if (options.stage !== undefined) this.stage = options.stage;
+    if (options.tool !== undefined) this.tool = options.tool;
+  }
 }
 
 export function createSemanticQueryEngine(options: SemanticQueryEngineOptions) {
@@ -435,10 +493,33 @@ export function createSemanticQueryEngine(options: SemanticQueryEngineOptions) {
         tool: contract.tool,
       };
       const planHash = await hashPlan(plan);
-      const rawResult = await options.executeTool(contract.tool, arguments_, {
-        signal: queryOptions?.signal,
-      });
-      const data = validateAndProjectRows(rawResult, contract);
+      let rawResult: unknown;
+      try {
+        rawResult = await options.executeTool(contract.tool, arguments_, {
+          signal: queryOptions?.signal,
+        });
+      } catch (cause) {
+        if (isAbortError(cause, queryOptions?.signal)) throw cause;
+        throw createContextualExecutionError(
+          "tool_execution",
+          cause,
+          queryId,
+          planHash,
+          contract.tool,
+        );
+      }
+      let data: Array<Record<string, unknown>>;
+      try {
+        data = validateAndProjectRows(rawResult, contract);
+      } catch (cause) {
+        throw createContextualExecutionError(
+          "result_validation",
+          cause,
+          queryId,
+          planHash,
+          contract.tool,
+        );
+      }
       return {
         data,
         executedAt: executedAt.toISOString(),
@@ -452,6 +533,37 @@ export function createSemanticQueryEngine(options: SemanticQueryEngineOptions) {
       };
     },
   };
+}
+
+function createContextualExecutionError(
+  stage: SemanticQueryFailureStage,
+  cause: unknown,
+  queryId: string,
+  planHash: string,
+  tool: string,
+) {
+  const causeMessage =
+    cause instanceof Error && cause.message ? `: ${cause.message}` : "";
+  const metadata = {
+    planHash,
+    queryId,
+    stage,
+    tool,
+  } satisfies SemanticQueryFailureMetadata;
+  return new SemanticQueryExecutionError(
+    `Semantic query ${queryId} failed during ${stage} for certified Tool ${tool}${causeMessage}\n${semanticQueryFailureMarker} ${JSON.stringify(metadata)}`,
+    { cause, planHash, queryId, stage, tool },
+  );
+}
+
+function isAbortError(cause: unknown, signal: AbortSignal | undefined) {
+  return (
+    signal?.aborted === true ||
+    (typeof cause === "object" &&
+      cause !== null &&
+      "name" in cause &&
+      cause.name === "AbortError")
+  );
 }
 
 function parseCatalogs(rawCatalogs: readonly unknown[]): Catalog[] {
@@ -669,12 +781,17 @@ function resolvePagination(
   const offsetParameter = contract.parameters.find(
     ({ name }) => name === "offset",
   );
-  const usesOffset =
+  const requestsOffset =
     required.includes("offset") ||
-    offsetParameter !== undefined ||
     proposal.offset !== undefined ||
     questionPagination.page !== undefined;
-  if (usesOffset) {
+  if (!offsetParameter && requestsOffset) {
+    return {
+      message: `Contract ${contract.id} does not support offset or page-based pagination`,
+      type: "invalid" as const,
+    };
+  }
+  if (offsetParameter) {
     if (!usesLimit) {
       return {
         message: `Contract ${contract.id} cannot use offset without limit`,
@@ -699,7 +816,7 @@ function resolvePagination(
         type: "invalid" as const,
       };
     }
-    arguments_[offsetParameter?.name ?? "offset"] = offset;
+    arguments_[offsetParameter.name] = offset;
   }
   return { arguments: arguments_, type: "arguments" as const };
 }

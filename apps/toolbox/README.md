@@ -91,7 +91,7 @@ Capability Pack 用于官方 Skill 生成、语义治理和模型能力分组，
 pnpm toolbox:verify:local
 ```
 
-该命令直接使用 `.env`/默认本地连接，对本机数据库执行 migration 和确定性 seed，写入临时真实 Agent run record，启动官方 Toolbox 二进制，然后用原生 MCP Client 验证 `tools/list`、跨域代表场景、Agent run 观测、分页、空结果、异常数据、UTC 边界、非法时间窗与能力 Profile。临时 run 与 Toolbox 进程在结束时自动清理，不使用 Docker。
+该命令直接使用 `.env`/默认本地连接，对本机数据库执行 migration 和确定性 seed，写入临时真实 Agent run record，启动官方 Toolbox 二进制，然后用固定 candidate 串起 semantic plan、原生 MCP Tool 和结果 envelope，并验证 `tools/list`、跨域代表场景、澄清、能力拒绝、Agent run 观测、分页、空结果、异常数据、UTC 边界与非法时间窗。临时 run 与 Toolbox 进程在结束时自动清理，不使用 Docker。
 
 `pnpm db:verify:boundaries` 可单独验证平台表只在 `public`，合成业务表只在 `ecommerce_fixture`。
 

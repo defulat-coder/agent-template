@@ -55,14 +55,14 @@ async function main() {
 
   if (errors.length > 0) {
     throw new Error(
-      `Toolbox executable semantic evaluations failed:\n${errors
+      `Toolbox semantic resolver golden evaluations failed:\n${errors
         .map((error) => `- ${error}`)
         .join("\n")}`,
     );
   }
 
   console.log(
-    `Toolbox executable semantic evaluations passed: ${evaluatedCases} golden cases.`,
+    `Toolbox semantic resolver golden evaluations passed: ${evaluatedCases} cases.`,
   );
 }
 

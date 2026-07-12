@@ -680,6 +680,106 @@ describe("Claude Agent runtime", () => {
     expect(semanticEvent).not.toHaveProperty("data");
   });
 
+  it("projects an errored semantic Tool result as metadata-only failure", async () => {
+    const result = await runClaudeAgent(
+      { prompt: "最近7天 GMV 趋势" },
+      parseClaudeAgentConfig({
+        AGENT_CAPABILITY_PROFILE: "ecommerce-sales",
+        ANTHROPIC_AUTH_TOKEN: "test-token",
+        TOOLBOX_URL: "http://toolbox:15000",
+      }),
+      {
+        loadSdk: async () => ({
+          ...createFakeSemanticSdkFactories(),
+          query() {
+            return (async function* () {
+              yield {
+                message: {
+                  content: [
+                    {
+                      id: "semantic-call-error",
+                      input: { question: "最近7天 GMV 趋势" },
+                      name: "mcp__semantic_query__query_business_data",
+                      type: "tool_use",
+                    },
+                  ],
+                  role: "assistant",
+                },
+                parent_tool_use_id: null,
+                session_id: "claude-session-semantic-error",
+                type: "assistant",
+              } as unknown as SDKMessage;
+              yield {
+                message: {
+                  content: [
+                    {
+                      content: `Semantic query sq_wire_failed failed during tool_execution for certified Tool summarize-ecommerce-sales-by-day: Toolbox permission denied\n[semantic-query-failure] ${JSON.stringify(
+                        {
+                          planHash: "b".repeat(64),
+                          queryId: "sq_wire_failed",
+                          stage: "tool_execution",
+                          tool: "summarize-ecommerce-sales-by-day",
+                        },
+                      )}`,
+                      is_error: true,
+                      tool_use_id: "semantic-call-error",
+                      type: "tool_result",
+                    },
+                  ],
+                  role: "user",
+                },
+                parent_tool_use_id: null,
+                session_id: "claude-session-semantic-error",
+                type: "user",
+                uuid: "semantic-result-error",
+              } as unknown as SDKMessage;
+              yield {
+                duration_api_ms: 0,
+                duration_ms: 0,
+                is_error: false,
+                modelUsage: {},
+                num_turns: 1,
+                permission_denials: [],
+                result: "业务查询失败，请稍后重试。",
+                session_id: "claude-session-semantic-error",
+                stop_reason: "stop",
+                subtype: "success",
+                total_cost_usd: 0,
+                type: "result",
+                usage: {},
+              } as unknown as SDKMessage;
+            })();
+          },
+        }),
+      },
+    );
+
+    expect(result).toMatchObject({
+      status: "completed",
+      events: [
+        { kind: "tool-call", callId: "semantic-call-error" },
+        { kind: "tool-result", callId: "semantic-call-error" },
+        {
+          kind: "semantic-query",
+          callId: "semantic-call-error",
+          status: "failed",
+          queryId: "sq_wire_failed",
+          planHash: "b".repeat(64),
+          stage: "tool_execution",
+          toolName: "summarize-ecommerce-sales-by-day",
+        },
+        { kind: "done", result: "业务查询失败，请稍后重试。" },
+      ],
+    });
+    if (result.status === "completed") {
+      const semanticEvent = result.events.find(
+        (event) => event.kind === "semantic-query",
+      );
+      expect(semanticEvent).not.toHaveProperty("data");
+      expect(semanticEvent).not.toHaveProperty("rows");
+    }
+  });
+
   it("defers AskUserQuestion and resumes it with platform input", async () => {
     const toolInput = {
       questions: [

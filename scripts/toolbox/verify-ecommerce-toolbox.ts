@@ -3,8 +3,10 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { createSemanticQueryEngine } from "@agent-template/semantic-query";
 import {
   parseToolboxAgentConfig,
+  resolveToolboxSemanticCatalogs,
   toolboxBusinessCapabilityPacks,
   toolboxToolNames,
 } from "@agent-template/toolbox-config";
@@ -180,6 +182,53 @@ async function main() {
     assert.ok(
       !salesProfile?.allowedTools.includes("get-ecommerce-order-detail"),
     );
+    assert.ok(salesProfile);
+
+    const semanticEngine = createSemanticQueryEngine({
+      allowedTools: salesProfile.semanticExecutionTools,
+      catalogs: resolveToolboxSemanticCatalogs(salesProfile.capabilityProfile),
+      executeTool: (tool, arguments_) =>
+        callRows(client!, tool, { ...arguments_ }),
+      now: "2026-07-01T00:00:00Z",
+    });
+    const semanticRegionalSales = await semanticEngine.query({
+      question: "近30天华东GMV是多少？",
+      proposal: {
+        catalog: "ecommerce-retail-example",
+        intent: "sales_by_region",
+        terms: ["gross_sales", "region"],
+        timeExpression: "近30天",
+      },
+    });
+    assert.equal(semanticRegionalSales.type, "result");
+    if (semanticRegionalSales.type === "result") {
+      assert.equal(
+        semanticRegionalSales.plan.tool,
+        "summarize_sales_by_region",
+      );
+      assert.equal(semanticRegionalSales.plan.arguments.region, "华东");
+      assert.equal(semanticRegionalSales.data[0]?.region, "华东");
+      assert.match(semanticRegionalSales.planHash, /^[a-f0-9]{64}$/u);
+    }
+    const semanticAmbiguity = await semanticEngine.query({
+      question: "本月营收是多少？",
+      proposal: { catalog: "ecommerce-retail-example" },
+    });
+    assert.equal(semanticAmbiguity.type, "clarification");
+    const semanticCapabilityDeny = await semanticEngine.query({
+      question: "查询订单号EC20260601001的订单明细",
+      proposal: {
+        catalog: "ecommerce-retail-example",
+        intent: "order_detail",
+        terms: ["order_status"],
+      },
+    });
+    assert.deepEqual(
+      semanticCapabilityDeny.type === "unsupported"
+        ? semanticCapabilityDeny.code
+        : undefined,
+      "capability_not_allowed",
+    );
 
     const dailySales = await callRows(
       client,
@@ -212,9 +261,10 @@ async function main() {
       "summarize-ecommerce-sales-by-channel",
       { ...timeWindow, channel: "LIVE_STREAM" },
     );
-    assert.deepEqual(livestreamSales.map((row) => row.channel), [
-      "LIVE_STREAM",
-    ]);
+    assert.deepEqual(
+      livestreamSales.map((row) => row.channel),
+      ["LIVE_STREAM"],
+    );
 
     const regionSales = await callRows(
       client,
@@ -222,12 +272,14 @@ async function main() {
       timeWindow,
     );
     assert.equal(regionSales.length, 6);
-    const eastChinaSales = await callRows(
-      client,
-      "summarize_sales_by_region",
-      { ...timeWindow, region: "华东" },
+    const eastChinaSales = await callRows(client, "summarize_sales_by_region", {
+      ...timeWindow,
+      region: "华东",
+    });
+    assert.deepEqual(
+      eastChinaSales.map((row) => row.region),
+      ["华东"],
     );
-    assert.deepEqual(eastChinaSales.map((row) => row.region), ["华东"]);
     const segmentSales = await callRows(
       client,
       "summarize_sales_by_customer_segment",
@@ -244,7 +296,10 @@ async function main() {
       "summarize_sales_by_customer_segment",
       { ...timeWindow, customerSegment: "VIP" },
     );
-    assert.deepEqual(vipSales.map((row) => row.customerSegment), ["VIP"]);
+    assert.deepEqual(
+      vipSales.map((row) => row.customerSegment),
+      ["VIP"],
+    );
 
     const topProducts = await callRows(client, "list-ecommerce-top-products", {
       ...timeWindow,
@@ -271,9 +326,10 @@ async function main() {
       "summarize_merchandise_by_category",
       { ...timeWindow, category: "美妆个护" },
     );
-    assert.deepEqual(beautyCategorySales.map((row) => row.category), [
-      "美妆个护",
-    ]);
+    assert.deepEqual(
+      beautyCategorySales.map((row) => row.category),
+      ["美妆个护"],
+    );
 
     const orders = await callRows(client, "list-ecommerce-orders-in-window", {
       ...timeWindow,

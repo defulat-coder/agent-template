@@ -20,7 +20,7 @@
 
 新增业务目录前，先确认该能力属于认证业务问数 Tool、未来 compiler 或外部语义层；不同类别的完整准入矩阵见 [智能问数落地](../INTELLIGENT_QUERY.md#tool-分类与准入矩阵)。
 
-`tools.yaml` 仍是 SQL Tool 的唯一事实源，Capability Pack 是 Toolset/scope/Skill/catalog 关系的唯一事实源，语义目录是查询溯源的可执行事实源。`pnpm toolbox:check:semantic` 会用与运行时相同的 Zod schema 双向校验 Pack、Tool 和查询契约，并执行固定 `asOf`、固定 UTC 的 golden evaluation；`pnpm skills:generate:toolbox` 同步生成类型化 runtime 目录，以及 Claude 与 Eve Skill 的语义参考。
+`tools.yaml` 仍是 SQL Tool 的唯一事实源，Capability Pack 是 Toolset/scope/Skill/catalog 关系的唯一事实源，语义目录是查询溯源的可执行事实源。`pnpm toolbox:check:semantic` 会用与运行时相同的 Zod schema 双向校验 Pack、Tool 和查询契约，并执行固定 `asOf`、固定 UTC、固定 candidate 的 resolver golden evaluation；该门禁不替代模型候选提取或真实 Toolbox E2E。`pnpm skills:generate:toolbox` 同步生成类型化 runtime 目录，以及 Claude 与 Eve Skill 的语义参考。
 
 生产目录不得把 `tenantId`、组织范围、角色或 PII 作为模型可控过滤条件。它们必须由认证后的可信身份在执行前注入，并在数据库侧以 RLS 或等效机制强制执行。
 

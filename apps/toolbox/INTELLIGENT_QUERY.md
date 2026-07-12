@@ -20,7 +20,7 @@
 
 ## 当前已集成
 
-`semantic/` 目前按电商、财务、物流、供应链和营销维护独立业务语义目录及对应 `*-evaluation.yaml` golden cases。它们会被 `pnpm toolbox:check:semantic` 按 Capability Pack 双向校验并执行确定性 golden evaluation，同时生成 runtime 使用的类型化目录，以及 Claude/Eve 业务 Skill 的 `references/<catalog>.yaml`。
+`semantic/` 目前按电商、财务、物流、供应链和营销维护独立业务语义目录及对应 `*-evaluation.yaml` resolver golden cases。它们会被 `pnpm toolbox:check:semantic` 按 Capability Pack 双向校验，并在固定 candidate 与 fake certified rows 下回归确定性 resolution；该门禁不冒充模型候选提取或真实数据库 E2E。生成器同时产出 runtime 使用的类型化目录，以及 Claude/Eve 业务 Skill 的 `references/<catalog>.yaml`。
 
 每个认证业务 Tool 还必须有一个 `queryContracts` 条目。生成门禁验证它与指标、维度、参数和 Tool 的引用关系；运行时只会执行当前 Capability Profile 允许且目录认证的 contract。`query_business_data` 返回严格结果 envelope，原始 Toolbox 行会按 `resultFields` 投影，未知字段不会穿透到模型。
 
@@ -75,7 +75,7 @@ Toolset 是 Skill 生成和业务分组，不是运行时授权。Capability Pac
 3. **收窄 Tool interface**：Tool 围绕关键用户旅程和结果设计，不镜像表 CRUD；只接受类型化的业务参数；时间窗、排序、分页和 `limit` 必须有硬上限；不接受 SQL、表名、列名或自由表达式。按 Google Toolbox 指引，Toolset 以 capability/persona 分组，目标为 5–8 个 Tool，服务端尽量不超过 40 个 Tool，以减少 context rot。[Toolbox Style Guide](https://mcp-toolbox.dev/reference/style-guide/)
 4. **权限不由模型决定**：租户、组织、区域、角色和列级范围由认证身份注入，数据库 RLS 或等效机制最终强制；Tool 描述、Skill、参数校验和数据库角色之间不得出现更宽的访问路径。
 5. **时间与口径可执行**：明确业务时区、`[from, to)` 边界、数据字段的数据库时间类型和转换规则；Tool 输入的 UTC 承诺必须与数据库字段语义一致，不能依赖部署 session 的隐式时区转换。
-6. **完整投影与验证**：在 Capability Pack 中同步 Toolset、scope、Profile 组合、Skill、语义目录和 golden cases；共享生成器产出 Claude/Eve 运行面和类型化 runtime 目录，本地完成静态语义门禁、可执行 golden evaluation、官方 Skill 漂移校验和 native Tool 执行验收。默认不使用 Docker；只有用户明确要求容器集成验证时才运行 Docker 门禁。
+6. **完整投影与验证**：在 Capability Pack 中同步 Toolset、scope、Profile 组合、Skill、语义目录和 resolver golden cases；共享生成器产出 Claude/Eve 运行面和类型化 runtime 目录，本地完成静态语义门禁、resolver evaluation、runtime adapter 测试、官方 Skill 漂移校验和 native Tool 执行验收。默认不使用 Docker；只有用户明确要求容器集成验证时才运行 Docker 门禁。
 7. **可观察、可回滚**：记录 `queryId`、catalog/version、contract、Tool、`planHash`、澄清、空结果、行数、耗时、错误和用户纠正；事件只携带元数据，不复制业务行。指标定义变更必须有目录版本与兼容性说明，影响既有答案时通过 ADR/迁移说明评审。
 
 认证查询的空结果不是错误，也不能只返回“无数据”。Agent 回答必须给出 UTC 时间窗、权限/capability、实体标识或分页越界等可操作检查建议；列表 Tool 返回稳定排序与 `totalCount`，调用方据此计算下一页位置。
@@ -86,7 +86,7 @@ Toolset 是 Skill 生成和业务分组，不是运行时授权。Capability Pac
 - **一个维度，一个值表**：业务同义词映射到 canonical id，再映射到真实字段和值；不要让模型猜枚举或拼接 where 条件。
 - **身份不是模型参数**：组织、地区、角色、行列权限由可信身份注入，并由 RLS 或等效访问控制强制执行。
 - **答案可追溯**：回答中输出指标、时间窗、维度、过滤范围、数据新鲜度和限制；需要时可回链到语义目录版本。
-- **golden evaluation**：每个领域维护正常问题、同义词、部分退款、空结果、越权和歧义问题；每次模型、Tool 或口径变更都回归，并验证实际 MCP Tool 的执行结果。
+- **分层验证**：每个领域用 resolver golden cases 回归正常问题、同义词、部分退款、空结果、越权和歧义；`pnpm toolbox:verify:local` 再以固定 candidate 串起 semantic plan、原生 MCP Tool 与结果 envelope。模型候选质量另由线上/模型 evaluation 评估，不能拿 resolver oracle 代替。
 - **观测与人工闭环**：记录未知术语、澄清率、Tool 选择、空结果、结果行数、延迟和用户纠正；由数据负责人审核后再写回目录。
 
 ## 当前边界与下一阶段
